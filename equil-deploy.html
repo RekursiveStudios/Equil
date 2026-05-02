@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Equil Deploy</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="EQU Deploy">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#00d9ff">
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAYAAAA9zQYyAAAH+UlEQVR42u3cW0hU/R6H8a+lNeVh1EwySsxQLMUw643phBJZIkaYUFJ2uCleUikyItheVBdRXYjYRSqI2cWO7EKF6EB1E6WlZmgHjBI6qVCNk+bpVXNfbN69NzprnNlpeXg+l/ObtUZXT8v/rDm4mc3mIQFThLskfXti40hg0jP/4asZHAZMJQSNqbfkGH7aBiaL4ctlztBgyQEQNEDQAEGDoAGCBggaIGiAoEHQAEEDBA0QNEDQIGiAoAGCBggaIGgQNEDQAEEDBA0QNAgaIGiAoAGCBggaBA0QNEDQAEEDBA2CBggaIGiAoEHQAEEDBA0QNEDQIGiAoAGCBggaIGgQNEDQAEEDBA0QNAgaIGiAoAGCBggaBA0QNEDQAEEDBA2CBggaIGjgp7hP1188KChI69at09q1axUWFiZ/f3/5+fnJw8ND7e3tslqtamlpUXV1taqqqvTixQv9+PGDYiY4N7PZPPTtie0/N5j/8B33B83OzlZmZuaY7Ku2tlY7duxw+v5RUVHKyspSQkKC3NzcnN6uublZ+fn5qqio0ODg4E//ntevX9exY8dG3Ud5ebliYmIM919WVmZ31vvnP9R3INvubNaNf2rOqT/HdLvfZXi702bJ4eHhoXPnzunGjRvasmWLSzFLUmhoqHJzc3Xr1i0tWbKEUyFr6N8nICBA165d065du356X+Hh4aqsrNTGjRuph6B/vVmzZqm4uFgrV64cs336+PioqKhIy5YtoyCC/rVOnz6tFStWGM77+vpUWFiobdu2KTo6WhEREYqPj9epU6f04cMHw+1MJpMKCwvl4+NDRVzlMObskyVnxMbGKi0tzXD+6dMn7dmzR83NzSOeADY3N+vq1avKzc3V1q1b7W4fHBysw4cP6+zZs5TEGXr8ObqS0tvbq/T09BEx/6/u7m5lZGSovr7e8D7p6emcpQl6/IWGhio+Pt5wfunSJb19+3bU/fT39ysnJ0dDQ0N2556entq5cyclEfT42rBhg+FscHBQpaWlTu+rsbFRtbW1hvP169dTEkGPL4vFYjirqanR169fXdrfzZs3DWerVq3SzJkzqYmgx4+jKxuNjY0u78/RNl5eXgoJCaEmrnKMlJqaqtTUVKfvv3z5cnV1dY243d/f33CbN2/euPxzjbbenjdvnlNrcnCGdpnJZJLJZDKcd3R0uLzP0bbx8/OjJoIeH15eXg7nvb29Lu+zv79fAwMDhnNvb29qIujxYW8JMvwM7vLazN1d7u7uY/qfBATtlJ6eHvX19Y3p2dRsNjucd3Z2UhNPCkcaq5e+rVargoKC7M7+n7d/Ll261OH8/fv3I24zejFmrPCBg2lyhpak58+fG84iIyNd3l9UVJTDvwjv3r0bcfv3799/etkzZ84cw5mj/RP0FFNdXW04s1gsLi87EhMTDWePHz+2e7a02WyG2zi6rOjs/Rztn6CnmAcPHhjOPDw8XHqzf2RkpFavXm04v3Xrlt3b29raDLcJDw8f9XF9fX0VGBhoOG9tbaXg6RJ0U1OTHj58aDjPysoyXGMPj//MmTOGH9my2WyqrKy0O3v69KnhOjcgIMDws4J/27x5s+Hs8+fPdtftBD2FXbx40XDm4+OjK1euaOHChQ7Xr3l5eYqNjTW8T1FRkeFlws7OTodr+ZMnT8rDw8Pw7JyVlWW4bVVVFfVOt6AfPXqkiooKw3lYWJju3r2r7OxsRUVFydvbWyaTSSEhIdq/f7/u3LmjpKQkw+1fvXqlgoIChz/D5cuXDWdr1qxRWVmZNm3aJF9fX7m7uyswMFDbt29XeXm5goODDbctKSmhXjsm/Xs5JCkhIUFNTU12ZydOnFB4eLjh5/88PT2VmZnp8tcqtLe3KyMjQ/39/Q7vV15eroyMDMNLhTExMSouLnb5+UFdXd0v/7f5KylNfyWlubSNV5pFM9++4gw9Vnp6enTgwAGHf/pdZbPZtHfvXqfe5DQwMKBDhw6N+uqls1pbW3XkyBFOxdM16L8jSElJMfxSFlfU19crMTFRDQ0NLj1B3bdvn8OrHs54/fq1du/erS9fvlDudA5a+venu7Ozs5WcnKzbt2+7/Cpee3u7jh8/rpSUFLW0tLj8+DU1NUpMTFRpaam6u7td2tZqtSo/P1/Jycm8RXWyraHHW0NDgw4ePKgFCxbIYrHIYrEoIiJCfn5+8vPzk5eXl91LdHPnztXLly9/6uVmq9WqnJwcnT9/XgkJCYqJiVF0dLTmz58vs9ksk8mkrq4udXR0qK2tTc+ePVNdXZ3u3bvn8L0p+K/f8t12E/qAuLmppKREcXFxI2YfP35UUlISr9BNINP2u+2cNTQ0pKNHj9p9FW7RokXKy8vTjBkcNtbQk4jValVGRobdN/THxcVxlYGgJ5/a2lpduHDB7iwrK8vhd36AoCekgoIC3b9/3+46Oy8vT4sXL+YgEfTkW0/bu0xnNptVUFCg2bNnc6AmEHcOgWM2m83hl9aAMzRA0ABBg6ABggYIGiBogKBB0ABBAwQNEDRA0CBogKABggYIGiBoEDRA0ABBAwQNEDQIGiBogKABggYIGgQNEDRA0ABBg6ABggYIGiBogKBB0ABBAwQNEDRA0CBogKABggYIGiBoEDRA0ABBAwQNEDQIGiBogKABggYIGgQNEDRA0ABBAwQNggYIGiBogKBB0ABBAxOT+/Abvj2xcVTAGRogaGCMuZnN5iEOA6aKfwGU80/QY3uN/wAAAABJRU5ErkJggg==">
+<script>
+// Generate PWA manifest as blob URL (works single-file, no external JSON needed)
+(function(){
+  var m=JSON.stringify({
+    name:'Equil Deploy',
+    short_name:'EQU Deploy',
+    start_url:'./equil-deploy.html',
+    display:'standalone',
+    background_color:'#0f0f0f',
+    theme_color:'#00d9ff',
+    icons:[{
+      src:"data:image/png;base64,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nj07qqqqYseOHf/1VYNFixbFokWL4vTTT4+f/OQn0a9fv9SO+YwzzoiRI0fGI4884uQHUuc9AOTcGWecERdddFFq87du3RoVFRVx8803/9dP/v+puro6LrvssrjvvvuioaEhtWOfNGlStGjRwkkCCAAanx/84AepzV67dm1ccsklsXjx4sRn79+/P+6888747ne/m9pl+o4dO8a3vvUtJwkgAGhczjvvvNRu81tTUxPDhw+PDz74INU1zJs3LyZNmpTa/PHjx7tVMCAAaFzGjRuXyty6uroYN25cbNq0KSfrmD9/ftx9992pzC4tLc3ZX0cAAgBS16NHjxg0aFAqs2+77bZYsWJFTtdTWVkZL730UiqzKyoqnDCAAKBxqKioiIKCgsTnLlmyJObOnZvz9TQ0NMSNN94Ye/bsSXz2ySefHAMHDnTSAAKA/FZYWJjKZe2Ghob46U9/esTW9d5778WsWbNSme1lAEAAkPf69++fyt/9P/3007Fy5cojurb77rsvdu/enfjcc889N5UrJgACgJw5//zzU5k7c+bMI7622tramDdvXuJzy8vLm/znJAACAAHwv6xYsSKqq6szsb45c+akMnfo0KFOHkAAkJ86deoU3bt3T3zuU089lZk1vvXWW6m8FHHmmWc6gQABQH7q27dvKnOfffbZTK1zwYIFic889dRTvQ8AEAAIgH96//334913383UOv/yl78kPrN169bRrVs3JxEgAMg/ffr0SXzmq6++mrl1vvnmm1FfX58X+wcgAEhdr169Ep+5fPnyzK1z//798frrryc+t2fPnk4iIHFFtiC7Jk6cGBMnTjyixzB8+PB4+eWX/+uvLy4ujmOOOSbx41q1alUmf2arV6+O/v37JzqzU6dOHgyAKwDkl2OPPTaVuVl7/f+f1qxZk/hMAQAIAPJOGk9eu3fvjm3btmVyvWmESVoRBQgAyKsA2Lx5c2bXu2XLFgEACABo06ZN4jO3b9+e2fWmcWWiuLg4jjrqKCcTIADIHyUlJYnP3LFjR2bXm9axpbGPgACAvAqAPXv2ZHa9adwHQAAAAgABEBH79u3L7HoPHjwY+/fvFwCAAKBpa968eeIz03iCzfrxFRcXO5kAAUD+SOPJsKgo2/evSuP4Dhw44GQCBAD5I43X67P8jviCgoJUAiCt9xYAAgDyJgDSeFkhKWldqt+7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",
+      sizes:'512x512',
+      type:'image/png',
+      purpose:'any maskable'
+    }]
+  });
+  var b=new Blob([m],{type:'application/json'});
+  var link=document.createElement('link');
+  link.rel='manifest';
+  link.href=URL.createObjectURL(b);
+  document.head.appendChild(link);
+})();
+// Minimal service worker for PWA installability — requires separate sw.js on server
+// If sw.js exists, register it; if not, Add to Home Screen still works via manifest
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(function(){});
+}
+</script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=Abril+Fatface&display=swap');
+
+  :root {
+    --cyan: #00d9ff;
+    --magenta: #c400ff;
+    --green: #4ade80;
+    --red: #ff6b6b;
+    --yellow: #ffe250;
+    --bg: #0f0f0f;
+    --bg2: #1a1a1a;
+    --panel: rgba(15,15,15,0.92);
+    --border: rgba(0,217,255,0.12);
+    --border-bright: rgba(0,217,255,0.3);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: #d0d0d0;
+    font-family: 'IBM Plex Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 16px 40px;
+    overflow-x: hidden;
+  }
+
+  .logo {
+    font-family: 'Abril Fatface', serif;
+    font-size: clamp(24px, 8vw, 40px);
+    letter-spacing: 2px;
+    margin-bottom: 2px;
+    position: relative;
+    z-index: 1;
+  }
+  .logo-white { color: #f0f0f0; }
+  .logo-cyan { color: var(--cyan); }
+  .subtitle {
+    font-size: 8px;
+    font-weight: 700;
+    color: rgba(0,217,255,0.45);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .card-title {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--cyan);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  label {
+    display: block;
+    font-size: 8px;
+    font-weight: 700;
+    color: rgba(0,217,255,0.4);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    margin-top: 10px;
+  }
+  label:first-of-type { margin-top: 0; }
+
+  input[type="text"], input[type="password"] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: var(--cyan);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    outline: none;
+  }
+  input:focus { border-color: rgba(0,217,255,0.4); box-shadow: 0 0 8px rgba(0,217,255,0.15); }
+
+  .token-row { display: flex; gap: 6px; }
+  .token-row input { flex: 1; }
+  .eye-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0 12px;
+    cursor: pointer;
+    font-size: 16px;
+    color: rgba(0,217,255,0.5);
+  }
+
+  .drop-zone {
+    border: 2px dashed var(--border-bright);
+    border-radius: 10px;
+    padding: 24px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--cyan);
+    background: rgba(0,217,255,0.03);
+  }
+  .drop-zone.tapped {
+    border-color: var(--cyan);
+    background: rgba(0,217,255,0.08);
+    box-shadow: 0 0 20px rgba(0,217,255,0.15);
+  }
+  .drop-zone input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer;
+    /* Ensure file input is fully interactive on mobile */
+    z-index: 10;
+    font-size: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .drop-icon { font-size: 28px; margin-bottom: 6px; opacity: 0.7; transition: transform 0.15s ease; }
+  .drop-zone.tapped .drop-icon { transform: scale(1.15); }
+  .drop-label { font-size: 10px; color: rgba(0,217,255,0.4); transition: color 0.15s ease; }
+  .drop-zone.tapped .drop-label { color: var(--cyan); }
+  .drop-status {
+    font-size: 9px;
+    color: var(--cyan);
+    margin-top: 6px;
+    min-height: 14px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .drop-status.visible { opacity: 1; }
+  .drop-filename {
+    font-size: 11px; color: var(--green); margin-top: 8px;
+    word-break: break-all;
+  }
+
+  .btn {
+    width: 100%;
+    padding: 14px;
+    border: 2px solid var(--cyan);
+    border-radius: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    background: transparent;
+    color: var(--cyan);
+    box-shadow: 0 0 16px rgba(0,217,255,0.2);
+  }
+  .btn:hover:not(:disabled) {
+    background: rgba(0,217,255,0.1);
+    box-shadow: 0 0 24px rgba(0,217,255,0.4);
+  }
+  .btn:disabled {
+    border-color: rgba(0,217,255,0.15);
+    color: rgba(0,217,255,0.2);
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  .progress-bar {
+    height: 3px;
+    background: rgba(0,217,255,0.08);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 10px;
+    display: none;
+  }
+  .progress-bar.visible { display: block; }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--cyan), var(--magenta));
+    transition: width 0.3s ease;
+    border-radius: 2px;
+  }
+
+  .log {
+    max-height: 200px;
+    overflow-y: auto;
+    font-size: 9px;
+    line-height: 1.6;
+    display: none;
+  }
+  .log.visible { display: block; }
+  .log-line { padding: 1px 0; }
+  .log-ok   { color: var(--green); }
+  .log-err  { color: var(--red); }
+  .log-warn { color: var(--yellow); }
+  .log-info { color: var(--cyan); }
+  .log-dim  { color: rgba(0,217,255,0.25); }
+
+  .status-badge {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 20px;
+    margin-top: 10px;
+  }
+  .status-badge.visible { display: inline-flex; }
+  .status-badge.success { background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.3); color: var(--green); }
+  .status-badge.error   { background: rgba(255,107,107,0.1); border: 1px solid rgba(255,107,107,0.3); color: var(--red); }
+  .status-badge.working { background: rgba(0,217,255,0.06); border: 1px solid rgba(0,217,255,0.2); color: var(--cyan); }
+
+  .dot-pulse { animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .stats-row {
+    display: none;
+    gap: 12px;
+    margin-top: 10px;
+  }
+  .stats-row.visible { display: flex; }
+  .stat {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px;
+    text-align: center;
+  }
+  .stat-num { font-size: 16px; color: var(--cyan); font-weight: 700; }
+  .stat-label { font-size: 7px; color: rgba(0,217,255,0.35); letter-spacing: 1px; margin-top: 2px; }
+
+  .saved-token-hint {
+    font-size: 8px;
+    color: rgba(74,222,128,0.5);
+    margin-top: 6px;
+    display: none;
+  }
+
+  .repo-display {
+    font-size: 10px;
+    color: rgba(0,217,255,0.4);
+    margin-top: 6px;
+    padding: 6px 10px;
+    background: var(--bg);
+    border-radius: 4px;
+    border-left: 2px solid rgba(0,217,255,0.2);
+    display: none;
+  }
+
+  .info-text {
+    font-size: 9px;
+    color: rgba(0,217,255,0.3);
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+
+<div class="logo"><span class="logo-white">EQU</span><span class="logo-cyan">IL</span></div>
+<div class="subtitle">GitHub Deploy Tool</div>
+
+<div class="card">
+  <div class="card-title">&#9881; Configuration</div>
+
+  <label>GitHub Personal Access Token</label>
+  <div class="token-row">
+    <input type="password" id="tokenInput" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false">
+    <button class="eye-btn" id="eyeBtn" onclick="toggleToken()">&#128065;</button>
+  </div>
+  <div class="saved-token-hint" id="savedHint">&#10003; Token saved in browser</div>
+
+  <label>Repository</label>
+  <input type="text" id="repoInput" value="Spamboni/Equil" placeholder="username/reponame">
+
+  <label>Branch</label>
+  <input type="text" id="branchInput" value="main" placeholder="main">
+  <div class="repo-display" id="repoDisplay"></div>
+</div>
+
+<div class="card">
+  <div class="card-title">&#128196; HTML File</div>
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".html">
+    <div class="drop-icon">&#128196;</div>
+    <div class="drop-label">Tap to select Equil-*.html</div>
+    <div class="drop-status" id="dropStatus"></div>
+    <div class="drop-filename" id="fileName"></div>
+  </div>
+  <div class="info-text">File will be deployed as <strong style="color:var(--cyan)">Equil.html</strong> regardless of version number in filename. <strong style="color:var(--cyan)">index.html</strong> at the repo root is left untouched.</div>
+</div>
+
+<div class="card">
+  <button class="btn" id="deployBtn" onclick="deploy()" disabled>
+    &#128640; Deploy to GitHub
+  </button>
+  <div class="progress-bar" id="progressBar">
+    <div class="progress-fill" id="progressFill" style="width:0%"></div>
+  </div>
+  <div style="text-align:center">
+    <div class="status-badge" id="statusBadge"></div>
+  </div>
+  <div class="stats-row" id="statsRow">
+    <div class="stat"><div class="stat-num" id="statPushed">0</div><div class="stat-label">PUSHED</div></div>
+    <div class="stat"><div class="stat-num" id="statSkipped">0</div><div class="stat-label">UNCHANGED</div></div>
+  </div>
+</div>
+
+<div class="card" id="pagesCard" style="display:none">
+  <div class="card-title">&#127760; GitHub Pages Status</div>
+  <div id="pagesStatus" style="text-align:center;padding:10px 0">
+    <div class="status-badge visible working" id="pagesBadge">
+      <span class="dot-pulse">&#9679;</span> Waiting for GitHub Pages...
+    </div>
+  </div>
+  <div style="margin-top:10px">
+    <div style="display:flex;justify-content:space-between;font-size:8px;color:rgba(0,217,255,0.3);margin-bottom:4px">
+      <span>DEPLOY PROGRESS</span>
+      <span id="pagesElapsed">0s</span>
+    </div>
+    <div class="progress-bar visible" style="margin-top:0">
+      <div class="progress-fill" id="pagesProgress" style="width:0%;transition:width 1s linear"></div>
+    </div>
+  </div>
+  <div style="margin-top:12px;text-align:center">
+    <a id="siteLink" href="#" target="_blank" style="
+      display:none;
+      color:#0f0f0f;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;
+      letter-spacing:2px;text-decoration:none;padding:12px 24px;
+      background:var(--cyan);border-radius:10px;
+      box-shadow:0 0 20px rgba(0,217,255,0.4);
+    ">&#128640; PLAY EQUIL</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">&#128203; Log</div>
+  <div class="log" id="log"></div>
+</div>
+
+<script>
+var htmlFile = null;
+var deploying = false;
+
+window.onload = function() {
+  var saved = localStorage.getItem('equil_token');
+  if (saved) {
+    document.getElementById('tokenInput').value = saved;
+    document.getElementById('savedHint').style.display = 'block';
+  }
+  var savedRepo = localStorage.getItem('equil_repo');
+  if (savedRepo) document.getElementById('repoInput').value = savedRepo;
+  updateRepoDisplay();
+  checkReady();
+};
+
+function toggleToken() {
+  var inp = document.getElementById('tokenInput');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+function updateRepoDisplay() {
+  var repo = document.getElementById('repoInput').value.trim();
+  var d = document.getElementById('repoDisplay');
+  if (repo) {
+    d.style.display = 'block';
+    d.textContent = '\u2192 https://github.com/' + repo;
+  }
+}
+
+document.getElementById('tokenInput').addEventListener('input', function() {
+  localStorage.setItem('equil_token', this.value.trim());
+  document.getElementById('savedHint').style.display = this.value ? 'block' : 'none';
+  checkReady();
+});
+document.getElementById('repoInput').addEventListener('input', function() {
+  localStorage.setItem('equil_repo', this.value.trim());
+  updateRepoDisplay();
+  checkReady();
+});
+
+function onFileSelect(input) {
+  var status = document.getElementById('dropStatus');
+  if (input.files.length > 0) {
+    htmlFile = input.files[0];
+    document.getElementById('fileName').textContent = htmlFile.name + ' (' + Math.round(htmlFile.size/1024) + ' KB)';
+    status.textContent = '\u2713 File loaded';
+    status.classList.add('visible');
+    status.style.color = 'var(--green)';
+    checkReady();
+  } else {
+    status.textContent = '';
+    status.classList.remove('visible');
+  }
+}
+
+// Wire up file input change
+document.getElementById('fileInput').addEventListener('change', function() {
+  onFileSelect(this);
+});
+
+// Tap feedback on the drop zone
+(function() {
+  var zone = document.getElementById('dropZone');
+  var fileInput = document.getElementById('fileInput');
+  var status = document.getElementById('dropStatus');
+  var tapTimer = null;
+
+  // Show visual + text feedback on any pointer interaction with the zone
+  function showTapFeedback() {
+    zone.classList.add('tapped');
+    status.textContent = 'Opening file picker\u2026';
+    status.style.color = 'var(--cyan)';
+    status.classList.add('visible');
+
+    clearTimeout(tapTimer);
+    tapTimer = setTimeout(function() {
+      zone.classList.remove('tapped');
+      // Only clear status text if no file was selected
+      if (!htmlFile) {
+        status.textContent = '';
+        status.classList.remove('visible');
+      }
+    }, 2000);
+  }
+
+  // Listen for click on the zone itself (file input click bubbles up)
+  zone.addEventListener('click', showTapFeedback);
+  zone.addEventListener('touchstart', function() {
+    showTapFeedback();
+  }, { passive: true });
+
+  // Drag-and-drop handling
+  zone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    zone.classList.add('dragover');
+  });
+  zone.addEventListener('dragleave', function() {
+    zone.classList.remove('dragover');
+  });
+  zone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    if (e.dataTransfer.files.length > 0) {
+      fileInput.files = e.dataTransfer.files;
+      onFileSelect(fileInput);
+    }
+  });
+})();
+
+function checkReady() {
+  var token = document.getElementById('tokenInput').value.trim();
+  var repo  = document.getElementById('repoInput').value.trim();
+  document.getElementById('deployBtn').disabled = !(token && repo && htmlFile && !deploying);
+}
+
+function log(msg, type) {
+  var el = document.getElementById('log');
+  el.classList.add('visible');
+  var line = document.createElement('div');
+  line.className = 'log-line log-' + (type||'info');
+  line.textContent = msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function setStatus(text, type) {
+  var b = document.getElementById('statusBadge');
+  b.className = 'status-badge visible ' + type;
+  b.innerHTML = text;
+}
+
+function setProgress(pct) {
+  document.getElementById('progressBar').classList.add('visible');
+  document.getElementById('progressFill').style.width = pct + '%';
+}
+
+async function getFileSHA(token, repo, branch, path) {
+  var r = await fetch('https://api.github.com/repos/' + repo + '/contents/' + path + '?ref=' + branch, {
+    headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github.v3+json' }
+  });
+  if (r.status === 404) return null;
+  if (!r.ok) return undefined;
+  var j = await r.json();
+  return j.sha || null;
+}
+
+async function computeGitBlobSHA(arrayBuffer) {
+  var bytes = new Uint8Array(arrayBuffer);
+  var header = 'blob ' + bytes.length + '\0';
+  var headerBytes = new TextEncoder().encode(header);
+  var combined = new Uint8Array(headerBytes.length + bytes.length);
+  combined.set(headerBytes, 0);
+  combined.set(bytes, headerBytes.length);
+  var hashBuffer = await crypto.subtle.digest('SHA-1', combined);
+  var hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(function(b) { return b.toString(16).padStart(2,'0'); }).join('');
+}
+
+async function pushFile(token, repo, branch, path, content, sha, commitMsg) {
+  var body = { message: commitMsg, content: content, branch: branch };
+  if (sha) body.sha = sha;
+  var r = await fetch('https://api.github.com/repos/' + repo + '/contents/' + path, {
+    method: 'PUT',
+    headers: {
+      'Authorization': 'token ' + token,
+      'Content-Type': 'application/json',
+      'Accept': 'application/vnd.github.v3+json'
+    },
+    body: JSON.stringify(body)
+  });
+  return r.ok;
+}
+
+function arrayBufferToBase64(buffer) {
+  var bytes = new Uint8Array(buffer);
+  var b = '';
+  for (var i = 0; i < bytes.byteLength; i++) b += String.fromCharCode(bytes[i]);
+  return btoa(b);
+}
+
+async function deploy() {
+  if (deploying) return;
+  deploying = true;
+  checkReady();
+
+  var token  = document.getElementById('tokenInput').value.trim();
+  var repo   = document.getElementById('repoInput').value.trim();
+  var branch = document.getElementById('branchInput').value.trim() || 'main';
+
+  document.getElementById('log').innerHTML = '';
+  document.getElementById('statsRow').classList.remove('visible');
+  document.getElementById('pagesCard').style.display = 'none';
+
+  // Extract version from filename for commit message
+  var version = '';
+  if (htmlFile && htmlFile.name) {
+    var m = htmlFile.name.match(/[\d]+[._][\d]+/);
+    if (m) version = 'v' + m[0].replace(/_/g, '.');
+  }
+
+  setStatus('<span class="dot-pulse">\u25cf</span> Reading file...', 'working');
+  setProgress(5);
+
+  var pushed = 0, skipped = 0;
+
+  try {
+    var buf = await htmlFile.arrayBuffer();
+    var b64 = arrayBufferToBase64(buf);
+    var repoPath = 'Equil.html';
+
+    log('\ud83d\udcc4 File: ' + htmlFile.name + ' (' + Math.round(buf.byteLength/1024) + ' KB)', 'info');
+    log('\ud83c\udf3f Deploying as ' + repoPath + ' to ' + repo + ' @ ' + branch, 'info');
+    if (version) log('\ud83c\udff7 Version: ' + version, 'info');
+
+    setStatus('<span class="dot-pulse">\u25cf</span> Checking remote...', 'working');
+    setProgress(20);
+
+    // Get current SHA
+    var remoteSHA = await getFileSHA(token, repo, branch, repoPath);
+
+    // Compare hashes to skip if unchanged
+    if (remoteSHA) {
+      var localSHA = await computeGitBlobSHA(buf);
+      if (localSHA === remoteSHA) {
+        skipped = 1;
+        log('  = ' + repoPath + ' (unchanged — identical to remote)', 'dim');
+        setProgress(100);
+        setStatus('\u2705 Already up to date!', 'success');
+        document.getElementById('statPushed').textContent = '0';
+        document.getElementById('statSkipped').textContent = '1';
+        document.getElementById('statsRow').classList.add('visible');
+        deploying = false;
+        checkReady();
+        return;
+      }
+    }
+
+    setStatus('<span class="dot-pulse">\u25cf</span> Pushing...', 'working');
+    setProgress(50);
+
+    var commitMsg = 'Deploy Equil ' + (version || '') + ' via Deploy Tool';
+    var ok = await pushFile(token, repo, branch, repoPath, b64, remoteSHA, commitMsg.trim());
+
+    if (ok) {
+      pushed = 1;
+      log('  \u2713 ' + repoPath + ' pushed successfully', 'ok');
+      setProgress(100);
+      setStatus('\u2705 Deployed! Waiting for Pages...', 'success');
+      document.getElementById('statPushed').textContent = '1';
+      document.getElementById('statSkipped').textContent = '0';
+      document.getElementById('statsRow').classList.add('visible');
+      log('', 'dim');
+      log('\ud83d\ude80 Push complete! Polling GitHub Pages...', 'ok');
+      pollPagesDeployment(token, repo, version);
+    } else {
+      setStatus('\u274c Push failed — check token permissions', 'error');
+      log('  \u2717 ' + repoPath + ' — push failed', 'err');
+    }
+
+  } catch(e) {
+    setStatus('\u274c Error: ' + e.message, 'error');
+    log('Fatal: ' + e.message, 'err');
+  }
+
+  deploying = false;
+  checkReady();
+}
+
+async function pollPagesDeployment(token, repo, version) {
+  var card    = document.getElementById('pagesCard');
+  var badge   = document.getElementById('pagesBadge');
+  var bar     = document.getElementById('pagesProgress');
+  var elapsed = document.getElementById('pagesElapsed');
+  var link    = document.getElementById('siteLink');
+  var siteUrl = 'https://' + repo.split('/')[0].toLowerCase() + '.github.io/' + repo.split('/')[1];
+
+  card.style.display = 'block';
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  link.href = siteUrl;
+
+  var pollStart = Date.now();
+  var maxWait   = 60000;
+  var pollInterval = 5000;
+  var finished  = false;
+
+  function tick() {
+    var ms = Date.now() - pollStart;
+    var sec = Math.floor(ms / 1000);
+    elapsed.textContent = sec + 's';
+    bar.style.width = Math.min(90, (ms / 55000) * 90) + '%';
+  }
+
+  var tickInterval = setInterval(tick, 500);
+  var fallbackTimer = setTimeout(function() {
+    if (!finished) done(true, true);
+  }, maxWait);
+
+  async function checkStatus() {
+    if (finished) return;
+    try {
+      var url1 = 'https://api.github.com/repos/' + repo + '/actions/runs?per_page=1';
+      var r1 = await fetch(url1, {
+        headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github.v3+json' }
+      });
+      if (r1.ok) {
+        var runs = await r1.json();
+        if (runs.workflow_runs && runs.workflow_runs.length > 0) {
+          var run = runs.workflow_runs[0];
+          if (run.status === 'completed' && run.conclusion === 'success') { done(true, false); return; }
+          if (run.status === 'completed' && run.conclusion === 'failure') { done(false, false); return; }
+          badge.innerHTML = '<span class="dot-pulse">\u25cf</span> ' + run.status;
+        }
+      }
+    } catch(e) {
+      badge.innerHTML = '<span class="dot-pulse">\u25cf</span> Checking...';
+    }
+    if (!finished && Date.now() - pollStart < maxWait) setTimeout(checkStatus, pollInterval);
+  }
+
+  function done(success, timedOut) {
+    if (finished) return;
+    finished = true;
+    clearInterval(tickInterval);
+    clearTimeout(fallbackTimer);
+    bar.style.transition = 'width 0.5s ease';
+    bar.style.width = '100%';
+    var sec = Math.floor((Date.now() - pollStart) / 1000);
+    elapsed.textContent = sec + 's';
+
+    if (success) {
+      badge.className = 'status-badge visible success';
+      badge.innerHTML = timedOut ? '\u2705 Live! (~' + sec + 's)' : '\u2705 Live in ' + sec + 's!';
+      link.style.display = 'inline-block';
+      link.innerHTML = '\ud83d\ude80 PLAY EQUIL' + (version ? ' ' + version : '');
+      log('\ud83c\udf10 Live at: ' + siteUrl, 'ok');
+    } else {
+      badge.className = 'status-badge visible error';
+      badge.innerHTML = '\u274c Deploy failed \u2014 check GitHub Actions';
+    }
+  }
+
+  log('\ud83d\udd0d Polling Pages status...', 'info');
+  setTimeout(checkStatus, 3000);
+}
+</script>
+</body>
+</html>
