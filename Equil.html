@@ -1,4 +1,670 @@
-<!-- Equil v1.41 | Built: 2026-05-02 CT | github.com/Spamboni
+<!-- Equil v1.94 | Built: 2026-05-02 CT | github.com/Spamboni
+     v1.94: The 24px above-finger offset is now the "magnet origin"
+     for all distance and lock checks — not just where the ghost is
+     drawn. Cells react to the ghost's position as if it were the
+     finger. Net effect: the ghost behaves like it actually IS the
+     finger from the cell's perspective, just in a place where you
+     can see it.
+     Lock ranges dialed back from 10/13 to 6/8 cell widths now that
+     the offset model means the ghost is closer to cells than the
+     finger is.
+     ---- previous changelog ----
+     v1.93: Ghost is now offset 24px above the finger (~1/4 inch
+     on most phones) when in the "follows finger" state, so it
+     pops out above the fingertip the moment the drag starts and
+     stays visible during the unlocked portion of any drag.
+     Locked-in-cell state is unchanged — the ghost still snaps
+     to the cell center where it can be seen on its own.
+     Magnet distance calculations still use the raw finger
+     position, not the ghost position, so cell pull/lock
+     behavior is unaffected by the visual offset.
+     ---- previous changelog ----
+     v1.92: Two changes.
+     1) Lock range pushed to 10 cell widths (was 7), unlock to 13.
+        Magnet pulls in from much farther — by the time you're
+        anywhere near the grid, the closest blank should already
+        be sucking the ghost in.
+     2) Snap sound on every fresh lock. Reuses the existing
+        playSelEmpty() click — same sound played when tapping an
+        empty cell to select it. Audible cue lets the user "hear"
+        the snap when their finger covers the visual.
+        Sound only fires on a NEW lock (cell key changes), not
+        every move event, so a stable lock doesn't keep clicking.
+     ---- previous changelog ----
+     v1.91: Directional push-off. Previously push-off only fired
+     when the finger got radially close to the locked cell's
+     center. If the user dragged up past the cell with even a
+     small lateral drift, the radial distance might never shrink
+     enough — push-off would never trigger. So sliding "past" the
+     cell didn't bump the ghost off, only sliding straight into it.
+     New check: at lock time, record where the finger was. As the
+     finger continues moving, project its current displacement onto
+     the lock-start → cell-center axis. If the projection length
+     reaches or exceeds the original approach distance (i.e. the
+     finger has traveled at least as far as the cell), AND the
+     lateral offset from that axis is within ~2.5 cell widths,
+     push-off fires.
+     Net effect: drag at an angle past a locked cell — even
+     significantly off-axis — and the ghost still releases as
+     soon as you've moved "past" it along your approach direction.
+     The radial check still fires too as a fallback, so direct
+     hover-on-cell push-off still works.
+     ---- previous changelog ----
+     v1.90: Push-off model exaggerated.
+     - PUSH_OFF_CELLS: 1.0 → 2.0. Lock breaks when finger gets
+       within 2 cell widths of the locked cell (was 1). The ghost
+       gets bumped off well before the finger reaches it.
+     - LOCK_RANGE_CELLS: 5.0 → 7.0. Lock kicks in from much
+       farther away, so as soon as one cell pushes the ghost off,
+       the next cell up snags it almost immediately.
+     - UNLOCK_RANGE_CELLS: 7.0 → 9.0 (matched ratio).
+     - CLEAR_IGNORE_CELLS: 2.5 → 3.5. Pushed-off cells stay
+       disqualified for a bit longer so the finger doesn't
+       accidentally re-lock onto the cell it just escaped.
+     ---- previous changelog ----
+     v1.89: Push-off model for cell-to-cell hopping.
+     Previous "lock handoff" assumed a different cell would
+     organically become the closest as the finger crossed cell
+     boundaries. But in practice, finger drags from below a column
+     stayed closest to the bottom cell even as the finger reached
+     and moved past it.
+     New behavior:
+     - Locks normally when finger gets within 5 cell widths.
+     - Once locked to cell A, ghost stays at A while finger keeps
+       moving — even if finger gets noticeably closer than the
+       ranges that would normally maintain a lock.
+     - When finger gets WITHIN 1 cell width of the locked cell A's
+       center (PUSH_OFF_CELLS), the lock breaks and A is added to
+       a temporary "ignored" set. Ghost flies back to under the
+       finger and immediately searches for the next-nearest blank
+       cell that ISN'T in the ignored set.
+     - If another blank cell B is within lock range, ghost
+       immediately locks onto B.
+     - A cell stays in the ignored set until the finger has moved
+       2.5 cell widths from its center (CLEAR_IGNORE_CELLS), at
+       which point it becomes lockable again.
+     Net effect: drag up a column from below, ghost snaps onto
+     the bottom blank, stays there as your finger rises, gets
+     pushed off when your finger arrives, immediately snaps onto
+     the next blank above. Continue and it walks up the column.
+     ---- previous changelog ----
+     v1.88: Two changes.
+     1) Magnet range pushed further: LOCK_RANGE_CELLS 3.5 → 5.0,
+        UNLOCK 5.0 → 7.0. Bigger neighborhood for the snap.
+     2) Lock-handoff between cells. Previously, once the ghost was
+        locked to cell A, the finger had to move fully past the
+        unlock distance before any other cell could grab the lock.
+        That made it really hard to hop from one blank to an
+        adjacent blank — you'd have to overshoot.
+        Now: if a different cell becomes the nearest while the
+        ghost is locked, the lock transfers directly to that new
+        cell (provided the finger is still within the unlock
+        range — i.e. still in the grid neighborhood). The ghost
+        flies straight from one cell center to the next.
+        Hysteresis still applies for fully unlocking — if the
+        finger leaves all cells past the unlock range, the ghost
+        flies back to the finger.
+     ---- previous changelog ----
+     v1.87: Magnetism: bigger ghost, more aggressive lock range.
+     - SNAPPED_FILL: 0.7 → 1.5. Locked ghost is now 1.5× cell
+       width, so it's clearly visible during the fly motion
+       instead of shrinking into a tiny dot. Bigger than the
+       cell, sits like a magnified preview.
+     - Lock range switched from "tile edge touches cell edge"
+       (which was tight) to "finger within 3.5 cell widths of
+       cell center". Lock kicks in much earlier in the drag.
+     - Unlock at 5.0 cell widths (hysteresis: finger has to move
+       1.5 cell widths past the lock zone before releasing).
+     ---- previous changelog ----
+     v1.86: Magnetism redesigned as a binary-state lock instead
+     of a continuous pull. The continuous-pull approach kept the
+     ghost too close to the finger to ever escape the fingertip
+     occlusion problem.
+     New behavior:
+     - Ghost is either UNDER FINGER (full size, follows touch) or
+       LOCKED IN CELL (sized to fit inside cell, sitting at cell
+       center). No partial states, no in-between.
+     - Lock triggers when finger gets close enough that the tile's
+       visual edge would meet the cell's edge if the ghost stayed
+       under the finger. At that point, the ghost flies to the
+       cell center over ~180ms (CSS transition).
+     - Snapped ghost is sized to 70% of the cell's width — fits
+       cleanly inside the cell, doesn't poke out near finger.
+     - Hysteresis on unlock: finger has to move 30px past the
+       lock threshold before the ghost releases, so jitter at the
+       boundary doesn't cause flicker.
+     - Cell highlight shows up as a hint outline within ~3 cell
+       widths of the nearest blank, even before locking — gives
+       the user some advance signal of the snap target.
+     The result: when the user drags toward a cell, the ghost
+     visibly leaves the finger and slides into the cell. They can
+     see it sitting in the cell, then either release (place) or
+     pull finger far enough away to break the lock.
+     ---- previous changelog ----
+     v1.85: Magnetism cranked up substantially — v1.84 was barely
+     perceptible because the cells are tiny in XL2 mode and the
+     bank is far from the grid, so the 2.5-cell range only kicked
+     in when finger was already on the cell.
+     Tunable changes:
+     - MAGNET_RANGE_CELLS: 2.5 → 6.0. Tease pull starts much
+       earlier in the drag — user feels something happening
+       throughout the drag-up motion, not just at the very end.
+     - MAGNET_SNAP_CELLS: 0.75 → 1.5. Bigger snap zone so the
+       dramatic yank kicks in from farther away.
+     - MAGNET_MIN_SCALE: 0.3 → 0.2. Snapped ghost is even smaller,
+       clearly visible beside a fingertip.
+     - MAGNET_TEASE_MAX: 0.15 → 0.45. Outer-zone pull is a real
+       pull now (up to 45% lerp), not a near-imperceptible 15%.
+     - Ghost transform transition: 60ms → 120ms. Snap motion is
+       a clear visible slide rather than instantaneous catch-up.
+     - Locked cell highlight: 2px outline → 3px + outer glow.
+       The cell lights up dramatically the moment magnet locks.
+     ---- previous changelog ----
+     v1.84: Magnetism rebuilt with two distinct zones for a more
+     dramatic snap.
+     - Outer zone (0.75 to 2.5 cell widths from center): just a
+       slight tease — pull strength capped at 15%. Ghost stays
+       mostly under the finger; user only feels a hint of magnetism.
+     - Inner zone (within ~0.75 cell widths, ~one finger width):
+       the dramatic snap. Pull goes from 15% rapidly to 100% via a
+       smoothstep curve over a short distance, so the ghost yanks
+       out from under the finger and slides to the cell center.
+     - MIN_SCALE shrunk from 0.5 to 0.3 — fully snapped ghost is
+       small enough to be visible beside a fingertip rather than
+       hidden under it.
+     - Pulling the finger back across the inner-zone boundary
+       smoothly releases the ghost back to under the finger at
+       full size — the curve runs in reverse.
+     - Added a 60ms transform transition on the ghost so the snap
+       is visibly animated rather than tracking the finger 1:1.
+       Short enough that normal drag still feels responsive.
+     ---- previous changelog ----
+     v1.83: Magnetic drag-to-place. As the dragged ghost approaches
+     a blank cell, two things happen smoothly together:
+     - Position is pulled from finger toward cell center.
+     - Scale shrinks from 1.05 (base) to 0.5 (locked-on).
+     The pull is computed via smoothstep over a 2.5-cell-width range
+     so the ramp feels organic — no hard threshold. As the user
+     drags away from a cell, the effect reverses smoothly.
+     The cell highlight uses a subtle outline at the edge of the
+     pull range and a brighter outline + inset glow once the magnet
+     is "locked" (>70% pull strength).
+     On release while locked: ghost slides into the cell center and
+     fades out in 110ms, then place() runs to commit the placement.
+     If the user releases outside any pull range, falls back to the
+     old elementFromPoint hit-test as a safety net.
+     ---- previous changelog ----
+     v1.82: Drag-to-place. New touch handler on the bank: drag a
+     tile and drop it on a cell to place it.
+     - Active regardless of whether a cell is selected (the existing
+       tap-to-select-cell-then-tap-tile flow still works untouched).
+     - Drag is detected by movement threshold (8px). Below that
+       it's still a tap, so the existing tile-tap behavior is
+       preserved.
+     - Ghost element follows the finger while dragging; the source
+       tile dims to ~30% opacity to indicate origin.
+     - On move, the cell under the finger gets a magenta outline
+       to preview the drop target. Only blank cells highlight.
+     - On release, if the finger is over a blank cell, place(idx)
+       is called with SEL set to that cell. place()'s existing
+       logic handles "drop replaces existing value" automatically:
+       if the target already has a value, that value is returned
+       to the bank before the new one is placed.
+     - On release outside a blank cell, the ghost is silently
+       removed and the source tile restored — no error.
+     Existing place(idx) function is untouched; we just feed it
+     the drag target by setting window.SEL before invoking.
+     ---- previous changelog ----
+     v1.81: ADJUST modal repositioned and de-darkened.
+     - Anchored to the left side of the viewport
+       (justify-content: flex-start) instead of horizontally
+       centered. Sits flush to the left edge with 8px padding.
+     - Removed the dark rgba(0,0,0,0.78) backdrop. Modal is now
+       just the slider box itself with no overlay tinting the
+       rest of the page.
+     - Set pointer-events:none on the overlay container so taps
+       outside the box pass through to the page instead of being
+       absorbed. The inner box re-enables pointer-events:auto.
+       Side effect: the backdrop-click-to-close path no longer
+       fires (taps outside don't dismiss). Close via DONE button.
+     ---- previous changelog ----
+     v1.80: Two changes.
+     1) Disabled FULL zoom on the floating pill. Pill is now
+        restricted to OFF and HALF only. The HALF→FULL promotion
+        in touchmove is gated behind `if(false && ...)` so it's
+        easy to re-enable later — just remove the false guard.
+     2) Made the ADJUST modal as compact as possible. Was a
+        360px-wide box with 22px padding, 14px gaps, 200px slider
+        min-height, 13px title, and a 120px-wide bottom button.
+        Now: width auto-fits content, padding 10px, gap 8px,
+        slider min-height 140px, title 11px, close button 80px
+        wide and smaller font. Killed the wrap's own internal
+        padding inside the modal too — that was adding dead
+        space around the sliders themselves.
+     ---- previous changelog ----
+     v1.79: Floating zoom-pan pill edge padding adjusted.
+     - RIGHT_NOGO_PX: 32 → 20 (pill can sit a hair closer to the
+       right edge).
+     - LEFT_NOGO_PX added at 20px to mirror the right padding.
+       Previously the left edge clamped to 0, so the pill could
+       go flush to the left side. Now it has the same comfortable
+       breathing room on both sides.
+     Three clamp sites updated: drag, glide, and re-clamp on show.
+     ---- previous changelog ----
+     v1.78: Fix scroll-to-top on tile-mode button presses.
+     Two changes that together should kill it:
+     1) Added type="button" to all the new buttons (ADJUST, ×N,
+        ####, ###, DONE). Default <button> type is "submit", which
+        in some browsers triggers default scroll-to-top behavior
+        even when not inside a form.
+     2) Switched the mode-button relay from "dispatch synthetic
+        click on the original (display:none) button" to "call the
+        toggle function directly via window._equilToggleCondense
+        etc." A click on a display:none element can trigger weird
+        browser defaults (focus-into-view scrolling, etc.). A
+        direct function call has none of those side effects. The
+        original toggle functions are now exposed on window so
+        the relay can reach them without going through the DOM
+        click pathway.
+     ---- previous changelog ----
+     v1.77: Found the actual cause of the display-mode bug.
+     My _wireWhenReady() attached click listeners to the relay
+     buttons. It was registered for BOTH DOMContentLoaded AND
+     load, intentionally as a safety net. But both events fired
+     in sequence, the function ran twice, and each invocation
+     called .addEventListener('click', ...) on the same buttons.
+     Result: each button had TWO relay listeners. One tap →
+     both listeners ran → each dispatched a synthetic click on
+     the original toggle button → original toggled twice → flag
+     ended up back where it started. The slider-snap side
+     effect from the first toggle still fired, so tile size
+     changed, but the mode flag never stuck. v1.76's per-handler
+     re-entry guard didn't help because the two listeners were
+     separate handler instances with independent _firing
+     variables.
+     Fix: idempotency guard at the top of _wireWhenReady so the
+     wiring code runs at most once total.
+     ---- previous changelog ----
+     v1.76: Added a 200ms re-entry guard in the tile-mode relay
+     handlers. Hypothesis: on Android, the browser was firing both
+     a synthetic click (from touchend) AND a separate native click
+     for the same tap, ~50ms apart. With no guard, the relay
+     dispatched the toggle twice — flag flipped on then off, mode
+     never stuck visually, but the slider-snap side effect from
+     toggle-on still ran (which is why tiles changed size but
+     never entered xN/mini/cyan rendering). Guard suppresses any
+     second fire within 200ms, so one tap = one toggle.
+     Also kept v1.75's preventDefault + stopPropagation on the
+     relay handler to be safe against any other event-doubling.
+     ---- previous changelog ----
+     v1.75: Two fixes attempted on v1.74's restructure.
+     1) FIXED: page no longer snaps to top when toggling the
+        bottom-row buttons. Removed the bank-position drift
+        compensation in applyPctH/applyGapPct that was the cause —
+        it called window.scrollBy on every size/gap change, which
+        was harmless when the call was triggered by a slider drag
+        (small drift) but caused a visible scroll-snap when called
+        from button toggles (large drift). Cost: when dragging the
+        SIZE slider, the bank may shift a few pixels — acceptable.
+     2) ATTEMPTED: replaced .click() relay with explicit MouseEvent
+        dispatch in case .click() was unreliable on display:none
+        elements. NOT confirmed whether this fixes the display-mode
+        bug ("buttons make sound but tiles don't change to cyan/
+        mini view") — need a test pass to verify.
+     ---- previous changelog ----
+     v1.74: Bottom-panel restructure (Ship 2 of 2). The vertical
+     SIZE/GAP slider strip that used to occupy the left edge of the
+     tile bank is hidden via CSS in puzzle mode. The bank now uses
+     the full row width, so tiles can be larger.
+     A new full-width tile-controls-row sits below the bank with
+     four equally-spaced amethyst-bordered buttons:
+       ADJUST · ×N · #### · ###
+     ADJUST opens a modal containing the SIZE+GAP sliders. The
+     slider DOM is physically moved into the modal on open and back
+     to its original spot on close, so the existing slider IIFE's
+     captured element references still work — no rebuilds, no event-
+     listener re-wiring. The ×N/mini/cyan buttons forward clicks to
+     the original (now-hidden) buttons via .click() so the toggle
+     logic is identical, and a 500ms-interval poll keeps the new
+     buttons' active state in sync with window._condensePuzzleTiles
+     etc. (the original IIFE doesn't expose change events).
+     The original mode buttons inside the slider strip are also
+     hidden when the strip is moved into the modal, so the modal
+     only shows the SIZE+GAP sliders. SEQ-mode behavior is
+     unchanged — strip stays inline there since the sequencer uses
+     it directly.
+     ---- previous changelog ----
+     v1.73: Display-mode toggles (xN, mini, cyan) now snap sliders
+     to the new 90/25 default instead of 100/0 when entering a
+     mode. Restore-defaults fallback (used when no snapshot exists,
+     e.g. mode was loaded from localStorage on a fresh page) also
+     bumped from 50/33 to 90/25. Three blocks updated to match.
+     ---- previous changelog ----
+     v1.72: Three small changes (Ship 1 of 2 — saving the structural
+     ADJUST-button restructure for the next ship to keep the change
+     surface manageable).
+     1) Brought back some glow on .bt.lit but tighter than v1.70.
+        Now a 4px+1px halo plus a fading 8px outer at lower opacity,
+        instead of v1.70's 24px+4px bloom or v1.71's flat 6px. Glow
+        dies off in ~4-6px from the tile edge.
+     2) Tile size + gap defaults bumped from 50/33.33 to 90/25 (i.e.
+        TILE_SCALE ≈ 1.11, TILE_GAP_MULT ≈ 0.75) — tiles default
+        large with a small visible gap, matching the screenshot.
+        Sliders still tune both as before.
+     3) Vertical SIZE/GAP slider bar color changed from blue
+        (#4b7bb5) to amethyst (#a855f7) so the slider matches the
+        new accent color scheme.
+     ---- previous changelog ----
+     v1.71: Tightened the bank tile glow on .bt.lit. Was a stack of
+     three layers (4px inset + 12px outer with 2px spread + 24px
+     outer with 4px spread). The 24px+4px halo was bleeding way past
+     the tile edges. Reduced to two layers: the same 4px inset and a
+     single 6px outer with 0 spread (slightly bumped opacity to 0.55
+     to compensate for the lost halo so the tile still reads as
+     lit). Bumped opacity slightly. Same change to bt-place-blend
+     keyframe on both 0% (magenta) and 100% (cyan) ends so the
+     spin-into-place animation doesn't visually expand the glow.
+     ---- previous changelog ----
+     v1.70: Two changes.
+     1) Shifted the magenta hue from #d946ef toward purple — now
+        #a855f7 (rgba(168,85,247,...)). Less pink, more violet.
+        Applied wherever the previous magenta showed: bank tile
+        glow (.bt.lit), bt-place-blend keyframe, selected cell
+        background/text/glow, placed-but-unsubmitted cell text.
+     2) Selected cell now also shows a magenta BORDER at 0.85
+        opacity instead of the regular cyan empty-cell border, so
+        when you tap a cell the magenta state is visible from
+        every direction (border + tinted bg + glow + text).
+     ---- previous changelog ----
+     v1.69: Yellow → magenta. The selected-cell glow, placed-but-
+     unsubmitted cell text, and bank-tile "lit" glow (the candidate
+     tiles when a cell is selected) all changed from amber/yellow
+     to a vibrant purple-magenta (#a855f7 / rgba(168,85,247,...)).
+     Also updated the bt-place-blend keyframe so the spin-into-
+     place animation starts magenta (matching .bt.lit) and fades
+     to cyan as before. Sequencer slot indicators (a separate
+     feature) kept their yellow.
+     ---- previous changelog ----
+     v1.68: Empty-cell border switched from grey-white
+     rgba(255,255,255,0.18) to cyan rgba(0,217,255,0.25). Bumped
+     opacity slightly because cyan reads dimmer than white at the
+     same alpha on a dark background — net perceived visibility
+     stays about the same.
+     ---- previous changelog ----
+     v1.67: Grid edge starting opacity dropped from 0.22 to 0.12 —
+     applied to both the .grid border and the four gradient stops
+     so the cyan crosshatch and outermost grid line stay subtle.
+     ---- previous changelog ----
+     v1.66: Diagonal back to 14×12 (smaller). Reverted v1.65's
+     top-only 2px nudge — restoring uniform corner anchoring across
+     all four. Same slope ratio as 20×17 but shorter line. Should
+     fall short of the grid corner but reach the grid-clip corner.
+     ---- previous changelog ----
+     v1.65: Nudged the top two corner diagonal SVGs down 2px via
+     background-position. Bottom corners aligned correctly with
+     20×17 in v1.64, but the top corners showed a small gap above
+     the diagonal start — likely subpixel rounding or some other
+     vertical asymmetry I can't easily diagnose without DOM tools.
+     Just adding a top:2px offset to the top SVGs; bottom stays at
+     bottom:0.
+     ---- previous changelog ----
+     v1.64: Diagonal shortened from 23×20 to 20×17. v1.63 overshot
+     into the grid area. 20×17 is roughly halfway between v1.62
+     (18×16, short of grid corner) and v1.63 (23×20, past grid
+     corner) — should land between the two grid-clip corner and
+     the grid's actual corner.
+     ---- previous changelog ----
+     v1.63: Diagonal lengthened from 18×16 to 23×20 — same slope
+     (multiplied both axes by ~1.25) so the angle stays right but
+     the line extends further inward toward the grid corner.
+     ---- previous changelog ----
+     v1.62: Diagonal to 18×16 — rotated steeper (vertical from 12
+     to 16, +4 = 2x the previous step) and shortened horizontally
+     (22 → 18) to compensate so the line doesn't overshoot when
+     coming down at the steeper angle.
+     ---- previous changelog ----
+     v1.61: Diagonal vertical to 12 — midpoint between v1.59's 14
+     (line overshot below the grid-clip corner) and v1.60's 10 (line
+     stopped above the corner). 12 should land on the corner exactly.
+     ---- previous changelog ----
+     v1.60: Diagonal vertical pulled from 14 to 10. The diagonal was
+     overshooting downward — its endpoint extended past the grid-clip
+     corner. Horizontal (22) stays since the line was hitting the
+     correct horizontal position; only the vertical was off.
+     ---- previous changelog ----
+     v1.59: Corner diagonals back to 22×14. v1.58's 24×16 overshot
+     the grid-clip corner by a few pixels (poked into the grid
+     area). 22×14 should land closer.
+     ---- previous changelog ----
+     v1.58: Corner diagonals lengthened from 20×12 to 24×16. The
+     v1.57 numbers were short of the grid-clip corners by about
+     4px in each direction. Likely cause: `.gscroll::before` with
+     `inset:0` is positioning relative to the border-box (or near
+     equivalent), so the gscroll's 2px border IS contributing to
+     the visible offset and the box-shadow may be adding a pixel
+     or two as well. Just bumped the SVG dimensions to match what
+     the cropped photo showed. If still off, tune the numbers
+     further.
+     ---- previous changelog ----
+     v1.57: Corner diagonals re-targeted to actually hit the grid-
+     clip outer corners. v1.56's 22×14 SVG box was based on the
+     wrong reference origin — `.gscroll::before` with `inset:0` is
+     positioned relative to the padding-box (inside the 2px gscroll
+     border), not the border-box. So the +2px for the gscroll border
+     shouldn't have been included. Corrected to 20×12: 24px h-padding
+     − 4px outline-offset = 20, 16px v-padding − 4 = 12. Diagonals
+     now go from gscroll's inner-border corner to grid-clip's outer-
+     outline corner exactly, with the natural angle that geometry
+     produces (about 31°, not 45°).
+     ---- previous changelog ----
+     v1.56: Two changes.
+     1) Swapped brightness of the two outer borders. .gscroll's outer
+        border was rgba(0,80,95,0.75) (muted blue-cyan); now it's
+        rgba(0,217,255,0.5) (brighter cyan). .grid-clip's outline
+        was rgba(0,217,255,0.5); now it's rgba(0,80,95,0.75). Net
+        effect: outermost is the bright one, inset is the muted one,
+        matching what the screenshot showed should be reversed.
+     2) Restructured corner diagonals from one stretched 100×100 SVG
+        to four small per-corner SVGs sized exactly to the pixel
+        distance from gscroll's outer corner to grid-clip's outer
+        outline corner: 22px × 14px (2px gscroll border + 24/16 px
+        padding − 4px outline-offset). Stacked via multi-background
+        with corner-anchored background-position. Diagonals now hit
+        the grid-clip corners exactly instead of relying on a
+        stretched aspect ratio that misaligned them.
+     ---- previous changelog ----
+     v1.55: Halved the four corner diagonal accent lines so they
+     stop at the outer edge of the .grid-clip outline rather than
+     extending into the grid content area. SVG endpoints went from
+     14 to 7 (% of viewBox). Same per-line opacity gradient
+     (1.0 → 0.22) just over half the distance.
+     ---- previous changelog ----
+     v1.54: Three coordinated cyan-accent changes.
+     1) .grid border opacity dropped from 0.4 to 0.22 — same floor
+        as the gradient edge tint. Inner grid border now reads as a
+        subtle accent rather than a frame.
+     2) .grid-clip outline opacity bumped from 0.4 to 0.5 — middle
+        stop in the three-layer fade. Order is now:
+          .gscroll border (existing rgba(0,80,95,0.75)) → outer
+          .grid-clip outline (0.5)                      → middle
+          .grid border (0.22)                           → inner
+     3) Added four diagonal corner accents on .gscroll::before via
+        an inline SVG data-URI. Each line goes from an outer corner
+        of .gscroll inward toward the matching corner of .grid-clip,
+        with its own linear-gradient that fades from full opacity
+        at the outer corner to 0.22 at the inner end. Lines use
+        vector-effect="non-scaling-stroke" so they stay 1px wide
+        regardless of how the SVG stretches.
+     ---- previous changelog ----
+     v1.53: Added a thin cyan border at the very outermost pixel of
+     the zoomable grid content itself (1px, 0.4 opacity). Sits on
+     the .grid element which is what pans and zooms, so the border
+     follows the content — invisible most of the time when zoomed
+     in (it's beyond the visible window), but appears at the
+     corresponding edge of the viewport when the user pans all the
+     way to that edge. Two corners visible when panned into a corner.
+     Implementation: changed the inline grid.style.cssText border
+     from `2px solid var(--bk)` (invisible structural border) to
+     `1px solid rgba(0,217,255,0.4)` (visible cyan), and adjusted
+     the grid-clip width/height computation from +4 (2px*2 sides) to
+     +2 (1px*2 sides) so overflow:hidden still clips correctly.
+     v1.52's outer outline on .grid-clip is kept as the static
+     outer frame.
+     ---- previous changelog ----
+     v1.52: Cyan outline traced around the outer rectangle of the
+     zoomable grid area at 0.4 opacity. v1.51's box-shadow inset on
+     .grid::before sat under the cells and was hidden — replaced
+     with `outline:1px solid rgba(0,217,255,0.4); outline-offset:4px`
+     on .grid-clip so it draws a few pixels outside the grid itself,
+     framing the puzzle exactly like the orange line in the screenshot.
+     ---- previous changelog ----
+     v1.51: Added a 1px cyan outline at the very outermost pixel of
+     the zoomable puzzle area, same opacity (0.22) as the gradient's
+     edge tint. Implemented via box-shadow inset on the .grid::before
+     pseudo-element so it sits inside the zoomable area and pans/
+     zooms with the content — distinct from the existing .grid 2px
+     cyan border which lives OUTSIDE the zoomable area.
+     ---- previous changelog ----
+     v1.50: Two changes.
+     1) Templates are shifted up after selection so the topmost cell
+        anchors to row 0. Some XL2 templates were authored with
+        verticals starting at r:0 (good) but others started at r:2 or
+        r:3, leaving a band of mostly-empty rows at the top of the
+        rendered puzzle. The shift compresses that out — same shape,
+        just no dead space above the first content. Done by copying
+        the chosen template (so the source pool isn't mutated) and
+        subtracting min(r) from every equation's r.
+     2) Right-edge no-go zone for the floating zoom-pan pill dropped
+        from 100px to 32px (~1/4 inch on a typical phone). Was
+        feeling closer to a full inch on Galaxy at high DPI.
+     ---- previous changelog ----
+     v1.49: Grid edge tint tuning. Edge opacity halved from 0.45 to
+     0.22 so the outermost row of empty cells stays readable against
+     the cyan tint, and fade distance widened from 8% to 12% so on
+     XL2 the gradient covers ~3 cells inward instead of ~2. No
+     change to puzzle generation or anything else.
+     ---- previous changelog ----
+     v1.48: Hard XL puzzles now generate visibly sparser layouts.
+     The single-step propagator (v1.44) was the actual bottleneck —
+     it could only resolve an equation when exactly 1 of its cells
+     was blank, so the restore loop conservatively gave away ~64%
+     of cells. Replaced with an arc-consistency oracle that
+     maintains candidate sets per blank cell and narrows them
+     iteratively, and added a wall-clock-bounded prune pass that
+     re-blanks cells the new oracle can resolve through chains.
+     Verified via headless test harness: XL2 hard now produces
+     ~49% blanks (up from 36%), with 14% of equations having
+     3-of-4 cells blank and 1.5% having all 4 cells blank — close
+     to the pre-rebrand density.
+     Standard 3-cell puzzles (medium/large) reverted to the v1.44-
+     style per-equation greedy restore: arc consistency added
+     overhead without payoff for short equation chains, and was
+     causing multi-second hangs on large hard puzzles.
+     Performance: 50,000-op budget per oracle call + 300ms wall
+     clock budget on the prune pass. XL2 hard averages ~500ms,
+     peaks around 1s. Standard sizes unchanged.
+     Required two rounds of headless testing in jsdom to confirm
+     the change actually moved density. Tile-cap loosening in v1.47
+     turned out to be unrelated (the cap was rarely binding).
+     ---- previous changelog ----
+     v1.47: One change — loosened TILE_VALUE_CAP from 6/5/5/4 to
+     12/10/10/8 across the four puzzle sizes. This cap (added in
+     v1.29) was rejecting sparse hard puzzles because they naturally
+     pool more answers into the bank, and math constraints push
+     those answers toward small values (1, 2, 3 appear most often
+     in valid arithmetic). With the old cap of 6 on XL, layouts
+     with 8-12 copies of "1" got rejected, the retry loop ran 40
+     times, and the only layouts that survived were dense ones with
+     2-of-3 cells given per equation. Cap is now 12 for XL — bank
+     can have more duplicates of common small values, but hard mode
+     produces visibly sparser puzzles again. This was the actual
+     reason for the density regression, not the validator.
+     ---- previous changelog ----
+     v1.46: One change shipped + one rolled back.
+     1) Grid backdrop: bright cyan along the four edges of the puzzle
+        area, falling off sharply inward so only the outermost row/
+        column is fully tinted and the center is dark. Four edge
+        gradients, no radial, no center fill.
+     2) v1.45's backtracking-solver-based blank-density change has been
+        rolled back. The backtracker froze the menu screen when
+        loading a puzzle — the search budget per oracle call (50k ops)
+        sounded fine in isolation, but the restore loop calls the
+        oracle up to 200 times inside an outer 120-attempt retry, and
+        each restore-step's most-ambiguous picker is itself O(blanks ×
+        equations × candidates). Worst case is over a billion ops
+        synchronously, well past what the puzzle generator can do
+        without locking the page. Reverted to v1.44's hard-mode logic
+        (single-step propagation oracle), which loads fine but
+        produces denser puzzles than the user wants. Sparsity needs
+        a different approach — see thread.
+     ---- previous changelog ----
+     v1.44: Two changes.
+     1) Hard mode now generates dramatically more blank cells. The
+        previous restore/prune logic was using LOCAL solvability
+        checks (canSolve / canSolveXL) which only know about a single
+        equation in isolation. Even with the v1.43 prune pass added,
+        the system couldn't see that an equation with 2-3 blanks
+        might be solvable through chained one-step deductions across
+        crossing equations. The pre-rebrand puzzles were noticeably
+        sparser because of that missing chain logic, not different
+        templates.
+        Added a fixpoint propagation oracle (isSolvableViaPropagation)
+        that repeatedly applies requiredValXL across all equations
+        until no new cells can be derived. Hard mode now mass-blanks
+        every num cell, then walks a restore loop: each iteration it
+        finds cells the propagator can't yet resolve and restores the
+        smallest-value one as a given. Stops when the puzzle becomes
+        propagation-solvable. This is what the original generator
+        was implicitly relying on. Equations whose values are pinned
+        by chains of crossings can now have ALL their cells blank.
+     2) The .grid::before cyan glow has been re-shaped from
+        edge-strong + corner-radial to a centered vignette that
+        fades to transparent toward the edges of the puzzle area.
+        Previously the grid crosshatch (cyan showing through 1px cell
+        gaps) was brightest in the outer ring; now it peaks in the
+        middle and softens at the edges of the zoomable area.
+     ---- previous changelog ----
+     v1.43: Four targeted changes.
+     1) Hard XL: added a global-aware prune pass after the existing
+        per-equation restore. The restore can only see local
+        solvability (canSolveXL on a single equation), so it tends
+        to over-restore. The prune walks every kept-given in random
+        order and tries re-blanking it; the cell stays blanked if
+        every equation that touches it is still solvable under the
+        same effective-blanks/effective-vals model the main validator
+        uses (which DOES propagate values across equations). Should
+        produce noticeably more blanks on grids where many cells
+        cross multiple equations.
+     2) Floating zoom-pan pill spawns at bottom-right of the viewport
+        with a 100px no-go band along the right edge. The pill cannot
+        be dragged, glided, or re-shown inside that band — keeps it
+        out of Android back-swipe / browser edge-pull territory and
+        gives a predictable safe column on the right.
+     3) PROMOTE_MAX_PAN_PX dropped from 30 to 15. The radius around
+        the user's touchdown point inside which pressure-zoom keeps
+        engaging is now half what it was; small pan motions commit
+        the gesture to panning sooner and lock out further zoom
+        changes.
+     4) Pan velocity is now zoom-aware. At HALF zoom the multiplier
+        is 1.0 (feel preserved); at FULL zoom it is 2.0 (panning is
+        twice as fast). Linearly interpolated for in-between zoom
+        values during the smoother's ramp.
+     ---- previous changelog ----
+     v1.42: Hard difficulty has more blank cells.
+     1) XL 7-cell hard: always blank all 4 numbers (D + all 3 operands).
+        Previously the 3rd operand was a 50/50 coin flip; now it's
+        always blanked. The existing per-equation "restore minimum
+        givens" pass still runs, so unsolvable equations get one cell
+        unblanked — but equations whose crossings can pin values stay
+        fully blank.
+     2) Standard 3-cell hard: added a post-restore prune pass. After
+        the existing "blank all → keep 1 given per equation" step, we
+        try re-blanking each keeper. If the local-solvability check and
+        crossing-agreement check both still pass, the keeper stays
+        blanked. This shaves additional givens off equations whose
+        crossing cells already pin the values, without breaking the
+        invariants the rest of the generator relies on.
+     ---- previous changelog ----
      v1.41: Filled puzzle cells were letting the .grid::before cyan
      gradient bleed through their translucent inner-cell backgrounds,
      making outer-area equation cells look cyan-tinted (the gradient
@@ -109,19 +775,46 @@ body{font-family:'IBM Plex Mono',monospace;background:var(--bg);color:var(--text
 .mast-title span{color:var(--cyan);}
 .mast-back{background:none;border:1.5px solid var(--br);border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--cyan);padding:5px 9px;cursor:pointer;}
 .mast-info{font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);}
-.gscroll{width:100%;max-width:520px;padding:16px 24px;display:flex;justify-content:center;flex-shrink:0;overflow:hidden;touch-action:pan-y;position:relative;background:var(--bg);border:2px solid rgba(0,80,95,0.75);box-shadow:0 0 4px rgba(0,217,255,0.12), inset 0 0 3px rgba(0,217,255,0.04);}
+.gscroll{width:100%;max-width:520px;padding:16px 24px;display:flex;justify-content:center;flex-shrink:0;overflow:hidden;touch-action:pan-y;position:relative;background:var(--bg);border:2px solid rgba(0,217,255,0.5);box-shadow:0 0 4px rgba(0,217,255,0.12), inset 0 0 3px rgba(0,217,255,0.04);}
+/* [v1.56] Diagonal corner accents on the .gscroll outer container.
+   Switched from one stretched 100×100 SVG to four small per-corner
+   SVGs stacked via multi-background, each sized to the exact pixel
+   distance from gscroll's outer corner to grid-clip's outer outline
+   corner: 22px horizontal (2px gscroll border + 24px padding − 4px
+   grid-clip outline-offset) × 14px vertical (2 + 16 − 4). Each SVG
+   draws a single diagonal from one of its corners to the opposite,
+   with a per-line linear-gradient fading from full opacity at the
+   outer-corner end to 0.22 at the inner end. Pixel sizing means the
+   diagonals hit grid-clip's outer corners exactly, regardless of
+   how the gscroll's overall aspect ratio shifts with viewport. */
+.gscroll::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  z-index:2;
+  background-image:
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 12"><defs><linearGradient id="g" x1="0" y1="0" x2="14" y2="12" gradientUnits="userSpaceOnUse"><stop offset="0%25" stop-color="%2300d9ff" stop-opacity="1"/><stop offset="100%25" stop-color="%2300d9ff" stop-opacity="0.22"/></linearGradient></defs><line x1="0" y1="0" x2="14" y2="12" stroke="url(%23g)" stroke-width="1"/></svg>'),
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 12"><defs><linearGradient id="g" x1="14" y1="0" x2="0" y2="12" gradientUnits="userSpaceOnUse"><stop offset="0%25" stop-color="%2300d9ff" stop-opacity="1"/><stop offset="100%25" stop-color="%2300d9ff" stop-opacity="0.22"/></linearGradient></defs><line x1="14" y1="0" x2="0" y2="12" stroke="url(%23g)" stroke-width="1"/></svg>'),
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 12"><defs><linearGradient id="g" x1="0" y1="12" x2="14" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0%25" stop-color="%2300d9ff" stop-opacity="1"/><stop offset="100%25" stop-color="%2300d9ff" stop-opacity="0.22"/></linearGradient></defs><line x1="0" y1="12" x2="14" y2="0" stroke="url(%23g)" stroke-width="1"/></svg>'),
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 12"><defs><linearGradient id="g" x1="14" y1="12" x2="0" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0%25" stop-color="%2300d9ff" stop-opacity="1"/><stop offset="100%25" stop-color="%2300d9ff" stop-opacity="0.22"/></linearGradient></defs><line x1="14" y1="12" x2="0" y2="0" stroke="url(%23g)" stroke-width="1"/></svg>');
+  background-position: top left, top right, bottom left, bottom right;
+  background-size: 14px 12px;
+  background-repeat: no-repeat;
+}
 .xl2-mode .gscroll,.xl2-mode .mast,.xl2-mode .bank-outer,.xl2-mode .bot,.xl2-mode .bsound-row,.xl2-mode .info-bar{max-width:100%;}
-.grid{display:inline-grid;border:2px solid var(--cyan);background:transparent;flex-shrink:0;position:relative;z-index:1;}
-/* [v1.37] Cloud-like cyan glow INSIDE the puzzle area, attached to
-   the .grid (not the viewport) so it pans/zooms with the puzzle and
-   anchors to the grid's content boundary. Two layered radial
-   gradients give a softer "cloud" feel rather than four hard linear
-   fades:
-     1. A wide ambient glow centered slightly above the grid center,
-        fading from soft cyan at the corners to transparent ~50% in.
-     2. An inset edge glow that pulls more strongly along the borders,
-        fading inward over ~25% of the grid's width/height.
-   Sits at z:0 inside .grid (cells have z:auto, so they paint above).
+.grid{display:inline-grid;border:1px solid rgba(0,217,255,0.12);background:transparent;flex-shrink:0;position:relative;z-index:1;}
+/* [v1.52] Cyan grid backdrop. Soft cyan tint along the four edges
+   of the puzzle area, fading inward over the first ~12% of the
+   grid's dimension. Edge opacity is 0.22 — about half as bright as
+   v1.46/1.48 so the outermost row of grey-bordered empty cells stays
+   readable against the tint.
+   Implementation: four linear-gradients, one per edge. They overlap
+   at the corners and overlay across the center where they're all
+   transparent and the dark grid bg shows through unchanged. The 1px
+   cell gaps reveal the gradient where it paints, so the visible
+   crosshatch is brightest at the edges and absent in the middle.
+   Sits at z:0 inside .grid; cells paint above at default z-auto.
    pointer-events:none so it doesn't block taps. */
 .grid::before{
   content:'';
@@ -130,16 +823,19 @@ body{font-family:'IBM Plex Mono',monospace;background:var(--bg);color:var(--text
   pointer-events:none;
   z-index:0;
   background:
-    radial-gradient(ellipse at 50% 50%,
-                    rgba(0,217,255,0) 35%,
-                    rgba(0,217,255,0.10) 70%,
-                    rgba(0,217,255,0.22) 100%),
-    linear-gradient(to right,  rgba(0,217,255,0.18), rgba(0,217,255,0) 25%),
-    linear-gradient(to left,   rgba(0,217,255,0.18), rgba(0,217,255,0) 25%),
-    linear-gradient(to bottom, rgba(0,217,255,0.18), rgba(0,217,255,0) 25%),
-    linear-gradient(to top,    rgba(0,217,255,0.18), rgba(0,217,255,0) 25%);
+    linear-gradient(to right,  rgba(0,217,255,0.12) 0%,  rgba(0,217,255,0) 12%),
+    linear-gradient(to left,   rgba(0,217,255,0.12) 0%,  rgba(0,217,255,0) 12%),
+    linear-gradient(to bottom, rgba(0,217,255,0.12) 0%,  rgba(0,217,255,0) 12%),
+    linear-gradient(to top,    rgba(0,217,255,0.12) 0%,  rgba(0,217,255,0) 12%);
 }
-.grid-clip{overflow:hidden;flex-shrink:0;}
+/* [v1.52] Thin cyan outline traced around the outer rectangle of the
+   zoomable grid area, a few pixels outside the grid itself so it
+   reads as a frame around the entire puzzle (not as part of the cell
+   art). Uses outline + outline-offset on .grid-clip — outline doesn't
+   take up layout space the way border does, and outline-offset pushes
+   it the few pixels beyond the grid edge that the user wanted. Sits
+   inside .gscroll's 16/24px padding so it doesn't get clipped. */
+.grid-clip{outline:1px solid rgba(0,80,95,0.75);outline-offset:4px;overflow:hidden;flex-shrink:0;}
 @keyframes shk{0%,100%{transform:translateX(0)}30%{transform:translateX(-3px)}70%{transform:translateX(3px)}}
 @keyframes vib{0%,100%{transform:translateX(0)}15%{transform:translateX(-2px)}35%{transform:translateX(2px)}55%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
 @keyframes eqpop{0%{transform:scale(1)}40%{transform:scale(1.18)}70%{transform:scale(0.95)}100%{transform:scale(1)}}
@@ -345,14 +1041,14 @@ body{font-family:'IBM Plex Mono',monospace;background:var(--bg);color:var(--text
    duration. The `forwards` fill mode holds the final cyan state in
    case the clone lingers an extra frame before removal. */
 @keyframes bt-place-blend{
-  0%   { border-color:#ffd54a;
-         box-shadow:0 0 4px rgba(255,213,74,0.30) inset,
-                    0 0 12px 2px rgba(255,213,74,0.45),
-                    0 0 24px 4px rgba(255,213,74,0.20); }
+  0%   { border-color:#a855f7;
+         box-shadow:0 0 4px rgba(168,85,247,0.30) inset,
+                    0 0 4px 1px rgba(168,85,247,0.65),
+                    0 0 8px 0 rgba(168,85,247,0.35); }
   100% { border-color:rgba(0,217,255,0.85);
          box-shadow:0 0 4px rgba(0,217,255,0.18) inset,
-                    0 0 12px 2px rgba(0,217,255,0.30),
-                    0 0 24px 4px rgba(0,217,255,0.15); }
+                    0 0 4px 1px rgba(0,217,255,0.50),
+                    0 0 8px 0 rgba(0,217,255,0.25); }
 }
 .bt.placing-blend{
   animation:
@@ -393,12 +1089,124 @@ body{font-family:'IBM Plex Mono',monospace;background:var(--bg);color:var(--text
    [v1.34] !important on border to override inline style set by
    applyTileColor (which runs at render time and otherwise wins). */
 .bt.lit{
-  border:1.5px solid #ffd54a !important;
-  box-shadow:0 0 4px rgba(255,213,74,0.30) inset,
-             0 0 12px 2px rgba(255,213,74,0.45),
-             0 0 24px 4px rgba(255,213,74,0.20) !important;
+  border:1.5px solid #a855f7 !important;
+  box-shadow:0 0 4px rgba(168,85,247,0.30) inset,
+             0 0 4px 1px rgba(168,85,247,0.65),
+             0 0 8px 0 rgba(168,85,247,0.35) !important;
 }
 .bot{width:100%;max-width:520px;padding:7px 12px 16px;display:flex;gap:8px;border-top:1px solid rgba(0,217,255,0.3);flex-shrink:0;background:var(--bg);}
+
+/* [v1.74] Hide the in-bank vertical slider strip (#sizeCanvasWrap)
+   in puzzle mode so the bank itself can use the full width. The
+   sliders + state-logic still live in the DOM; they're moved into
+   the ADJUST modal when the user opens it. SEQ mode (window.
+   _seqVisible) keeps the strip visible since the sequencer uses
+   it inline. */
+body:not(.seq-mode) #sizeCanvasWrap{display:none!important;}
+/* [v1.74] Hide the original mode buttons inside the slider strip.
+   The new tile-controls-row presents them at the bottom; we only
+   want SIZE+GAP sliders visible when the wrap is moved into the
+   ADJUST modal. */
+#sizeCanvasWrap > #condenseTilesBtn,
+#sizeCanvasWrap > #miniTilesBtn,
+#sizeCanvasWrap > #cyanTilesBtn{display:none!important;}
+
+/* [v1.74] Full-width controls row beneath the tile bank.
+   Holds ADJUST + the three tile-display-mode buttons (×N / mini /
+   cyan) that previously lived in the in-bank slider strip. */
+.tile-controls-row{
+  width:100%;max-width:520px;
+  padding:6px 12px 8px;
+  display:flex;flex-direction:row;align-items:stretch;gap:6px;
+  flex-shrink:0;background:var(--bg-secondary);
+  border-top:1px solid rgba(0,217,255,0.12);
+}
+.tile-controls-row > button{
+  flex:1;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10px;font-weight:700;letter-spacing:1px;
+  padding:8px 6px;
+  border-radius:4px;
+  border:1.5px solid rgba(0,217,255,0.4);
+  background:transparent;
+  color:var(--text-secondary);
+  cursor:pointer;touch-action:manipulation;
+  transition:all .15s;
+}
+.tile-controls-row > button:active{
+  background:rgba(0,217,255,0.1);
+}
+.tile-controls-row > button.active{
+  border-color:#a855f7;
+  color:#a855f7;
+  background:rgba(168,85,247,0.1);
+  box-shadow:0 0 8px rgba(168,85,247,0.35);
+}
+#tileAdjustBtn{
+  border-color:#a855f7;
+  color:#a855f7;
+}
+#tileAdjustBtn:active{ background:rgba(168,85,247,0.15); }
+
+/* [v1.74] ADJUST modal — overlay containing the SIZE+GAP sliders
+   (which are physically moved into here when the modal opens, then
+   moved back when it closes, so the existing slider IIFE keeps its
+   element references). */
+#tileAdjustModal{
+  display:none;position:fixed;inset:0;z-index:600;
+  /* [v1.81] No dark backdrop — modal is just the slider box,
+     anchored to the left side of the viewport. The overlay div
+     itself uses pointer-events:none so taps outside the box
+     pass through to the page; the inner box re-enables them. */
+  background:transparent;
+  pointer-events:none;
+  align-items:center;justify-content:flex-start;
+  padding:8px;
+}
+#tileAdjustModal.open{display:flex;}
+#tileAdjustModalBox{
+  pointer-events:auto;
+  background:var(--bg-secondary);
+  border:2px solid #a855f7;
+  border-radius:8px;
+  padding:10px;
+  width:auto;
+  font-family:'IBM Plex Mono',monospace;
+  box-shadow:0 0 24px rgba(168,85,247,0.35);
+  display:flex;flex-direction:column;align-items:stretch;gap:8px;
+}
+#tileAdjustModalTitle{
+  font-weight:700;font-size:11px;letter-spacing:1.5px;
+  color:#a855f7;text-align:center;
+}
+#tileAdjustModalSliders{
+  /* Container into which we move #sizeCanvasWrap when modal opens.
+     The wrap is column-flexed with vertical sliders inside; give it
+     just enough height for the sliders to be usable, and no
+     horizontal padding/min-width — let the content size itself. */
+  display:flex;flex-direction:row;align-items:stretch;justify-content:center;
+  min-height:140px;
+  background:var(--bg);
+  border-radius:4px;
+  padding:4px;
+}
+#tileAdjustModalSliders #sizeCanvasWrap{
+  display:flex!important; /* override the body:not(.seq-mode) hide */
+  padding:0!important;    /* the wrap's own padding adds dead space */
+}
+#tileAdjustModalClose{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10px;font-weight:700;letter-spacing:1px;
+  padding:5px 10px;
+  border:1.5px solid #a855f7;
+  border-radius:3px;
+  background:rgba(168,85,247,0.1);
+  color:#a855f7;
+  cursor:pointer;
+  align-self:center;
+  min-width:80px;
+}
+#tileAdjustModalClose:active{ background:rgba(168,85,247,0.25); }
 .bbtn{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:10px 12px;border-radius:3px;cursor:pointer;border:1.5px solid;}
 .bundo{background:none;border-color:var(--cyan);color:var(--text-secondary);}.bundo:not(:disabled):active{background:rgba(0,217,255,0.1);}.bundo:disabled{opacity:.3;cursor:default;}
 .bnew{flex:1;background:transparent;border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 8px rgba(0,217,255,0.3);}.bnew:active{background:rgba(0,217,255,0.12);}
@@ -834,7 +1642,7 @@ window.onerror=function(msg,src,line,col,err){
 
   <button class="sel-play" id="playBtn">▶ PLAY</button>
   <button id="statsBtn" style="margin-top:10px;width:100%;padding:10px;background:transparent;border:1.5px solid rgba(0,217,255,0.4);border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;font-weight:700;">📊 Stats</button>
-  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v1.41</div>
+  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v1.94</div>
 </div>
 
 <!-- GAME SCREEN -->
@@ -1070,6 +1878,33 @@ window.onerror=function(msg,src,line,col,err){
 </div>
 </div></div>
 <!-- [Equil 1.04] Removed: SEQUENCER CONTROLS slim panel + proPanel + eraseRow HTML — sequencer-only. -->
+
+  <!-- [v1.74] Full-width tile-controls row: ADJUST opens slider modal,
+       and the three tile-display buttons (×N, mini, cyan) toggle the
+       same modes the in-bank strip's buttons do. The actual mode
+       toggle handlers live in the existing IIFE; we just forward
+       clicks to those original buttons. -->
+  <div class="tile-controls-row" id="tileControlsRow">
+    <button type="button" id="tileAdjustBtn" title="Adjust tile size and gap">ADJUST</button>
+    <button type="button" id="tileModeXn"   title="Condense repeated tiles">×N</button>
+    <button type="button" id="tileModeMini" title="Mini-numbers display">####</button>
+    <button type="button" id="tileModeCyan" title="All-cyan display">###</button>
+  </div>
+
+  <!-- [v1.74] ADJUST modal — overlay containing the SIZE+GAP sliders.
+       The slider DOM (#sizeCanvasWrap) lives inside .bank-row by
+       default; when this modal opens, we move the wrap into
+       #tileAdjustModalSliders, and move it back when it closes.
+       The IIFE that built the wrap captures element references in
+       closures, so they keep working regardless of where in the DOM
+       the wrap currently lives. -->
+  <div id="tileAdjustModal">
+    <div id="tileAdjustModalBox">
+      <div id="tileAdjustModalTitle">ADJUST TILES</div>
+      <div id="tileAdjustModalSliders"></div>
+      <button type="button" id="tileAdjustModalClose">DONE</button>
+    </div>
+  </div>
 
   <div class="bsnd-label" id="sndLabel" style="display:none;">Sound Style</div>
   <div class="bsound-row" id="sndRow" style="display:none;visibility:hidden;height:0;overflow:hidden;padding:0;margin:0;">
@@ -2292,6 +3127,210 @@ function requiredValXL(e,k,BS,CM,OPS){
   return null;
 }
 
+// [v1.44] Fixpoint solvability oracle. Given a blank-set BS and the
+// puzzle's cell map, repeatedly walks every equation looking for ones
+// with exactly one remaining blank (so requiredValXL can pin it),
+// "fills in" that cell in a working copy of BS, and loops. When an
+// iteration adds nothing new, return whether ALL number cells in BS
+// have been resolved.
+//
+// This is the missing piece in the old generator: requiredValXL only
+// does single-step deductions, but real puzzle solving chains them.
+// An equation can have 4 blanks today and still be solvable tomorrow
+// once two crossing equations resolve. Without this propagator the
+// generator over-restores givens; with it we can be much more
+// aggressive about blanking.
+//
+// Returns true iff every key in BS is reachable through the chain.
+// [v1.48] Solvability oracle using arc consistency. Single-step
+// forward propagation (the v1.44 version) could only resolve an
+// equation when exactly one of its cells was blank. That meant
+// equations with 2 blanks blocked all progress, even when the
+// remaining candidate space was actually narrow enough for a human
+// solver to deduce the answer. New approach: maintain a CANDIDATE SET
+// for each blank cell, and iteratively narrow each cell's candidates
+// to only values consistent with at least one assignment of the other
+// blanks in each equation it belongs to. When a candidate set reaches
+// size 1, the cell is resolved. Iterates until fixpoint.
+//
+// This catches deductions like:
+//   A + B = 10, A in {1..9}, B in {1..9}
+//   A in {1,2,3,4,5,6,7,8,9} → all keep B in valid range, both stay {1..9}
+//   But: A * B = 24, A in {1..9}, B in {1..9}
+//   → A in {3,4,6,8}, B in {3,4,6,8} (only divisors of 24 within range)
+//   If a crossing then pins A=8, B=3, equation resolves.
+//
+// Complexity: O(passes × equations × cellsPerEq × maxCandidates²) per
+// call, bounded by total blanks. Fast in practice — no recursion,
+// no search tree explosion.
+function isSolvableViaPropagation(tmpl,BS,CM,OPS){
+  // [v1.48] Hard work budget. If we can't decide in 200k ops, bail out
+  // and return false (conservative — caller will restore one more cell
+  // and try again). Prevents pathological puzzles from hanging the page.
+  var budget=50000;
+  // Build candidate set for each blank cell. Operands are {1..9}.
+  // Result cells (idx 2 of standard, idx 3 of XL) can be larger;
+  // bound by the cell's true answer for safety (we know it must
+  // equal CM[k].answer ultimately).
+  var cands={};
+  for(var k in BS){
+    if(!BS[k])continue;
+    var c=CM[k];if(!c)continue;
+    var trueA=c.answer;
+    var maxV=9;
+    if(trueA!=null && trueA>9)maxV=trueA;
+    var s={};
+    for(var v=1;v<=maxV;v++)s[v]=true;
+    cands[k]=s;
+  }
+  // Helper: read effective value for a cell. If not in cands, it's
+  // a given (return CM[k].answer). If in cands and the candidate set
+  // has size 1, return that single value. Else null.
+  function eff(k){
+    if(!cands[k]){
+      var c=CM[k];return c?c.answer:null;
+    }
+    var keys=Object.keys(cands[k]);
+    if(keys.length===1)return parseInt(keys[0],10);
+    return null;
+  }
+  // Process one equation: narrow candidates of its blank cells.
+  // Returns true if any candidate was eliminated.
+  function processEq(e){
+    var pts=eqNumPts(e);
+    var keys=pts.map(nk);
+    var ops=OPS[e.id];
+    var blanks=[];
+    for(var j=0;j<keys.length;j++)if(cands[keys[j]])blanks.push(j);
+    if(blanks.length===0)return false; // all resolved
+    var changed=false;
+    if(e.xl){
+      // For each blank cell, find which of its candidates is consistent
+      // with SOME assignment of the OTHER cells (givens or blank).
+      for(var bi=0;bi<blanks.length;bi++){
+        var idx=blanks[bi];
+        var k=keys[idx];
+        var supported={};
+        var myCands=Object.keys(cands[k]).map(Number);
+        // For each candidate value of this cell, check if there's
+        // an assignment of the other 3 cells (each from its own
+        // candidate set or fixed value) that satisfies the equation.
+        var otherKeys=[keys[0],keys[1],keys[2],keys[3]];
+        for(var mi=0;mi<myCands.length;mi++){
+          var myV=myCands[mi];
+          // Fixed values per slot
+          var slot=[null,null,null,null];
+          slot[idx]=myV;
+          // Iterate other slots; for each, get candidates or fixed
+          var support=function(s0,s1,s2,s3){
+            return evalXL(s0,ops.op1,s1,ops.op2,s2)===s3;
+          };
+          // Try all combinations of other slots' candidate values.
+          // Bounded: each slot has up to 9 candidates, so up to 9^3=729 per check.
+          // For 4-cell XL we have 3 other slots, so worst case 9*9*9 = 729 attempts.
+          var found=false;
+          var slotCands=[];
+          for(var s=0;s<4;s++){
+            if(s===idx){slotCands.push([myV]);continue;}
+            var sk=otherKeys[s];
+            if(cands[sk])slotCands.push(Object.keys(cands[sk]).map(Number));
+            else slotCands.push([CM[sk]?CM[sk].answer:null]);
+          }
+          // Brute force over slotCands
+          outer:
+          for(var s0i=0;s0i<slotCands[0].length;s0i++)
+          for(var s1i=0;s1i<slotCands[1].length;s1i++)
+          for(var s2i=0;s2i<slotCands[2].length;s2i++)
+          for(var s3i=0;s3i<slotCands[3].length;s3i++){
+            if(--budget<=0)return 'budget';
+            var v0=slotCands[0][s0i],v1=slotCands[1][s1i],v2=slotCands[2][s2i],v3=slotCands[3][s3i];
+            if(v0==null||v1==null||v2==null||v3==null)continue;
+            if(support(v0,v1,v2,v3)){found=true;break outer;}
+          }
+          if(found)supported[myV]=true;
+        }
+        // Update cands[k] to only supported values.
+        var keep={};var origCount=Object.keys(cands[k]).length;
+        for(var v in supported)keep[v]=true;
+        var newCount=Object.keys(keep).length;
+        if(newCount===0)return null; // contradiction
+        if(newCount<origCount){
+          cands[k]=keep;
+          changed=true;
+          // If reduced to 1, resolve.
+          if(newCount===1){
+            // We'll let the outer loop notice; just stop tracking
+          }
+        }
+      }
+    } else {
+      // 3-cell standard: A op B = C
+      var idxA=0,idxB=1,idxC=2;
+      var kA=keys[0],kB=keys[1],kC=keys[2];
+      for(var bi=0;bi<blanks.length;bi++){
+        var idx=blanks[bi];
+        var k=keys[idx];
+        var supported={};
+        var slotCands=[];
+        for(var s=0;s<3;s++){
+          var sk=keys[s];
+          if(cands[sk])slotCands.push(Object.keys(cands[sk]).map(Number));
+          else slotCands.push([CM[sk]?CM[sk].answer:null]);
+        }
+        for(var ai=0;ai<slotCands[0].length;ai++)
+        for(var bi2=0;bi2<slotCands[1].length;bi2++)
+        for(var ci=0;ci<slotCands[2].length;ci++){
+          if(--budget<=0)return 'budget';
+          var va=slotCands[0][ai],vb=slotCands[1][bi2],vc=slotCands[2][ci];
+          if(va==null||vb==null||vc==null)continue;
+          if(ev(va,ops,vb)===vc){
+            if(idx===0)supported[va]=true;
+            else if(idx===1)supported[vb]=true;
+            else supported[vc]=true;
+          }
+        }
+        var keep={};
+        for(var v in supported)keep[v]=true;
+        var origCount=Object.keys(cands[k]).length;
+        var newCount=Object.keys(keep).length;
+        if(newCount===0)return null; // contradiction
+        if(newCount<origCount){
+          cands[k]=keep;
+          changed=true;
+        }
+      }
+    }
+    return changed;
+  }
+  // Iterate until no candidates can be narrowed further.
+  var maxPasses=Object.keys(cands).length*4+4;
+  for(var pass=0;pass<maxPasses;pass++){
+    var anyChange=false;
+    for(var i=0;i<tmpl.length;i++){
+      var r=processEq(tmpl[i]);
+      if(r==='budget')return false; // budget exhausted: conservative reject
+      if(r===null)return false; // contradiction
+      if(r===true)anyChange=true;
+    }
+    // Resolve cells whose candidate set is now size 1
+    for(var k in cands){
+      var keys2=Object.keys(cands[k]);
+      if(keys2.length===1){
+        // Verify against true answer
+        var trueA=CM[k]?CM[k].answer:null;
+        var v=parseInt(keys2[0],10);
+        if(trueA!=null && v!==trueA)return false;
+        delete cands[k];
+        anyChange=true;
+      }
+    }
+    if(!anyChange)break;
+  }
+  // Solvable iff all cells resolved
+  for(var k in cands)return false;
+  return true;
+}
+
 function selectBlanksXL(tmpl,CM,OPS,diff){
   for(var attempt=0;attempt<120;attempt++){
     var BS={};
@@ -2312,13 +3351,15 @@ function selectBlanksXL(tmpl,CM,OPS,diff){
         // Then the crossing-consistency pass will further constrain things.
         // We deliberately also sometimes blank crossing cells to force multi-equation deduction.
         if(e.xl){
-          // Always blank D (result) and 2 of the 3 operands — player must deduce 3 values
+          // [v1.42] Hard: always blank all 4 numbers (D + all 3 operands).
+          // Was: D + 2 operands always, with 50% chance for 3rd operand.
+          // The restore-minimum-givens pass below will unblank ONE cell per
+          // equation if crossings can't constrain it, so solvability is
+          // preserved while pushing the average blank count higher.
           BS[nk(pts[3])]=true;
-          var ops=[0,1,2].sort(function(){return Math.random()-0.5;});
-          BS[nk(pts[ops[0]])]=true;
-          BS[nk(pts[ops[1]])]=true;
-          // 50% chance: also blank the 3rd operand (all 4 blank) — crossing may still constrain it
-          if(Math.random()<0.5) BS[nk(pts[ops[2]])]=true;
+          BS[nk(pts[0])]=true;
+          BS[nk(pts[1])]=true;
+          BS[nk(pts[2])]=true;
         } else {
           // 5-cell: blank result + both operands (all blank) — crossing may constrain
           BS[nk(pts[0])]=true;BS[nk(pts[1])]=true;BS[nk(pts[2])]=true;
@@ -2334,32 +3375,82 @@ function selectBlanksXL(tmpl,CM,OPS,diff){
     // of being dominated by 1's and 2's. Tie-breaker: cells with more
     // crossing equations (better constraint propagation).
     if(diff==='hard'){
-      for(var i=0;i<tmpl.length;i++){
-        var e=tmpl[i];
-        var pts=eqNumPts(e);
-        // Check if already solvable (a crossing might have given a value)
-        var blanks=pts.map(function(p){return !!BS[nk(p)];});
-        var vals=pts.map(function(p){var c=CM[nk(p)];return c?c.answer:null;});
-        var already=e.xl?canSolveXL(blanks,vals,OPS[e.id]):canSolve(blanks[0],blanks[1],blanks[2],vals[0],vals[1],vals[2],OPS[e.id]);
-        if(already)continue;
-        // [Equil 1.29] Sort by value ASCENDING (small first) — these
-        // are our top picks for "give the player this one for free" so
-        // the bank stays free of small-value tiles. Tie-break by
-        // crossing degree DESCENDING.
-        var sorted=pts.slice().sort(function(a,b){
-          var ca=CM[nk(a)],cb=CM[nk(b)];
-          var va=ca?(ca.answer||99):99, vb=cb?(cb.answer||99):99;
-          if(va!==vb) return va-vb;
-          return (cb?cb.eqs.length:0)-(ca?ca.eqs.length:0);
+      // [v1.44] Use the global propagation oracle instead of the old
+      // local-only approach. Strategy:
+      //   1. Start with ALL num cells blanked (already done above for XL).
+      //   2. If the puzzle is already solvable via chained one-step
+      //      deductions (isSolvableViaPropagation), we're done — leave
+      //      everything blank.
+      //   3. If not, repeatedly find the equation where local solving
+      //      fails worst, restore its smallest-value cell as a given,
+      //      and re-test. Stop when the puzzle becomes
+      //      propagation-solvable or when we run out of restoration
+      //      candidates.
+      // This produces dramatically more blanks than the old per-
+      // equation greedy restore, since equations whose values are
+      // pinned by chains of crossings need zero of their own givens.
+      var safety=0;
+      while(safety++ < 200 && !isSolvableViaPropagation(tmpl,BS,CM,OPS)){
+        // Find an equation that, under current BS, can't yet be
+        // resolved by chained deductions starting from itself.
+        // Concretely: pick an equation whose blanks > 1 AND whose
+        // cells aren't being filled in by the propagator. Restore
+        // the smallest-value cell of any such equation.
+        var picked=null;
+        // Compute which keys are currently unresolvable via
+        // propagation (i.e., remain blank after the propagator runs).
+        var workTest={};
+        for(var k in BS)if(BS[k])workTest[k]=true;
+        var maxPP=Object.keys(workTest).length+2;
+        for(var pp=0;pp<maxPP;pp++){
+          var ch=false;
+          for(var ii=0;ii<tmpl.length;ii++){
+            var ee=tmpl[ii],pps=eqNumPts(ee);
+            var bk=[];
+            for(var jj=0;jj<pps.length;jj++){var kk=nk(pps[jj]);if(workTest[kk])bk.push(kk);}
+            if(bk.length!==1)continue;
+            var rrv=requiredValXL(ee,bk[0],workTest,CM,OPS);
+            if(rrv!==null){delete workTest[bk[0]];ch=true;}
+          }
+          if(!ch)break;
+        }
+        // workTest now contains keys that propagation cannot resolve.
+        // Pick the cell with smallest value among these to restore.
+        var unresolved=Object.keys(workTest);
+        if(unresolved.length===0)break;
+        unresolved.sort(function(a,b){
+          var va=CM[a]?(CM[a].answer||99):99, vb=CM[b]?(CM[b].answer||99):99;
+          if(va!==vb)return va-vb;
+          return (CM[b]?CM[b].eqs.length:0)-(CM[a]?CM[a].eqs.length:0);
         });
-        var restored=false;
-        for(var pi=0;pi<sorted.length&&!restored;pi++){
-          var k2=nk(sorted[pi]);
-          delete BS[k2];
-          var bk=pts.map(function(p){return !!BS[nk(p)];});
-          var vk=pts.map(function(p){var c=CM[nk(p)];return c?c.answer:null;});
-          var ok2=e.xl?canSolveXL(bk,vk,OPS[e.id]):canSolve(bk[0],bk[1],bk[2],vk[0],vk[1],vk[2],OPS[e.id]);
-          if(ok2){restored=true;}else{BS[k2]=true;} // restore blank if it didn't help
+        picked=unresolved[0];
+        if(!picked)break;
+        delete BS[picked]; // restore as a given
+      }
+      // [v1.48] PRUNE PASS. The restore loop above uses the SINGLE-STEP
+      // propagator to identify unresolvable cells (it's faster than
+      // arc consistency and good enough to make incremental progress).
+      // But that picker can over-restore: cells that would actually be
+      // resolved by arc consistency get restored anyway. After the
+      // loop terminates with arc-consistency-solvable, walk every
+      // restored cell in random order, try re-blanking it, and accept
+      // the change if arc consistency still says solvable. This
+      // sharpens the final blank count to roughly what arc consistency
+      // can support. Bounded by wall-clock to avoid pathological
+      // slowness on large templates.
+      var restored=[];
+      for(var k in CM){
+        if(CM[k].role==='num' && !BS[k])restored.push(k);
+      }
+      restored.sort(function(){return Math.random()-0.5;});
+      var pruneStart=Date.now();
+      var pruneBudgetMs=300; // hard ceiling for prune pass
+      for(var pi=0;pi<restored.length;pi++){
+        if(Date.now()-pruneStart>pruneBudgetMs)break;
+        var rk=restored[pi];
+        BS[rk]=true; // tentatively re-blank
+        if(!isSolvableViaPropagation(tmpl,BS,CM,OPS)){
+          delete BS[rk]; // doesn't work, restore it
         }
       }
     }
@@ -2368,47 +3459,14 @@ function selectBlanksXL(tmpl,CM,OPS,diff){
       var pts=eqNumPts(tmpl[i]);
       if(!pts.some(function(p){return BS[nk(p)];}))BS[nk(pts[pts.length-1])]=true;
     }
-    // Validate solvability — first propagate any crossing-derived values into effective vals
-    var ok=true;
-    for(var i=0;i<tmpl.length;i++){
-      var e=tmpl[i],pts=eqNumPts(e);
-      // For each blank cell, check if its crossing equations fix its value
-      var effectiveBlanks=pts.map(function(p){
-        var k2=nk(p);
-        if(!BS[k2])return false; // given
-        // Check if any other equation sharing this cell can derive its value
-        var cell2=CM[k2];
-        if(!cell2||cell2.eqs.length<2)return true; // truly free
-        for(var ei2=0;ei2<cell2.eqs.length;ei2++){
-          if(cell2.eqs[ei2]===e.id)continue;
-          var e2=null;for(var j=0;j<tmpl.length;j++)if(tmpl[j].id===cell2.eqs[ei2]){e2=tmpl[j];break;}
-          if(!e2)continue;
-          var rv=requiredValXL(e2,k2,BS,CM,OPS);
-          if(rv!==null)return false; // crossing can determine this value — treat as given
-        }
-        return true; // genuinely blank
-      });
-      var effectiveVals=pts.map(function(p){
-        var k2=nk(p);
-        if(!BS[k2])return CM[k2]?CM[k2].answer:null;
-        // Try to get crossing-derived value
-        var cell2=CM[k2];
-        if(!cell2)return null;
-        for(var ei2=0;ei2<cell2.eqs.length;ei2++){
-          var e2=null;for(var j=0;j<tmpl.length;j++)if(tmpl[j].id===cell2.eqs[ei2]){e2=tmpl[j];break;}
-          if(!e2||e2.id===e.id)continue;
-          var rv=requiredValXL(e2,k2,BS,CM,OPS);
-          if(rv!==null)return rv;
-        }
-        return null;
-      });
-      if(e.xl){
-        if(!canSolveXL(effectiveBlanks,effectiveVals,OPS[e.id])){ok=false;break;}
-      } else {
-        var op=OPS[e.id];
-        if(!canSolve(effectiveBlanks[0],effectiveBlanks[1],effectiveBlanks[2],effectiveVals[0],effectiveVals[1],effectiveVals[2],op)){ok=false;break;}
-      }
-    }
+    // [v1.44] Validate: puzzle must be solvable via chained one-step
+    // deductions across all equations. Was: a single-step propagation
+    // (each cell could only be resolved if its other equation was
+    // already fully filled), which forced over-restoration of givens.
+    // Now: keeps applying requiredValXL to any equation with exactly
+    // one blank until fixpoint, accepting any blank distribution that
+    // resolves completely.
+    var ok=isSolvableViaPropagation(tmpl,BS,CM,OPS);
     if(!ok)continue;
     // Crossing consistency
     for(var k in BS){
@@ -2552,18 +3610,20 @@ function selectBlanks(tmpl,CM,OPS,diff){
         tb.forEach(function(c){BS[nk(c)]=true;});
       }
     } else {
-      // Hard: blank almost everything, keep 1 given per equation.
-      // [Equil 1.29] Prefer the SMALLEST-VALUE cell as the given,
-      // so the bank ends up with mostly larger numbers (4-9) instead
-      // of being dominated by 1's, 2's, and 3's. Within equal values,
-      // prefer solo (uncrossed) cells so we don't waste a high-degree
-      // crossing cell on something the player already sees.
+      // [v1.48] Hard: blank ALL num cells, then for each equation,
+      // restore one cell as a given (preferring smallest-value, solo-
+      // crossed cells first). 3-cell equations don't benefit much from
+      // arc consistency — the chains are short and single-step
+      // propagation already resolves them once each equation has 1
+      // blank. The arc-consistency oracle's overhead actually slowed
+      // medium/large puzzles down to several seconds; reverted here
+      // to the v1.44-style per-equation greedy restore that runs in
+      // under 100ms even on large grids.
       for(var k in CM)if(CM[k].role==='num')BS[k]=true;
       for(var i=0;i<tmpl.length;i++){
         var nc=numPts(tmpl[i]).map(function(p){return CM[nk(p)];}).filter(Boolean);
         var solo=nc.filter(function(c){return c.eqs.length===1;});
         var pool=solo.length?solo:nc;
-        // Sort by value ascending, then random shuffle within ties.
         var poolSorted=pool.slice().sort(function(a,b){
           var va=a.answer||99, vb=b.answer||99;
           if(va!==vb) return va-vb;
@@ -2586,7 +3646,12 @@ function selectBlanks(tmpl,CM,OPS,diff){
       }
     }
 
-    // Check 1: each equation solvable
+    // [v1.48] Standard validation: each equation locally solvable.
+    // For 3-cell equations, this is the right granularity — chain
+    // propagation rarely helps, and the arc-consistency oracle is too
+    // slow on the larger templates. Keep the simple check that worked
+    // pre-v1.44 for non-XL puzzles. (XL still uses the propagation
+    // oracle in selectBlanksXL.)
     var ok=true;
     for(var i=0;i<tmpl.length;i++){
       var e=tmpl[i],pts=numPts(e),kA=nk(pts[0]),kB=nk(pts[1]),kC=nk(pts[2]);
@@ -2643,6 +3708,31 @@ function buildPuzzle(size,diff,_retry,_divRetry){
   var isXL=size==='xl'||size==='xl2';
   var pool=size==='small'?TMPL_SMALL:size==='medium'?TMPL_MEDIUM:size==='large'?TMPL_LARGE:size==='xl2'?TMPL_XL2:TMPL_XL;
   var tmpl=rp(pool);
+
+  // [v1.50] Shift the chosen template up so its topmost cell anchors
+  // to row 0. Templates were authored with low-row content varying by
+  // template — some have verticals starting at r:0, others start at
+  // r:2, r:3, etc. The grid sizes itself to (maxRow + 1), so any
+  // empty rows at the top stay as visible dead space at the top of
+  // the puzzle. By computing the minimum row used across all sequences
+  // and subtracting it from every equation's r, we keep the rendered
+  // grid the same shape but anchored to the top — eliminating the 2-4
+  // row blank band the user was seeing.
+  var minR=Infinity;
+  for(var ti=0;ti<tmpl.length;ti++){
+    var ts=tmpl[ti].xl?seqXL(tmpl[ti].dir,tmpl[ti].c,tmpl[ti].r):seq(tmpl[ti].dir,tmpl[ti].c,tmpl[ti].r);
+    for(var tj=0;tj<ts.length;tj++)if(ts[tj].r<minR)minR=ts[tj].r;
+  }
+  if(minR>0 && minR!==Infinity){
+    // Shallow-copy each equation with its r adjusted. Mutating the
+    // template arrays directly would corrupt the pool for subsequent
+    // puzzles.
+    tmpl=tmpl.map(function(e){
+      var copy={};for(var k in e)copy[k]=e[k];
+      copy.r=e.r-minR;
+      return copy;
+    });
+  }
 
   var allowedOps=(diff==='easy')?['+','-']:['+','-','x','/'];
   var minDiv=(diff==='easy')?0:(size==='large'||size==='xl'||size==='xl2')?4:(size==='medium'?3:2);
@@ -2765,19 +3855,22 @@ function buildPuzzle(size,diff,_retry,_divRetry){
   }
   var blanks=Object.keys(CM).filter(function(k){return CM[k].isBlank;}).map(function(k){return CM[k].answer;});
 
-  // [Equil 1.29] Tile-value distribution cap. Without this, large
-  // puzzles often end up with a dozen or more 1's, 2's, or 3's in the
-  // tile bank — boring to look at and tedious to place. We cap any
-  // single value to TILE_VALUE_CAP copies; if a generated puzzle
-  // exceeds it, retry. Larger puzzles get a slightly higher cap since
-  // the math constraints make small values mathematically necessary.
-  // The retry budget is shared with the broken-puzzle retry counter so
-  // we don't loop forever on a template that simply can't satisfy the
-  // distribution; eventually we accept whatever was generated.
-  var TILE_VALUE_CAP = (size==='xl'||size==='xl2') ? 6
-                     : (size==='large')           ? 5
-                     : (size==='medium')          ? 5
-                     :                              4;
+  // [v1.47] Tile-value distribution cap. The v1.29 caps (6/5/5/4) were
+  // tuned for the old generator and turned out to be the actual reason
+  // hard puzzles look dense post-rebrand. A sparse hard puzzle —
+  // meaning more cells blank — naturally pools more answers into the
+  // bank, and the math constraints push those answers toward small
+  // values (1, 2, 3 appear most often in valid arithmetic). With a
+  // cap of 6 on XL, layouts with 8-12 copies of "1" got rejected and
+  // the retry loop converged on the only layouts the cap accepted:
+  // dense ones where each equation gives away 2-of-3 cells. Caps
+  // doubled here (12/10/10/8). The bank may look a little busier
+  // with duplicates but hard mode produces visibly sparser puzzles
+  // again, like the pre-rebrand version.
+  var TILE_VALUE_CAP = (size==='xl'||size==='xl2') ? 12
+                     : (size==='large')           ? 10
+                     : (size==='medium')          ? 10
+                     :                              8;
   var tileCounts = {};
   var maxTileCount = 0;
   for(var bi=0;bi<blanks.length;bi++){
@@ -6621,12 +7714,12 @@ function render(){
   }
 
   var grid=document.getElementById('grid');
-  grid.style.cssText='display:inline-grid;grid-template-columns:repeat('+cols+','+CS+'px);grid-template-rows:repeat('+rows+','+CS+'px);gap:1px;background:var(--bk);border:2px solid var(--bk);';
+  grid.style.cssText='display:inline-grid;grid-template-columns:repeat('+cols+','+CS+'px);grid-template-rows:repeat('+rows+','+CS+'px);gap:1px;background:var(--bk);border:1px solid rgba(0,217,255,0.12);';
   // Size the clip container exactly to the grid's natural pixel size so overflow:hidden clips correctly
   var clipEl=document.getElementById('gridClip');
   if(clipEl){
-    var gridW=cols*CS+(cols-1)+4; // cells + gaps + 2px border each side
-    var gridH=rows*CS+(rows-1)+4+3; // +3px to prevent bottom cell border clipping (was +1)
+    var gridW=cols*CS+(cols-1)+2; // cells + gaps + 1px border each side
+    var gridH=rows*CS+(rows-1)+2+3; // +3px to prevent bottom cell border clipping (was +1)
     clipEl.style.width=gridW+'px';
     clipEl.style.height=gridH+'px';
   }
@@ -6681,20 +7774,23 @@ function render(){
       } else if(cell.isBlank){
         var st=cstat(k,PZ);
         var bg=hi?'rgba(0,217,255,0.12)':'transparent',col=hi?'#e8e8e8':'#e8e8e8';
-        if(SEL===k){bg='rgba(255,226,80,0.35)';col='#ffe250';d.style.zIndex='3';d.style.boxShadow='0 0 6px rgba(255,226,80,0.5)';}
+        if(SEL===k){bg='rgba(168,85,247,0.35)';col='#a855f7';d.style.zIndex='3';d.style.boxShadow='0 0 6px rgba(168,85,247,0.5)';}
         var isSolvedBlank=doAnim&&!isNewly;
         var blankDim=isDim&&SEL!==k;
         if(blankDim&&(isSolvedBlank||st==='ok')){bg='rgba(74,222,128,0.06)';col='rgba(74,222,128,0.35)';}
         else if(isSolvedBlank){bg='rgba(74,222,128,0.25)';col='#4ade80';}
         else if(st==='ok'){bg='rgba(74,222,128,0.20)';col='#4ade80';}
         else if(st==='bad'){bg='rgba(248,113,113,0.20)';col='#ff6b6b';d.style.animation='shk .25s ease';}
-        else if(cell.value!=null&&SEL!==k){bg='rgba(255,226,80,0.10)';col='#ffe250';}
-        var _bord=(isSolvedBlank||st==='ok'||blankDim)?'':'border:1px solid rgba(255,255,255,0.18);';
+        else if(cell.value!=null&&SEL!==k){bg='rgba(168,85,247,0.10)';col='#a855f7';}
+        var _bord;
+        if(isSolvedBlank||st==='ok'||blankDim) _bord='';
+        else if(SEL===k) _bord='border:1px solid rgba(168,85,247,0.85);';
+        else _bord='border:1px solid rgba(0,217,255,0.25);';
         d.style.cssText+='background:'+bg+';color:'+col+';cursor:pointer;border-radius:'+RR+';'+_bord;
         if(cell.value!=null){
           d.textContent=cell.value;
           if(!isSolvedBlank&&st!=='ok'&&st!=='bad'){
-            d.style.color='#ffe250';
+            d.style.color='#a855f7';
             d.style.fontSize=Math.round(FS*0.92)+'px';
           }
         }
@@ -7118,24 +8214,22 @@ function _puzzlePctToGapMult(pct){ return pct/33.33; }       // 0%=0 gap, 33%=de
 
 window.applyPctH = function(pct){
   pct=Math.max(0,Math.min(100,pct));
-  var _tb=document.querySelector('.bank-outer');
-  var _tbTop=_tb?_tb.getBoundingClientRect().top:null;
   TILE_SCALE=_puzzlePctToScaleH(pct);
   if(PZ) renderBank();
   if(window._syncVertSizeBar) window._syncVertSizeBar(pct);
   if(window._syncTbSize) window._syncTbSize(pct);
   if(window._syncToolbarBeat) window._syncToolbarBeat();
-  if(_tb&&_tbTop!==null){
-    var drift=_tb.getBoundingClientRect().top-_tbTop;
-    if(Math.abs(drift)>1) window.scrollBy(0,drift);
-  }
+  // [v1.75] Removed bank-position drift compensation. It used
+  // window.scrollBy to keep .bank-outer visually pinned during
+  // slider drags, but when called from button toggles (xN/mini/
+  // cyan) it caused the page to snap to the top after each
+  // button press. Cost of removal: when the user drags the SIZE
+  // slider, the bank may shift a few pixels — acceptable.
 };
 window.scaleToPctH = _puzzleScaleToPctH;
 
 window.applyGapPct = function(pct){
   pct=Math.max(0,Math.min(100,pct));
-  var _tb=document.querySelector('.bank-outer');
-  var _tbTop=_tb?_tb.getBoundingClientRect().top:null;
   TILE_GAP_MULT=_puzzlePctToGapMult(pct);
   if(PZ) renderBank();
   if(window._syncTbGap) window._syncTbGap(pct);
@@ -7144,23 +8238,23 @@ window.applyGapPct = function(pct){
     var i=parseInt(t.dataset.bankIdx);
     if(!isNaN(i)) applyTileColor(t,i);
   });
-  if(_tb&&_tbTop!==null){
-    var drift=_tb.getBoundingClientRect().top-_tbTop;
-    if(Math.abs(drift)>1) window.scrollBy(0,drift);
-  }
+  // [v1.75] See applyPctH for note about removed drift compensation.
 };
 
 // Init defaults — these match what the seq IIFE used to set on load:
 //   SIZE at 50% (TILE_SCALE = 0.75), GAP at 33.33% (TILE_GAP_MULT = 1.0)
 // Defer until DOMContentLoaded so the bank container exists when renderBank runs.
+// [v1.72] Init defaults — bumped from 50/33.33 to 90/25 so tiles
+// default to nearly full size (TILE_SCALE ≈ 1.11) with a small gap
+// (TILE_GAP_MULT ≈ 0.75). Slider can still tune both.
 if(document.readyState==='loading'){
   document.addEventListener('DOMContentLoaded', function(){
-    window.applyPctH(50);
-    window.applyGapPct(33.33);
+    window.applyPctH(90);
+    window.applyGapPct(25);
   });
 } else {
-  window.applyPctH(50);
-  window.applyGapPct(33.33);
+  window.applyPctH(90);
+  window.applyGapPct(25);
 }
 
 // ── VERTICAL CANVAS SIZE BAR (always visible, left of bank) ──────
@@ -7168,7 +8262,7 @@ if(document.readyState==='loading'){
   // Build the canvas size bar element and inject it into the bank-row
   // We create it in JS so we can render it canvas-style (matching menu sliders)
 
-  var COLOR='#4b7bb5'; // same blue as tile spacing menu
+  var COLOR='#a855f7'; // [v1.72] amethyst — was '#4b7bb5' (blue from tile spacing menu)
 
   function pctToScale(pct){ return 0.3+(pct/100)*0.9; }
   function scaleToPct(s){ return (s-0.3)/0.9*100; }
@@ -7534,19 +8628,19 @@ if(document.readyState==='loading'){
         // Max size, zero gap. Don't trigger the slider's input handler
         // (which would call applyPctH inside its SEQ-mode branch);
         // instead drive the apply helpers directly.
-        sl.value = 100;
-        slGap.value = 0;
-        if(window.applyPctH) window.applyPctH(100);
-        if(window.applyGapPct) window.applyGapPct(0);
-        _drawVertPair(cv, hcv, 1.0);
-        _drawVertPair(cvGap, hcvGap, 0.0);
+        sl.value = 90;
+        slGap.value = 25;
+        if(window.applyPctH) window.applyPctH(90);
+        if(window.applyGapPct) window.applyGapPct(25);
+        _drawVertPair(cv, hcv, 0.9);
+        _drawVertPair(cvGap, hcvGap, 0.25);
       } else {
         // Restore prior slider state. Fall back to defaults if no
         // snapshot was captured (e.g. user enabled condense via
         // localStorage on a fresh load).
         var snap = window._condenseSliderSnapshot;
-        var sizePct = snap ? snap.size : 50;
-        var gapPct  = snap ? snap.gap  : 33;
+        var sizePct = snap ? snap.size : 90;
+        var gapPct  = snap ? snap.gap  : 25;
         sl.value = sizePct;
         slGap.value = gapPct;
         if(window.applyPctH) window.applyPctH(sizePct);
@@ -7560,6 +8654,12 @@ if(document.readyState==='loading'){
     }
     condBtn.addEventListener('click', function(e){ e.stopPropagation(); _toggleCondense(); });
     condBtn.addEventListener('touchend', function(e){ e.stopPropagation(); }, {passive:true});
+    // [v1.78] Expose toggle so the new full-width tile-controls-row
+    // relay buttons can call it directly instead of via a synthetic
+    // click on the now-hidden #condenseTilesBtn (which seemed to be
+    // causing scroll-to-top — possibly due to default <button> submit
+    // semantics or focus-into-view on a display:none element).
+    window._equilToggleCondense = _toggleCondense;
     // Hide in SEQ mode. renderBank is called on mode switches, so we
     // expose a sync function that renderBank invokes at the top of
     // each call to keep this in step with seqVisible.
@@ -7643,16 +8743,16 @@ if(document.readyState==='loading'){
       if(window._btnFx) window._btnFx(turningOn ? 'tool_on' : 'tool_off');
       // Apply slider changes (same logic as xN toggle).
       if(turningOn){
-        sl.value = 100;
-        slGap.value = 0;
-        if(window.applyPctH) window.applyPctH(100);
-        if(window.applyGapPct) window.applyGapPct(0);
-        _drawVertPair(cv, hcv, 1.0);
-        _drawVertPair(cvGap, hcvGap, 0.0);
+        sl.value = 90;
+        slGap.value = 25;
+        if(window.applyPctH) window.applyPctH(90);
+        if(window.applyGapPct) window.applyGapPct(25);
+        _drawVertPair(cv, hcv, 0.9);
+        _drawVertPair(cvGap, hcvGap, 0.25);
       } else {
         var snap2 = window._condenseSliderSnapshot;
-        var sizePct2 = snap2 ? snap2.size : 50;
-        var gapPct2  = snap2 ? snap2.gap  : 33;
+        var sizePct2 = snap2 ? snap2.size : 90;
+        var gapPct2  = snap2 ? snap2.gap  : 25;
         sl.value = sizePct2;
         slGap.value = gapPct2;
         if(window.applyPctH) window.applyPctH(sizePct2);
@@ -7664,6 +8764,7 @@ if(document.readyState==='loading'){
     }
     miniBtn.addEventListener('click', function(e){ e.stopPropagation(); _toggleMini(); });
     miniBtn.addEventListener('touchend', function(e){ e.stopPropagation(); }, {passive:true});
+    window._equilToggleMini = _toggleMini;
     function _syncMiniBtnVisibility(){
       miniBtn.style.display = window._seqVisible ? 'none' : 'flex';
     }
@@ -7752,10 +8853,10 @@ if(document.readyState==='loading'){
       _paintCyanBtn();
       if(window._btnFx) window._btnFx(turningOn ? 'tool_on' : 'tool_off');
       if(turningOn){
-        sl.value = 100;
-        slGap.value = 0;
-        TILE_SCALE = 1.0;
-        TILE_GAP_MULT = 0;
+        sl.value = 90;
+        slGap.value = 25;
+        TILE_SCALE = 1.11;       // matches applyPctH(90): 0.3 + 0.9*0.9
+        TILE_GAP_MULT = 0.75;    // matches applyGapPct(25): 25/33.33
         var sizePct1 = parseFloat(sl.value) || 0;
         var gapPct1 = parseFloat(slGap.value) || 0;
         _drawVertPair(cv, hcv, sizePct1/100);
@@ -7774,6 +8875,7 @@ if(document.readyState==='loading'){
     }
     cyanBtn.addEventListener('click', function(e){ e.stopPropagation(); _toggleCyan(); });
     cyanBtn.addEventListener('touchend', function(e){ e.stopPropagation(); }, {passive:true});
+    window._equilToggleCyan = _toggleCyan;
     function _syncCyanBtnVisibility(){
       cyanBtn.style.display = window._seqVisible ? 'none' : 'flex';
     }
@@ -7914,6 +9016,642 @@ if(document.readyState==='loading'){
   // Run after everything is registered (drawMixerSliderV is set up later in the file)
   window.addEventListener('load', _buildBar);
 })();
+
+// ─────────────────────────────────────────────────────────────
+// [v1.74] TILE-CONTROLS ROW + ADJUST MODAL
+// ─────────────────────────────────────────────────────────────
+// New full-width controls row beneath the bank: ADJUST + the
+// three tile-display modes (×N / mini / cyan). The mode buttons
+// don't reimplement toggle logic — they forward clicks to the
+// original buttons inside the in-bank slider strip (#condenseTilesBtn,
+// #miniTilesBtn, #cyanTilesBtn). The strip itself is hidden via
+// CSS in puzzle mode but the buttons are still in the DOM and
+// fully functional, so this is just a UI relay.
+//
+// ADJUST opens a modal containing the SIZE+GAP slider widgets.
+// The widgets live inside #sizeCanvasWrap which sits in .bank-row
+// at startup. On modal open, the wrap is moved into the modal's
+// slider area; on close, it's moved back to its original parent.
+// All existing slider event handlers are captured in closures by
+// the slider IIFE, so DOM relocation doesn't break them.
+(function(){
+  var _wired = false;
+  function _wireWhenReady(){
+    // Idempotent — running twice (DOMContentLoaded + load) was
+    // attaching the relay click listener TWICE per button. Each
+    // click fired both listeners, each dispatched a synthetic
+    // click on the original, original toggled twice → flag ended
+    // up back at its starting state. Visible symptom: tile size
+    // changed (slider snap fires once) but mode flag never
+    // stuck. This guard ensures the wiring runs at most once.
+    if(_wired) return;
+    var adjustBtn = document.getElementById('tileAdjustBtn');
+    var modeXn    = document.getElementById('tileModeXn');
+    var modeMini  = document.getElementById('tileModeMini');
+    var modeCyan  = document.getElementById('tileModeCyan');
+    var modal     = document.getElementById('tileAdjustModal');
+    var modalSliders = document.getElementById('tileAdjustModalSliders');
+    var modalClose = document.getElementById('tileAdjustModalClose');
+    if(!adjustBtn || !modal || !modalSliders) return;
+    _wired = true;
+
+    // ── Mode buttons (call toggle functions directly) ──
+    // We call window._equilToggleCondense/Mini/Cyan directly rather
+    // than dispatching a synthetic click on the original (now-hidden)
+    // toggle button. The synthetic-click approach worked for the
+    // toggle logic but seemed to cause scroll-to-top — likely because
+    // a click on a display:none button has weird browser defaults
+    // (focus-into-view, form-submit semantics on type-default <button>,
+    // etc). A direct function call has none of those side effects.
+    function _relay(srcBtn, fnName){
+      if(!srcBtn) return;
+      srcBtn.addEventListener('click', function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        var fn = window[fnName];
+        if(typeof fn === 'function'){
+          try{ fn(); } catch(err){}
+        }
+        _refreshModeBtnStates();
+        setTimeout(_refreshModeBtnStates, 50);
+      });
+    }
+    _relay(modeXn,   '_equilToggleCondense');
+    _relay(modeMini, '_equilToggleMini');
+    _relay(modeCyan, '_equilToggleCyan');
+
+    // Reflect mode state on the new buttons (active class when on).
+    function _refreshModeBtnStates(){
+      try{
+        if(modeXn)   modeXn.classList.toggle('active',   !!window._condensePuzzleTiles);
+        if(modeMini) modeMini.classList.toggle('active', !!window._miniPuzzleTiles);
+        if(modeCyan) modeCyan.classList.toggle('active', !!window._allCyanPuzzleTiles);
+      }catch(e){}
+    }
+    _refreshModeBtnStates();
+    // Re-sync periodically so external state changes (localStorage
+    // load, toggling via the original buttons if ever visible, etc.)
+    // get reflected. Cheap polling is the simplest reliable hookup
+    // since the original IIFE doesn't expose change events.
+    setInterval(_refreshModeBtnStates, 500);
+
+    // ── ADJUST modal ──
+    var _origParent = null; // remember where #sizeCanvasWrap was
+    var _origNextSibling = null;
+    function _openModal(){
+      var wrap = document.getElementById('sizeCanvasWrap');
+      if(wrap){
+        _origParent = wrap.parentNode;
+        _origNextSibling = wrap.nextSibling;
+        modalSliders.appendChild(wrap);
+      }
+      modal.classList.add('open');
+    }
+    function _closeModal(){
+      var wrap = document.getElementById('sizeCanvasWrap');
+      if(wrap && _origParent){
+        if(_origNextSibling && _origNextSibling.parentNode === _origParent){
+          _origParent.insertBefore(wrap, _origNextSibling);
+        } else {
+          _origParent.appendChild(wrap);
+        }
+      }
+      _origParent = null;
+      _origNextSibling = null;
+      modal.classList.remove('open');
+    }
+    adjustBtn.addEventListener('click', _openModal);
+    modalClose.addEventListener('click', _closeModal);
+    // [v1.81] Backdrop-click close is inert now since the overlay
+    // has pointer-events:none (so taps outside the modal box pass
+    // through to the page rather than dismissing). Listener kept
+    // in case the overlay style is reverted; close via DONE button
+    // is the only path while pointer-events:none is in effect.
+    modal.addEventListener('click', function(e){
+      if(e.target === modal) _closeModal();
+    });
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', _wireWhenReady);
+  } else {
+    _wireWhenReady();
+  }
+  // Also retry on load in case the slider IIFE hadn't built #sizeCanvasWrap yet.
+  window.addEventListener('load', _wireWhenReady);
+})();
+
+// ─────────────────────────────────────────────────────────────
+// [v1.82] DRAG-TO-PLACE — drag a bank tile onto a cell
+// ─────────────────────────────────────────────────────────────
+// Adds touch drag-and-drop on bank tiles. Workflow:
+//   1. touchstart on a .bt[data-bank-idx]: record start position
+//      and bank index, but don't enter drag mode yet (so a
+//      regular tap still works for the existing tap-tile flow).
+//   2. touchmove: if the touch has moved more than DRAG_THRESHOLD
+//      pixels from the start, enter drag mode — create a ghost
+//      element that follows the finger.
+//   3. touchend in drag mode: hit-test the cell under the finger
+//      via elementFromPoint, find its data-cell-key, and place
+//      the tile there by calling the existing place(idx) function
+//      (which handles "drop replaces existing value" automatically
+//      — when SEL points at a filled cell, place() returns that
+//      cell's old value to the bank before placing the new one).
+//   4. touchend in non-drag mode: do nothing here — the existing
+//      tap handler on the tile fires normally.
+//
+// Active regardless of whether a cell is selected. If a cell IS
+// already selected, the drag still works on top of that — drag
+// overrides the tap-tile-into-selected-cell flow because we set
+// SEL to the drag target before calling place().
+(function(){
+  // ── Drag-to-place tunables ──
+  var DRAG_THRESHOLD = 8;     // px — finger must move this far to start drag
+  var GHOST_OPACITY = 0.85;
+  // [v1.94] FINGER_OFFSET_Y is now also the offset used for magnet
+  // distance calculations — the ghost's position acts as the
+  // effective "finger" for cell proximity. Combined with dialed-
+  // back lock ranges this gives a more natural feel: the ghost
+  // really is where the user's "interaction point" is, and that's
+  // what cells react to.
+  var FINGER_OFFSET_Y = 24;
+  // [v1.94] Pulled back from 10/13 to 6/8. With the offset model
+  // (magnet measures from the ghost, not the finger) these ranges
+  // feel tighter than they would with raw-finger measurement.
+  var LOCK_RANGE_CELLS    = 6.0;    // lock when ghost is this close to cell center
+  var UNLOCK_RANGE_CELLS  = 8.0;    // unlock when ghost leaves the grid neighborhood
+  var PUSH_OFF_CELLS      = 2.0;    // radial push-off threshold
+  var DIRECTIONAL_LATERAL_CELLS = 2.5; // lateral tolerance for directional push-off
+  var CLEAR_IGNORE_CELLS  = 3.5;    // ghost this far from ignored cell → re-eligible
+  var SNAPPED_FILL = 1.5;           // snapped ghost = 1.5 × cell width
+  var MAGNET_BASE_SCALE = 1.05;     // ghost's natural size at finger
+
+  var _state = null; // null when idle; object during touch session
+
+  function _findBankTile(target){
+    var el = target;
+    while(el && el !== document.body){
+      if(el.classList && el.classList.contains('bt') && el.dataset && el.dataset.bankIdx != null){
+        return el;
+      }
+      el = el.parentNode;
+    }
+    return null;
+  }
+
+  function _findCellAt(x, y){
+    var el = document.elementFromPoint(x, y);
+    while(el && el !== document.body){
+      if(el.dataset && el.dataset.cellKey != null){
+        return el;
+      }
+      el = el.parentNode;
+    }
+    return null;
+  }
+
+  // [v1.83] Cache blank-cell positions at drag start. Cells don't
+  // move during a drag (the grid layout is stable), so we can scan
+  // once instead of every touchmove. We also cache the cell width
+  // so MAGNET_RANGE_CELLS can be converted to pixels.
+  function _buildCellCache(){
+    var cells = [];
+    var cellWidth = 0;
+    var pz = (typeof PZ !== 'undefined') ? PZ : window.PZ;
+    if(!pz || !pz.CM) return {cells:cells, cellWidth:0};
+    var nodes = document.querySelectorAll('[data-cell-key]');
+    for(var i=0;i<nodes.length;i++){
+      var n = nodes[i];
+      var k = n.dataset.cellKey;
+      var cell = pz.CM[k];
+      if(!cell || !cell.isBlank) continue;
+      var r = n.getBoundingClientRect();
+      if(r.width === 0 || r.height === 0) continue; // hidden
+      cells.push({
+        el: n,
+        key: k,
+        cx: r.left + r.width/2,
+        cy: r.top + r.height/2,
+        w: r.width,
+        h: r.height
+      });
+      if(r.width > cellWidth) cellWidth = r.width;
+    }
+    return {cells:cells, cellWidth:cellWidth};
+  }
+
+  function _createGhost(srcTile, x, y){
+    var rect = srcTile.getBoundingClientRect();
+    var ghost = srcTile.cloneNode(true);
+    ghost.id = '_dragGhost';
+    var inner = ghost.querySelectorAll('[id]');
+    for(var i=0;i<inner.length;i++) inner[i].removeAttribute('id');
+    // [v1.83] Use transform for both translation and scale so they
+    // can be animated together via a CSS transition during the
+    // final snap. left/top would force layout reflow and resist
+    // smooth animation.
+    ghost.style.cssText =
+      'position:fixed;'+
+      'left:0;top:0;'+
+      'width:'+rect.width+'px;'+
+      'height:'+rect.height+'px;'+
+      'pointer-events:none;'+
+      'z-index:9999;'+
+      'opacity:'+GHOST_OPACITY+';'+
+      // [v1.93] Spawn the ghost above the finger so it's visible
+      // immediately (not hidden under the fingertip). The same
+      // offset is applied in the move loop's unlocked state.
+      'transform:translate('+(x-rect.width/2)+'px,'+(y-FINGER_OFFSET_Y-rect.height/2)+'px) scale('+MAGNET_BASE_SCALE+');'+
+      'transform-origin:center center;'+
+      // [v1.86] 180ms transition makes the lock-fly motion clearly
+      // visible as a slide from finger to cell. Long enough to be
+      // perceived; short enough not to feel laggy.
+      'transition:transform 180ms cubic-bezier(0.2,0.8,0.2,1), box-shadow 120ms ease-out;'+
+      'will-change:transform;'+
+      'box-shadow:0 0 12px rgba(168,85,247,0.6),0 4px 12px rgba(0,0,0,0.5);';
+    document.body.appendChild(ghost);
+    // Stash dimensions on the ghost for later transform updates.
+    ghost._w = rect.width;
+    ghost._h = rect.height;
+    return ghost;
+  }
+
+  // [v1.83] Position-and-scale ghost in one transform. cx, cy are the
+  // visual center coordinates (where the ghost should appear), and
+  // scale is the size multiplier.
+  function _setGhostTransform(ghost, cx, cy, scale){
+    var tx = cx - ghost._w/2;
+    var ty = cy - ghost._h/2;
+    ghost.style.transform = 'translate('+tx+'px,'+ty+'px) scale('+scale+')';
+  }
+
+  function _highlightCell(cellEl, locked){
+    if(_state._lastHi && _state._lastHi !== cellEl){
+      _state._lastHi.style.outline = '';
+      _state._lastHi.style.outlineOffset = '';
+      _state._lastHi.style.boxShadow = '';
+    }
+    if(cellEl){
+      // [v1.85] Stronger visual difference between hover and locked.
+      // Hover (in outer zone): thin magenta outline.
+      // Locked (snapped): thick outline + bright outer + inner glow,
+      //   so the cell visibly "lights up" the moment magnet locks.
+      if(locked){
+        cellEl.style.outline = '3px solid #a855f7';
+        cellEl.style.outlineOffset = '-2px';
+        cellEl.style.boxShadow =
+          '0 0 12px rgba(168,85,247,0.9) inset,'+
+          '0 0 16px rgba(168,85,247,0.8)';
+      } else {
+        cellEl.style.outline = '1px solid rgba(168,85,247,0.5)';
+        cellEl.style.outlineOffset = '-1px';
+        cellEl.style.boxShadow = '';
+      }
+    }
+    _state._lastHi = cellEl;
+  }
+
+  function _clearHighlight(){
+    if(_state && _state._lastHi){
+      _state._lastHi.style.outline = '';
+      _state._lastHi.style.outlineOffset = '';
+      _state._lastHi.style.boxShadow = '';
+      _state._lastHi = null;
+    }
+  }
+
+  function _onTouchStart(e){
+    if(e.touches.length !== 1) return;
+    var t = e.touches[0];
+    var tile = _findBankTile(t.target);
+    if(!tile) return;
+    var idx = parseInt(tile.dataset.bankIdx);
+    if(isNaN(idx)) return;
+    try{
+      var pz = (typeof PZ !== 'undefined') ? PZ : window.PZ;
+      var bt = (pz && pz.bank) ? pz.bank[idx] : null;
+      if(bt && bt.used) return;
+    }catch(err){}
+    _state = {
+      tile: tile,
+      idx: idx,
+      startX: t.clientX,
+      startY: t.clientY,
+      ghost: null,
+      dragging: false,
+      _lastHi: null,
+      cellCache: null,    // populated on drag start
+      lockedCell: null,   // currently magnet-locked cell entry from cache
+      ignoredCells: {}    // [v1.89] {cellKey: true} — temporarily disqualified
+    };
+  }
+
+  function _onTouchMove(e){
+    if(!_state) return;
+    if(e.touches.length !== 1){ _cancel(); return; }
+    var t = e.touches[0];
+    var dx = t.clientX - _state.startX;
+    var dy = t.clientY - _state.startY;
+    if(!_state.dragging){
+      if(Math.sqrt(dx*dx + dy*dy) < DRAG_THRESHOLD) return;
+      // Threshold crossed — enter drag mode.
+      _state.dragging = true;
+      _state.ghost = _createGhost(_state.tile, t.clientX, t.clientY);
+      _state.tile.style.opacity = '0.3';
+      // [v1.83] Build the cell-position cache once at drag start.
+      _state.cellCache = _buildCellCache();
+    }
+    e.preventDefault();
+
+    // ── Magnet logic with push-off (v1.89) ──
+    var fx = t.clientX, fy = t.clientY;
+    // [v1.94] Magnet origin is the ghost's effective position —
+    // 24px above the finger. Cells "see" this point for all
+    // distance/lock/push-off checks, so the ghost behaves as if
+    // it IS the finger from the magnet's perspective.
+    var mx = fx, my = fy - FINGER_OFFSET_Y;
+    var cache = _state.cellCache;
+    var ignored = _state.ignoredCells;
+
+    // [v1.89] First pass: clear any ignored cells where the finger
+    // has moved CLEAR_IGNORE_CELLS away from the cell center. Once
+    // out of that radius, the cell is re-eligible for locking.
+    if(cache){
+      for(var ki in ignored){
+        if(!ignored.hasOwnProperty(ki)) continue;
+        // Find the cell entry by key
+        for(var j=0;j<cache.cells.length;j++){
+          if(cache.cells[j].key === ki){
+            var ic = cache.cells[j];
+            var idx_dx = mx - ic.cx, idx_dy = my - ic.cy;
+            var idx_d = Math.sqrt(idx_dx*idx_dx + idx_dy*idx_dy);
+            var clearPx = ic.w * CLEAR_IGNORE_CELLS;
+            if(idx_d > clearPx){
+              delete ignored[ki];
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    // Second pass: find the nearest non-ignored blank cell.
+    var nearest = null;
+    var nearestDist = Infinity;
+    if(cache){
+      for(var i=0;i<cache.cells.length;i++){
+        var c = cache.cells[i];
+        if(ignored[c.key]) continue;
+        var ddx = mx - c.cx, ddy = my - c.cy;
+        var d = Math.sqrt(ddx*ddx + ddy*ddy);
+        if(d < nearestDist){
+          nearestDist = d;
+          nearest = c;
+        }
+      }
+    }
+
+    var ghostCx = mx, ghostCy = my;
+    var ghostScale = MAGNET_BASE_SCALE;
+    var hiCell = null;
+    var locked = false;
+
+    // Lock decision with push-off:
+    //   - If currently locked to cell A, check if finger has gotten
+    //     too close to A's center (PUSH_OFF_CELLS). If so, add A to
+    //     ignored set and break the lock.
+    //   - Otherwise, behave like the old binary lock: lock when
+    //     nearest is within LOCK_RANGE, unlock when beyond UNLOCK.
+    if(_state.lockedCell){
+      var lc = _state.lockedCell;
+      var lcDx = mx - lc.cx, lcDy = my - lc.cy;
+      var lcDist = Math.sqrt(lcDx*lcDx + lcDy*lcDy);
+      var pushOffPx = lc.w * PUSH_OFF_CELLS;
+
+      // [v1.91] Directional push-off: project the finger's motion
+      // since the lock fired onto the approach axis (lock-start →
+      // cell center). If the projection has reached or passed the
+      // cell, AND the lateral offset from that axis is within
+      // tolerance, push off. This makes the magnet release when the
+      // finger drags past the cell in any direction (not just radial).
+      var directionalTrigger = false;
+      var lsX = (typeof _state.lockStartX === 'number') ? _state.lockStartX : null;
+      var lsY = (typeof _state.lockStartY === 'number') ? _state.lockStartY : null;
+      if(lsX !== null && lsY !== null){
+        var apX = lc.cx - lsX;
+        var apY = lc.cy - lsY;
+        var apLen = Math.sqrt(apX*apX + apY*apY);
+        if(apLen > 4){ // ignore degenerate cases where lock fired right on cell
+          // Unit vector along approach axis.
+          var ux = apX / apLen, uy = apY / apLen;
+          // Finger vector from lock-start.
+          var fpX = mx - lsX, fpY = my - lsY;
+          // Projection length along approach axis.
+          var proj = fpX * ux + fpY * uy;
+          // Lateral component magnitude (distance from axis).
+          var latX = fpX - proj * ux;
+          var latY = fpY - proj * uy;
+          var lat = Math.sqrt(latX*latX + latY*latY);
+          var lateralTolerancePx = lc.w * DIRECTIONAL_LATERAL_CELLS;
+          if(proj >= apLen && lat <= lateralTolerancePx){
+            directionalTrigger = true;
+          }
+        }
+      }
+
+      if(lcDist <= pushOffPx || directionalTrigger){
+        // Push off: finger has reached the locked cell (radially or
+        // by passing it along the approach axis). Add it to ignored,
+        // break the lock.
+        ignored[lc.key] = true;
+        _state.lockedCell = null;
+        // Recompute nearest now that the cell is ignored.
+        nearest = null; nearestDist = Infinity;
+        if(cache){
+          for(var ii=0;ii<cache.cells.length;ii++){
+            var cc = cache.cells[ii];
+            if(ignored[cc.key]) continue;
+            var dxx = mx - cc.cx, dyy = my - cc.cy;
+            var dd = Math.sqrt(dxx*dxx + dyy*dyy);
+            if(dd < nearestDist){
+              nearestDist = dd;
+              nearest = cc;
+            }
+          }
+        }
+      }
+    }
+
+    // After push-off handling, evaluate lock against current nearest.
+    if(nearest && _state.tile){
+      var lockPx   = nearest.w * LOCK_RANGE_CELLS;
+      var unlockPx = nearest.w * UNLOCK_RANGE_CELLS;
+      var wasLocked = !!_state.lockedCell;
+      var sameCell  = wasLocked && _state.lockedCell.key === nearest.key;
+
+      if(sameCell){
+        locked = (nearestDist <= unlockPx);
+      } else if(wasLocked){
+        // Handoff: lock transfers from old cell to new nearest if
+        // finger is in the unlock range of the new one.
+        locked = (nearestDist <= unlockPx);
+      } else {
+        locked = (nearestDist <= lockPx);
+      }
+
+      if(locked){
+        var tileRect = _state.tile.getBoundingClientRect();
+        ghostCx = nearest.cx;
+        ghostCy = nearest.cy;
+        ghostScale = (nearest.w * SNAPPED_FILL) / tileRect.width;
+        hiCell = nearest.el;
+        // [v1.91] Record finger position at the moment the lock first
+        // fires for THIS cell, so the directional push-off check can
+        // test whether the finger has crossed the cell along the
+        // approach direction.
+        var freshLock = !_state.lockedCell || _state.lockedCell.key !== nearest.key;
+        if(freshLock){
+          _state.lockStartX = mx;
+          _state.lockStartY = my;
+          // [v1.92] Play a click sound on every fresh snap — gives
+          // audible feedback when the ghost lands on a cell that
+          // the user can't see (covered by their finger).
+          try{
+            if(typeof playSelEmpty === 'function') playSelEmpty();
+            else if(window.playSelEmpty) window.playSelEmpty();
+          }catch(_){}
+        }
+        _state.lockedCell = nearest;
+      } else {
+        _state.lockedCell = null;
+        var hintRange = nearest.w * 6;
+        if(nearestDist <= hintRange){
+          hiCell = nearest.el;
+        }
+      }
+    } else {
+      _state.lockedCell = null;
+    }
+
+    _setGhostTransform(_state.ghost, ghostCx, ghostCy, ghostScale);
+    if(hiCell) _highlightCell(hiCell, locked);
+    else _clearHighlight();
+  }
+
+  function _onTouchEnd(e){
+    if(!_state) return;
+    if(!_state.dragging){
+      _state = null;
+      return;
+    }
+    var dropped = false;
+    var dropCell = _state.lockedCell; // the magnet-locked cell, if any
+
+    // Fall back to elementFromPoint at finger position if magnet
+    // wasn't locked (covers edge cases where user releases right
+    // outside the magnet range but still on a cell, or the cache
+    // is stale/empty).
+    if(!dropCell){
+      var t = (e.changedTouches && e.changedTouches[0]) || null;
+      if(t){
+        var hitEl = _findCellAt(t.clientX, t.clientY);
+        if(hitEl){
+          var k = hitEl.dataset.cellKey;
+          var pz = (typeof PZ !== 'undefined') ? PZ : window.PZ;
+          var c = (pz && pz.CM) ? pz.CM[k] : null;
+          if(c && c.isBlank){
+            dropCell = {el: hitEl, key: k,
+              cx: hitEl.getBoundingClientRect().left + hitEl.getBoundingClientRect().width/2,
+              cy: hitEl.getBoundingClientRect().top + hitEl.getBoundingClientRect().height/2};
+          }
+        }
+      }
+    }
+
+    if(dropCell){
+      // [v1.83] Brief snap-into-cell animation: ghost slides to the
+      // cell center and shrinks to 0 alpha. Then place() runs and
+      // render() repaints the cell with the placed value.
+      try{
+        if(_state.ghost){
+          _state.ghost.style.transition = 'transform 110ms ease-out, opacity 110ms ease-out';
+          _setGhostTransform(_state.ghost, dropCell.cx, dropCell.cy, MAGNET_MIN_SCALE * 0.7);
+          _state.ghost.style.opacity = '0';
+        }
+      }catch(_){}
+
+      // Defer the place() + cleanup slightly so the snap animation
+      // is visible before the cell repaints with the new value.
+      var idx = _state.idx;
+      var key = dropCell.key;
+      var savedState = _state;
+      setTimeout(function(){
+        try{
+          window.SEL = key;
+          if(typeof place === 'function'){
+            place(idx);
+          } else if(typeof window.place === 'function'){
+            window.place(idx);
+          }
+        }catch(err){}
+        // Manual cleanup since _state may have already been cleared
+        // by another touch event in the meantime.
+        if(savedState.ghost && savedState.ghost.parentNode){
+          savedState.ghost.parentNode.removeChild(savedState.ghost);
+        }
+        if(savedState.tile) savedState.tile.style.opacity = '';
+        if(savedState._lastHi){
+          savedState._lastHi.style.outline = '';
+          savedState._lastHi.style.outlineOffset = '';
+          savedState._lastHi.style.boxShadow = '';
+        }
+      }, 110);
+      _state = null; // clear immediately so further touches start fresh
+      dropped = true;
+    } else {
+      _cleanup();
+    }
+
+    if(dropped) e.preventDefault();
+  }
+
+  function _cancel(){
+    if(_state) _cleanup();
+  }
+
+  function _cleanup(){
+    if(_state){
+      if(_state.ghost && _state.ghost.parentNode){
+        _state.ghost.parentNode.removeChild(_state.ghost);
+      }
+      if(_state.tile){
+        _state.tile.style.opacity = '';
+      }
+      _clearHighlight();
+    }
+    _state = null;
+  }
+
+  function _wire(){
+    var bank = document.getElementById('bank');
+    if(!bank) return false;
+    if(bank._dragWired) return true;
+    bank._dragWired = true;
+    bank.addEventListener('touchstart', _onTouchStart, {passive:true});
+    bank.addEventListener('touchmove',  _onTouchMove,  {passive:false});
+    bank.addEventListener('touchend',   _onTouchEnd,   {passive:false});
+    bank.addEventListener('touchcancel', _cancel,      {passive:true});
+    if(typeof place === 'function' && !window.place) window.place = place;
+    return true;
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', _wire);
+  } else {
+    _wire();
+  }
+  window.addEventListener('load', _wire);
+})();
+
 // [Equil 1.04] Removed: SEQUENCER + PRO MODE IIFE — ~8,775 lines.
 // Contained: showSeq/hideSeq, beat editor, recording, playback scheduling, kit strip,
 // slot machinery, BPM/CLICK/ACCENT/FEEL/QUANTIZE controls, master EQ panel UI,
@@ -7972,29 +9710,32 @@ if(document.readyState==='loading'){
   var GLIDE_FRICTION = 0.12; // velocity retained per second
   var GLIDE_STOP_V   = 20;   // px/s — glide done
 
+  // [v1.43] Right-edge no-go zone. The pill cannot be spawned, dragged,
+  // or glided into the rightmost RIGHT_NOGO_PX of the viewport. Keeps
+  // the pill out of the area where Android's gesture-back swipe and
+  // some browsers' edge-pull gestures live, and gives the user a
+  // predictable safe band on the right side of the screen for normal
+  // touch interaction outside the pill.
+  // [v1.79] Tightened from 32px to 20px — pill can now sit a hair
+  // closer to the right edge. LEFT_NOGO_PX added to mirror the same
+  // padding on the left edge for symmetry.
+  var RIGHT_NOGO_PX = 20;
+  var LEFT_NOGO_PX  = 20;
+
   // Persistent position across show/hide cycles in this session
   // (e.g. user moves the pill, enters seq mode, comes back — pill
   // reappears where they left it). Reset each fresh page load.
   var _lastLeft = null, _lastTop = null;
 
   function _spawnAtBoardCorner(){
-    // Place pill so its visible body sits at the lower-right corner
-    // of the puzzle board's gscroll element, with a small inset.
-    var gs = document.querySelector('.gscroll');
-    if(gs){
-      var r = gs.getBoundingClientRect();
-      if(r.width > 4 && r.height > 4){
-        var INSET = 8;
-        return {
-          left: Math.round(r.right - PILL_W - INSET),
-          top:  Math.round(r.bottom - PILL_H - INSET)
-        };
-      }
-    }
-    // Fallback if gscroll isn't laid out yet.
+    // [v1.43] Spawn at the bottom-right of the VIEWPORT (not the
+    // gscroll element) with the right-edge no-go zone enforced. The
+    // pill ends up flush to the right side of the safe area and just
+    // above the bottom edge.
+    var INSET_BOTTOM = 8;
     return {
-      left: window.innerWidth - PILL_W - 16,
-      top:  Math.round(window.innerHeight * 0.55)
+      left: Math.round(window.innerWidth - PILL_W - RIGHT_NOGO_PX),
+      top:  Math.round(window.innerHeight - PILL_H - INSET_BOTTOM)
     };
   }
 
@@ -8123,9 +9864,9 @@ if(document.readyState==='loading'){
         var r = _pill.getBoundingClientRect();
         var nx = r.left + vx*dt;
         var ny = r.top  + vy*dt;
-        var maxX = window.innerWidth  - PILL_W;
+        var maxX = window.innerWidth  - PILL_W - RIGHT_NOGO_PX;
         var maxY = window.innerHeight - PILL_H;
-        if(nx < 0){ nx = 0; vx = 0; }
+        if(nx < LEFT_NOGO_PX){ nx = LEFT_NOGO_PX; vx = 0; }
         else if(nx > maxX){ nx = maxX; vx = 0; }
         if(ny < 0){ ny = 0; vy = 0; }
         else if(ny > maxY){ ny = maxY; vy = 0; }
@@ -8170,8 +9911,9 @@ if(document.readyState==='loading'){
       }
       var nx = t.clientX - grabDx;
       var ny = t.clientY - grabDy;
-      // Clamp to viewport.
-      nx = Math.max(0, Math.min(window.innerWidth  - PILL_W, nx));
+      // Clamp to viewport. [v1.43] Right edge respects RIGHT_NOGO_PX.
+      // [v1.79] Left edge respects LEFT_NOGO_PX (mirrors right padding).
+      nx = Math.max(LEFT_NOGO_PX, Math.min(window.innerWidth  - PILL_W - RIGHT_NOGO_PX, nx));
       ny = Math.max(0, Math.min(window.innerHeight - PILL_H, ny));
       _pill.style.left = nx+'px';
       _pill.style.top  = ny+'px';
@@ -8297,7 +10039,13 @@ if(document.readyState==='loading'){
     // a casual press.
     var PROMOTE_PNORM       = 0.45;
     var PROMOTE_HOLD_MS     = 200; // sustained for this long
-    var PROMOTE_MAX_PAN_PX  = 30;  // finger must stay this close to touchdown
+    // [v1.43] PROMOTE_MAX_PAN_PX reduced from 30 to 15 — the user's
+    // finger only has to wander half as far from the touchdown point
+    // before the gesture is committed to "panning, not zooming," and
+    // the FULL-zoom promotion path locks out. Net effect: the radius
+    // around the original touch where pressure-zoom still engages is
+    // tighter; small pan motions disable further zoom changes faster.
+    var PROMOTE_MAX_PAN_PX  = 15;  // finger must stay this close to touchdown
     // [v1.32] Pressure-independent fallback path. On Chrome and other
     // browsers without a usable pressure signal, sustainedHi never
     // trips. To keep FULL zoom reachable, also promote if the finger
@@ -8451,6 +10199,19 @@ if(document.readyState==='loading'){
           // cover ground quickly during big traversals while precision
           // moves still feel responsive, not floaty.
           var vel = PAN_MAX_VEL * pt + PAN_BOOST_VEL * pt * pt;
+          // [v1.43] Zoom-aware pan multiplier. At HALF the multiplier
+          // is 1.0 (feel unchanged from prior versions); at FULL it's
+          // 2.0 (panning is twice as fast). Linearly interpolated for
+          // any in-between zoom value the smoother is currently
+          // showing. Below HALF (during the OFF→HALF ramp on first
+          // tap) we also use 1.0 — pan barely matters there since the
+          // viewport hasn't really zoomed yet.
+          var panMul = 1.0;
+          if(curZoom > ZOOM_HALF){
+            panMul = 1.0 + (curZoom - ZOOM_HALF) / (ZOOM_FULL - ZOOM_HALF);
+            if(panMul > 2.0) panMul = 2.0; // safety cap
+          }
+          vel *= panMul;
           curTx -= (ox / pmag) * vel * dt;
           curTy -= (oy / pmag) * vel * dt;
           sessionPanStarted = true;
@@ -8623,7 +10384,10 @@ if(document.readyState==='loading'){
                       && sessionElapsed >= LONG_HOLD_MS);
 
       // HALF → FULL promotion: either pressure-sustained OR long-held.
-      if(zoomLevel === 1 && (sustainedHi || longHeld)){
+      // [v1.80] DISABLED — FULL zoom is too aggressive at current XL2
+      // grid sizes; pill is restricted to OFF and HALF only. Tap to
+      // toggle between the two. Re-enable by removing the early return.
+      if(false && zoomLevel === 1 && (sustainedHi || longHeld)){
         targetZoom = ZOOM_FULL;
         zoomLevel = 2;
       }
@@ -8721,7 +10485,9 @@ if(document.readyState==='loading'){
     if(_lastLeft !== null && _lastTop !== null){
       pos = {left:_lastLeft, top:_lastTop};
       // Re-clamp to current viewport in case orientation changed.
-      pos.left = Math.max(0, Math.min(window.innerWidth  - PILL_W, pos.left));
+      // [v1.43] Right edge respects RIGHT_NOGO_PX.
+      // [v1.79] Left edge respects LEFT_NOGO_PX (mirrors right).
+      pos.left = Math.max(LEFT_NOGO_PX, Math.min(window.innerWidth  - PILL_W - RIGHT_NOGO_PX, pos.left));
       pos.top  = Math.max(0, Math.min(window.innerHeight - PILL_H, pos.top));
     } else {
       pos = _spawnAtBoardCorner();
