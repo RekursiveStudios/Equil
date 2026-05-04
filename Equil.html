@@ -1,4 +1,256 @@
-<!-- Equil v2.34 | Built: 2026-05-02 CT | github.com/Spamboni
+<!-- Equil v2.48 | Built: 2026-05-04 CT | github.com/Spamboni
+     v2.48: Firefox cell tap fix. User reported cells felt like
+     they had pinhead-sized hitboxes on Firefox (mom's browser),
+     and that the cell-tap audio sounded clipped — both pointing
+     to the same cause: Firefox was canceling the click event
+     when the finger landed and reported tiny movement (touch
+     "squish" producing 1-2px jitter), reclassifying the gesture
+     as an attempted pan. Chromium-based browsers tolerate this;
+     Firefox doesn't.
+     Root cause: blank cells inherit touch-action:pan-y from
+     .gscroll, which tells the browser "this area can be panned
+     vertically" — Firefox interprets any movement on touchdown
+     as the start of a pan and suppresses the click. The audio
+     sounding clipped fits: touchstart audio fires immediately,
+     then Firefox cancels the gesture mid-way through.
+     Fix: add touch-action:manipulation to blank cells. This
+     tells the browser the element handles taps and pinch-zoom
+     but is not involved in pan gestures, so click events fire
+     reliably regardless of finger jitter.
+     ---- previous changelog ----
+     v2.47: Fix lower-right tile spinning on every place. The click
+     handler at line ~8313 was using `tile`, the IIFE-captured
+     parameter that was actually the LAST tile from renderBank's
+     loop (lower-right) due to how the loop variable closes over
+     all iterations. The DEL-mode fallback already had a comment
+     and a fix for this exact issue at line ~8163: `var _tileEl =
+     document.querySelector('.bt[data-bank-idx="'+idx+'"]') || tile`.
+     The bug had been present since v1.34 but was masked because
+     the click handler's spin block almost never ran on mobile —
+     the touchstart-SEL path at line ~7999 placed first and
+     short-circuited the click handler via _mxSelTouchHandledAt.
+     v2.46 disabled the touchstart-place path when drag-tiles is
+     OFF, which now causes the click handler's spin block to run
+     on every place, exposing the latent bug.
+     Fix: query the actual tile by data-bank-idx at the top of the
+     spin block and use that everywhere instead of the stale
+     captured reference.
+     ---- previous changelog ----
+     v2.46: Found and fixed the actual instant-place culprit. v2.45's
+     tap-track gate on the click handler was correct logic but only
+     covered ONE of the place(idx) call sites. There was a SECOND
+     path: the per-tile touchstart handler has a SEL branch (v1.34)
+     that calls place(idx) directly on touchdown, completely
+     bypassing the click event. That's why v2.45's gate had no
+     visible effect — clicks still fired but the touchstart path
+     had already placed before the click ever ran.
+     Fix: gate the touchstart SEL branch on window._dragTilesEnabled.
+     When drag is OFF, the touchstart-place is skipped entirely; the
+     subsequent click event reaches the click handler, where v2.45's
+     tap-track suppress check decides whether to place based on
+     touch duration and movement.
+     End-to-end behavior now matches the spec:
+       - Quick tap (<200ms, <12px movement) on tile + SEL set → place
+       - Held tap (>200ms) → no place, scroll works
+       - Tap that moves >12px → no place, scroll works
+       - No SEL → tiles inert (per existing _mxSelTouchHandledAt logic)
+     ---- previous changelog ----
+     v2.45: Manual tap detection when drag-tiles is OFF. v2.44 relied
+     on the browser's native click event for tap-to-place, which
+     turned out to fire essentially instantly on modern Android — so
+     the user couldn't scroll past tiles when a cell was selected
+     because every touch landing on a tile placed immediately.
+     Fix: track touch start time + position in window._equilTapTrack
+     during the bank's touchstart/touchmove/touchend chain (drag-
+     disabled path). If the touch lasts >200ms or moves >12px, set
+     a suppress flag. The per-tile click handler checks this flag
+     before calling place() and bails out if set.
+     Net result: quick, still tap = place. Held tap (>200ms) =
+     scroll, no place. Tap that turns into scroll motion = scroll,
+     no place. The user can now freely scroll past tiles even with
+     a cell selected, as long as they don't tap and release within
+     200ms.
+     ---- previous changelog ----
+     v2.44: Major UX overhaul driven by user's mom test session.
+     1. Tile dragging is now OFF by default. Touching a tile no
+        longer initiates a drag — the bank-level touchstart handler
+        bails out before claiming the touch, and since all bank-
+        level handlers are passive (or only act when state is set),
+        the page scrolls naturally as if the user touched dead
+        space. Tap-to-place still works through the browser's
+        native click event: a quick non-scrolled tap fires click,
+        and the existing per-tile click handler calls place(idx)
+        if a cell is selected (SEL set). No manual time threshold
+        needed — the browser already implements "click only after
+        quick non-scrolled tap" with platform-tuned thresholds.
+     2. Bank side padding now driven by settings. When drag is
+        OFF, padding is 0 on both sides (the whole bank area is
+        usable for tiles). When drag is ON, padding returns at
+        a user-configurable width (default 40px) on the user's
+        chosen side(s) — both, left only, or right only — for
+        finger-size and handedness preferences.
+     3. New OPTIONS panel section "Tile interaction" with:
+        - Toggle: Drag tiles (default OFF)
+        - Slider: Side padding width (0–80 px), only shown when
+          drag toggle is ON
+        - Segmented selector: Padding side (BOTH / LEFT / RIGHT),
+          only shown when drag toggle is ON
+        Settings persist in localStorage under equil_opts_v2 and
+        are included in the Reset to defaults flow.
+     ---- previous changelog ----
+     v2.43: Bank tile numbers changed from hollow-outlined white to
+     solid soft off-white. Was: color:transparent + -webkit-text-stroke
+     for an outline-only neon look (read as bright white edges against
+     dark bg). Now: color:#c8c8d0 — a soft cool-gray-tinted off-white
+     that's easier on the eyes for extended play. Solid fill instead
+     of outlined glyphs. The text-stroke property removed entirely
+     since color is now opaque.
+     ---- previous changelog ----
+     v2.42: Cap tileFontSize at the default-size value. v2.41 doubled
+     the slider's max range so users could go bigger to make the cyan
+     ×N drift insignificant, but the font scaled UP with the tile
+     proportionally — so the cyan still hung below the bottom border
+     at any size. Now: at tile sizes bigger than default, the font
+     stops growing and all the extra tile space becomes clean empty
+     room inside the tile. Cyan ×N tucks comfortably into the lower
+     portion regardless of how large the tile gets. Smaller-than-
+     default tiles still scale font DOWN as before.
+     ---- previous changelog ----
+     v2.41: Doubled the size slider's max range (1.2x → 2.4x) per user
+     request. The cross-browser cyan ×N positioning drift across v2.36-
+     v2.40 was a real but tiny absolute issue — measured in a few pixels.
+     At larger tile sizes those few pixels become a much smaller fraction
+     of the visible tile, making the drift effectively invisible to a
+     player. So instead of fighting it through more CSS, just give users
+     the option to make tiles big enough that they don't notice it.
+     Changes:
+     - _puzzlePctToScaleH: formula 0.3 + (pct/100)*2.1 (was *0.9).
+       Slider 0% → TILE_SCALE 0.3, slider 100% → TILE_SCALE 2.4.
+     - _puzzleScaleToPctH: inverse formula updated to match.
+     - All applyPctH(90) call sites changed to applyPctH(39) so the
+       default tile size visually stays the same (TILE_SCALE ≈ 1.119,
+       essentially identical to old 1.11).
+     - Snapshot fallback values 90 → 39 to match.
+     Also reverted v2.40's cyan font shrink (0.45×) back to the previous
+     0.6× — the bigger-tile-range approach is the better fix.
+     ---- previous changelog ----
+     v2.40: Shrink cyan ×N font from 0.6× to 0.45× whiteFont so it fits.
+     The diagnostic chain across v2.36-v2.39 finally landed on the actual
+     root cause: the combined intrinsic height of (white digit line-box +
+     cyan line-box + paddings) was exceeding the tile content area in
+     Chrome/Brave/Firefox. DDGo happened to fit because its line-box
+     rendering is tighter than the others.
+     v2.39 confirmed this — with overflow:hidden, the cyan was getting
+     CLIPPED at the bottom border, meaning it really was rendering past
+     the tile edge.
+     Fix: shrink the cyan font to 0.45× the white font (was 0.6×). Still
+     readable, leaves clearance for line-box overhead in every browser.
+     Also removed overflow:hidden from the tile (no longer needed once
+     the math fits, and keeping it would clip the rounded corners
+     unnecessarily).
+     Layout: flex-column, justify-content:flex-start (white at top),
+     cyan has margin-top:auto (pushes to bottom of available space).
+     Tune by changing the 0.45 multiplier in the xN MODE block.
+     ---- previous changelog ----
+     v2.39: Switch from space-between to margin-top:auto + overflow:hidden.
+     v2.38 used justify-content:space-between which works correctly when
+     children fit within the container, but distributes negative space by
+     pushing the last child past the bottom edge when content is too tall.
+     User reported the cyan ×N was rendering with its midpoint at the tile's
+     bottom edge in Chrome/Brave/Firefox (DDGo got it right because its
+     line-box rendering left enough room). Switched to:
+     - flex-direction:column, justify-content:flex-start (white sits at top)
+     - cyan ×N has margin-top:auto (pushes to bottom of available space,
+       but won't overflow past it like space-between can)
+     - tile has overflow:hidden as safety net — if content is genuinely
+       too tall to fit, it gets clipped at the tile border instead of
+       rendering outside the tile entirely
+     ---- previous changelog ----
+     v2.38: Switch from absolute positioning to flex space-between for
+     xN tile layout. v2.37 used position:absolute on both the white
+     digit and cyan ×N badge, but the inline styles were apparently
+     being overridden somewhere — both elements ended up squished
+     toward the center of the tile instead of pinned to top/bottom.
+     New approach: tile uses flex-direction:column with
+     justify-content:space-between (when there's a cyan ×N to anchor
+     to the bottom) or flex-start (when there's only a white digit).
+     space-between naturally pushes the first child to the top edge
+     and the last child to the bottom edge, with leftover space
+     becoming the gap between them. Top/bottom padding on the tile
+     creates the breathing room from the borders.
+     This is the natural flexbox way to do top-and-bottom anchoring
+     and isn't affected by font line-box drift between browsers.
+     ---- previous changelog ----
+     v2.37: Pin both white digit AND cyan ×N badge with absolute
+     positioning. v2.36 only pinned the cyan from the bottom, which
+     fixed the clipping in Brave/Firefox but left the white digit
+     in flex-flow. Result: cyan landed at a consistent bottom offset
+     but the white above it sat at slightly different vertical
+     positions per browser, sometimes overlapping into the cyan.
+     Now both:
+     - white digit:  position:absolute; top:3px;
+     - cyan ×N:      position:absolute; bottom:3px;
+     Fixed pixel offsets (not scaled with tile size) since "a couple
+     px from the border" reads the same visually at any tile size.
+     The vertical gap between white and cyan is now fully determ-
+     inistic: (tileSize - 3px - whiteFontSize - 3px - cyanFontSize).
+     Tune the gap by changing either the top:3px or the bottom:3px
+     value in the xN MODE block (~line 6878 / ~line 6900).
+     ---- previous changelog ----
+     v2.36: Pin cyan ×N badge with absolute positioning from tile bottom.
+     Real cross-browser visual bug found via side-by-side screenshots:
+     in xN mode, the cyan "×N" multiplier badge below each tile's white
+     number was landing at different vertical offsets in different
+     rendering engines:
+     - Chrome: well above bottom border (correct).
+     - DDgo: low but contained.
+     - Brave: clipped by bottom border.
+     - Firefox: dropping fully below the tile.
+     Root cause: the badge was positioned via flex-column flow with a
+     negative margin-top:-2px. Even with line-height:1 explicitly set
+     on both the white digit above it and the cyan span, browsers
+     compute the white digit's line-box height differently because
+     line-height:1 shrinks line spacing but doesn't override the
+     font's intrinsic ascent/descent metrics. So the cumulative
+     vertical position of the cyan span — which depended on however
+     tall the white line-box ended up being — drifted across engines.
+     Fix: changed the cyan span to position:absolute with
+     bottom:Xpx anchoring (X scales with tile size at ~6%, min 3px).
+     The tile already had position:relative set, so the badge now
+     anchors deterministically to the tile's bottom border in all
+     browsers regardless of how the white digit's line-box renders.
+     ---- previous changelog ----
+     v2.35: Cross-browser normalization pass. Targets the rendering drift
+     between Chrome, Brave, DuckDuckGo, and the Claude in-app browser on
+     mobile that user has been seeing — different font weights, cyan
+     numbers spilling past tile borders in some browsers but not others,
+     and missing scroll deadzone on tile bank padding.
+     Changes:
+     1) Google Fonts loaded via <link rel="stylesheet"> in <head> instead
+        of @import inside <style>. @import was a render-blocking
+        sequential request — browsers had to download the HTML, parse it,
+        find the @import, then download the fonts CSS, then download the
+        font files. The <link>+preconnect approach kicks the font
+        connection off in parallel with HTML parsing. Eliminates most of
+        the FOUC drift between browsers.
+     2) Added a normalization layer at the top of <style>:
+        - text-size-adjust:100% on html (prevents Chrome mobile from
+          auto-inflating font sizes in landscape).
+        - -webkit-font-smoothing:antialiased / -moz-osx-font-smoothing:
+          grayscale on body (pins rasterizer mode for consistent weight).
+        - text-rendering:optimizeLegibility (uniform kerning).
+        - font-feature-settings:"tnum" + font-variant-numeric:tabular-nums
+          on body (consistent digit widths — "11" and "23" now occupy
+          the same horizontal space, fixes drift when fallback fonts
+          render before IBM Plex Mono loads).
+     3) Added line-height:1 to .bt (bank tile) so the tile number is
+        vertically locked inside the flex-centered box and can't drift
+        past the rounded border in browsers with looser default
+        line-heights.
+     4) Removed orphaned animation rules (lines previously sat without a
+        @keyframes wrapper after a prior refactor — silently ignored by
+        browsers but flagged "unexpected token" by CSS validators).
+     ---- previous changelog ----
      v2.34: Tile bounce-back animation + sound on cancel/release.
      When the user releases a dragged tile WITHOUT dropping it on
      a valid blank cell, the ghost previously vanished instantly.
@@ -1305,8 +1557,17 @@ if('serviceWorker' in navigator){
 </script>
 
 <title>Equil</title>
+<!-- v2.35: Fonts loaded via <link rel="stylesheet"> instead of @import inside
+     CSS. @import inside a stylesheet is a render-blocking sequential request
+     (browser downloads HTML → parses → discovers @import → downloads fonts
+     CSS → downloads font files). Using <link> in <head> with preconnect lets
+     the browser kick off the font connection in parallel with HTML parsing.
+     Eliminates most of the FOUC drift between Chrome / Brave / DuckDuckGo /
+     Claude in-app browser. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=IBM+Plex+Mono:wght@400;700&display=swap">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Abril+Fatface&family=IBM+Plex+Mono:wght@400;700&display=swap');
 :root{
   /* Dark theme */
   --bg:#0f0f0f;--bg-secondary:#1a1a1a;--bg-tertiary:#151515;
@@ -1322,6 +1583,31 @@ if('serviceWorker' in navigator){
   --w:#f0f0f0;--bk:#151515;--br:#00d9ff;--ac:#c400ff;--bl:#9d4edd;--gn:#00d9ff;--mu:#b0b0b0;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none;}
+/* v2.35: Cross-browser normalization layer. These rules prevent browser
+   defaults from drifting between Chrome / Brave / DuckDuckGo / WebView /
+   Safari / etc. on mobile.
+   - text-size-adjust:100% prevents iOS/Android Chrome from auto-inflating
+     font sizes when the page is "unreadable narrow" (small landscape etc.).
+   - font-smoothing pins the rasterizer mode so antialiased glyphs render
+     at consistent weight across rendering engines.
+   - text-rendering:optimizeLegibility enables kerning + ligatures uniformly.
+   - tabular-nums on the body keeps digit widths consistent (1, 2, 3 all
+     occupy the same horizontal space). Critical for the puzzle-cell
+     numbers and the bank tile numbers — without this, "11" and "23" can
+     have visibly different widths on browsers that fall back to a
+     proportional font before IBM Plex Mono loads. */
+html{
+  -webkit-text-size-adjust:100%;
+  -moz-text-size-adjust:100%;
+  text-size-adjust:100%;
+}
+body{
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  text-rendering:optimizeLegibility;
+  font-feature-settings:"tnum" 1, "kern" 1;
+  font-variant-numeric:tabular-nums;
+}
 html,body{width:100%;overflow-x:hidden;background:var(--bg);}
 body{font-family:'IBM Plex Mono',monospace;background:var(--bg);color:var(--text-primary);min-height:100dvh;display:flex;flex-direction:column;align-items:center;overflow-y:auto;}
 
@@ -1477,7 +1763,7 @@ body{font-family:'IBM Plex Mono',monospace;background:var(--bg);color:var(--text
 .sizebar-handle{position:absolute;left:-2px;right:-2px;height:8px;background:var(--bg);border:1px solid var(--cyan);border-radius:2px;pointer-events:none;transition:bottom .05s;z-index:3;}
 .sizebar-arrows{position:absolute;left:50%;transform:translate(-50%,50%);width:5px;height:16px;border:1.5px solid var(--cyan);border-radius:3px;background:var(--bg-secondary);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:6px;line-height:1;color:var(--cyan);pointer-events:none;transition:bottom .05s;z-index:4;}
 .sizebar-lbl{position:absolute;top:50%;left:0;right:0;transform:translateY(-50%);z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:7px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--cyan);text-align:center;line-height:1.6;pointer-events:none;user-select:none;}
-.bt{min-width:44px;height:44px;padding:0 8px;border:1.5px solid rgba(0,217,255,0.5);background:var(--bg-secondary);color:transparent;-webkit-text-stroke:0.5px var(--text-primary);text-stroke:0.5px var(--text-primary);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;font-family:'IBM Plex Mono',monospace;cursor:pointer;box-shadow:0 0 4px rgba(0,217,255,0.18) inset;transition:transform 0.04s,box-shadow 0.15s,background 0.1s,border-color 0.15s;touch-action:pan-y;aspect-ratio:1;isolation:isolate;}
+.bt{min-width:44px;height:44px;padding:0 8px;border:1.5px solid rgba(0,217,255,0.5);background:var(--bg-secondary);color:#c8c8d0;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;font-family:'IBM Plex Mono',monospace;line-height:1;cursor:pointer;box-shadow:0 0 4px rgba(0,217,255,0.18) inset;transition:transform 0.04s,box-shadow 0.15s,background 0.1s,border-color 0.15s;touch-action:pan-y;aspect-ratio:1;isolation:isolate;}
 /* [v2.07] Cancel the outline-style on cyan-mode and mini-mode child
    number elements so they render as solid colored fills, not as
    white outlines (which would happen because they inherit
@@ -1513,9 +1799,10 @@ body{font-family:'IBM Plex Mono',monospace;background:var(--bg);color:var(--text
   0%,100%{box-shadow:0 0 8px rgba(34,197,94,0.4);}
   50%{box-shadow:0 0 14px rgba(34,197,94,0.75);}
 }
-  0%,100%{box-shadow:0 0 6px rgba(34,197,94,0.35);}
-  50%{box-shadow:0 0 14px rgba(34,197,94,0.75);}
-}
+/* v2.35: Removed orphaned animation rules that previously sat here without
+   a @keyframes wrapper — they were stray after a prior refactor and silently
+   ignored by browsers, but they tripped some CSS validators and showed up
+   as "unexpected token" warnings in dev tools. */
 /* Highlight the EDIT button itself when active — green fill to match
    the HLD BTN / COLOR / DEL pattern (colored fill + glow when on).
    The fill alpha is kept on the higher end so the lit state reads
@@ -6490,6 +6777,18 @@ function renderBank(){
     var snappedSize=Math.max(15, Math.floor((availW - (tilesPerRow - 1) * tileGap) / tilesPerRow));
     tileSize=snappedSize;
     tileFontSize=Math.round(baseFontSize*(tileSize/baseSize));
+    // [v2.42] Cap tileFontSize at the default-size value. v2.41 doubled
+    // the size slider's max range so users could compensate for cross-
+    // browser cyan ×N positioning drift by going bigger — but the font
+    // scaled up proportionally with the tile, so the cyan still hung
+    // below the bottom border at any size. Capping the font means at
+    // tile sizes bigger than default, all the extra room becomes empty
+    // space inside the tile rather than bigger glyphs, and the cyan
+    // ×N tucks comfortably into the tile's lower portion.
+    // Default is TILE_SCALE 1.11, so the cap = baseFontSize * 1.11.
+    // Smaller-than-default tile sizes: font still scales DOWN as before.
+    var fontCap = Math.round(baseFontSize * 1.11);
+    if(tileFontSize > fontCap) tileFontSize = fontCap;
     tilePad='0 '+Math.round(tileSize*0.18)+'px';
     if(window._seqVisible) window._seqActualRows=tilesPerRow;
   })();
@@ -6505,8 +6804,25 @@ function renderBank(){
     // without accidentally landing on a tile and starting a drag-to-
     // place. The earlier .btiles CSS rule (padding:4px 40px) was
     // being overridden by these inline styles, which set 0px before.
-    document.getElementById('bank').style.paddingLeft='40px';
-    document.getElementById('bank').style.paddingRight='40px';
+    // [v2.44] Padding side/width now driven by user settings:
+    //   - When dragTiles is OFF (default), tiles aren't drag-able so
+    //     no scroll-grab strips are needed → 0 left/right padding,
+    //     all tile area is touchable.
+    //   - When dragTiles is ON, padding comes back per the user's
+    //     side preference (both/left/right) and width slider, so
+    //     people with bigger fingers or one-handed users can tune
+    //     where their scroll strip lives.
+    var _dragOn = !!window._dragTilesEnabled;
+    var _padW = (typeof window._bankPadWidth === 'number') ? window._bankPadWidth : 40;
+    var _padSide = window._bankPadSide || 'both';
+    var _bankL = 0, _bankR = 0;
+    if(_dragOn){
+      if(_padSide === 'both'){ _bankL = _padW; _bankR = _padW; }
+      else if(_padSide === 'left'){ _bankL = _padW; _bankR = 0; }
+      else if(_padSide === 'right'){ _bankL = 0; _bankR = _padW; }
+    }
+    document.getElementById('bank').style.paddingLeft = _bankL + 'px';
+    document.getElementById('bank').style.paddingRight = _bankR + 'px';
     document.getElementById('bank').style.paddingTop='4px';
     document.getElementById('bank').style.paddingBottom='4px';
   }
@@ -6588,6 +6904,9 @@ function renderBank(){
     if(tileSize < 28){
       tileSize = 28;
       tileFontSize = Math.round(baseFontSize * (tileSize/baseSize));
+      // [v2.42] Apply same cap as in the snapping pass for consistency.
+      var _fontCap2 = Math.round(baseFontSize * 1.11);
+      if(tileFontSize > _fontCap2) tileFontSize = _fontCap2;
       tilePad = '0 ' + Math.round(tileSize*0.18) + 'px';
     }
   }
@@ -6728,50 +7047,41 @@ function renderBank(){
       }
     } else if(xnOn && condenseOn && collapsedGroup){
       // ── xN MODE ─────────────────────────────────────────────────
-      // [v2.12] Top-anchored uniform layout. Both single- and
-      // multi-instance tiles align the white number at the top
-      // (so all white digits sit in the same row across the bank,
-      // unaffected by whether the tile has a cyan ×N below it).
-      // Multi-instance tiles add the cyan ×N right beneath the
-      // white digit with a small gap. Cyan is ~0.6× the white
-      // digit's font (was 0.84× in v2.11 — too big).
-      // [v2.13] Separate top vs bottom padding — bottom is doubled
-      // so cyan has clear breathing room from the bottom border
-      // (was bleeding into it). Also added small padding-right on
-      // multi-digit white numbers to correct an apparent right-
-      // shift caused by the digit "1" being narrower than other
-      // digits (purely an optical issue with monospace centering).
+      // [v2.40] Shrunk cyan font from 0.6× whiteFont to 0.45×.
+      // Through v2.36/v2.37/v2.38/v2.39 we discovered the real
+      // issue wasn't positioning at all — it was that the combined
+      // intrinsic height of (white digit line-box + cyan line-box +
+      // top padding + bottom padding) exceeded the tile content
+      // area in Chrome/Brave/Firefox. DDGo happened to fit because
+      // its line-box rendering is tighter. v2.39's overflow:hidden
+      // confirmed this — the cyan was getting CLIPPED at the bottom
+      // border, meaning it really was rendering past the tile edge.
+      // Real fix: just shrink the cyan font so the math works in
+      // every browser. 0.45× is still readable but leaves clearance.
+      // Layout uses flex-column with margin-top:auto on the cyan
+      // to push it to the bottom of available flex space.
       tile.style.position = 'relative';
       tile.dataset.collapsedValue = item.value;
-      var padTop = Math.max(2, Math.round(tileSize * 0.05));
-      var padBot = Math.max(4, Math.round(tileSize * 0.10));
+      var padTop = Math.max(2, Math.round(tileSize * 0.04));
+      var padBot = Math.max(2, Math.round(tileSize * 0.04));
       tile.style.flexDirection = 'column';
       tile.style.justifyContent = 'flex-start';
       tile.style.alignItems = 'center';
       tile.style.paddingTop = padTop + 'px';
       tile.style.paddingBottom = padBot + 'px';
-      // Tile uses inline padding "0 X" set earlier — override the
-      // horizontal padding to 0 here so the white span's text-align
-      // center has the full tile width to work with.
       tile.style.paddingLeft = '0px';
       tile.style.paddingRight = '0px';
 
       var whiteSpan = document.createElement('span');
       whiteSpan.className = '_btMain';
       whiteSpan.textContent = item.value;
-      // [v2.15] Reversed direction. v2.14's 1px left-nudge moved
-      // multi-digit whites too far left. User reports the right
-      // gap is now correct but the left gap is about half the
-      // right gap — meaning the digit needs to come back to the
-      // RIGHT by ~half the difference. Sub-pixel padding-left
-      // value handles the small magnitude.
       var _digRightNudge = (String(item.value).length >= 2) ? 'padding-left:0.5px;' : '';
       whiteSpan.style.cssText = 'display:block;text-align:center;'
         + 'line-height:1;width:100%;'
-        + 'margin-top:-1px;'
         + 'box-sizing:border-box;'
         + _digRightNudge
-        + 'font-size:inherit;';
+        + 'font-size:inherit;'
+        + 'flex-shrink:0;';
       tile.appendChild(whiteSpan);
 
       if(hasMultiple){
@@ -6779,22 +7089,19 @@ function renderBank(){
         var mulSpan = document.createElement('span');
         mulSpan.className = '_btXN';
         mulSpan.textContent = '×' + unused;
-        // Tighter cyan: ~60% of the bumped white font size.
+        // [v2.41] Reverted cyan font from 0.45× back to 0.6× of
+        // the white font. v2.40 shrunk it as a fix for cross-browser
+        // overflow, but the bigger-slider-range approach (v2.41) is
+        // the better fix — at larger tile sizes the small per-browser
+        // line-box drift becomes invisible. Cyan at 0.6× reads more
+        // clearly as a labeled multiplier.
         var mulSize = Math.max(8, Math.round(_whiteFont * 0.6));
         mulSpan.style.cssText = 'display:block;text-align:center;'
           + 'line-height:1;width:100%;'
-          // [v2.14] margin-top -2px (was +2px) pulls cyan UP into
-          // the empty space above it, which simultaneously gives
-          // it clearance from the bottom border. The visible glyph
-          // wasn't actually touching the border — the line-box's
-          // built-in below-baseline space was — but reducing the
-          // top margin also pulls the line-box itself upward.
-          + 'margin-top:-2px;'
-          // [v2.15] Lower opacity (0.6) since cyan numbers are now
-          // bigger after v2.11 — dimmer reads as more clearly
-          // secondary to the white digit above.
+          + 'margin-top:auto;'
           + 'font-size:' + mulSize + 'px;color:rgba(0,147,170,0.6);'
           + 'font-weight:600;letter-spacing:0.5px;'
+          + 'flex-shrink:0;'
           + 'pointer-events:none;';
         tile.appendChild(mulSpan);
       }
@@ -7754,7 +8061,18 @@ function renderBank(){
           // call place() which re-renders the bank, killing the spin
           // mid-animation but leaving particles flying (they live in a
           // global pool that survives bank rebuilds).
-          if(!PZ.bank[idx].used){
+          // [v2.46] When drag-tiles is OFF, skip this entire instant-
+          // place branch and let the click handler (with v2.45's
+          // tap-track gate) handle placement after a proper short tap.
+          // v2.44 plus v2.45 wired up the click-handler tap detection,
+          // but THIS branch was placing on touchstart directly,
+          // bypassing it entirely — which is why tiles were still
+          // placing instantly on touchdown despite the click gate.
+          if(!window._dragTilesEnabled){
+            // Do nothing here — touchend will eventually fire a click
+            // event, and the click handler will check tap-track state
+            // and call place() only if the tap qualifies.
+          } else if(!PZ.bank[idx].used){
             try{
               if(typeof el._spawn === 'function') el._spawn(el);
               // [v1.36] See click handler below for the ghost-border +
@@ -7979,8 +8297,26 @@ function renderBank(){
           // touchstart already handled this on touch devices
           return;
         }
+        // [v2.45] When drag-tiles is disabled, the click event fires
+        // for ANY touch (even brief touches) — including ones the
+        // user intended as scroll. Check the tap-track state set up
+        // by the bank's touchstart/touchmove/touchend chain. If the
+        // touch was held too long or moved too far, suppress flag
+        // is set and we bail out instead of placing.
+        if(!window._dragTilesEnabled){
+          var tt = window._equilTapTrack;
+          if(tt && tt.suppress){
+            window._equilTapTrack = null;
+            return;
+          }
+          // Consume the tap-track regardless so the next touch
+          // starts fresh.
+          window._equilTapTrack = null;
+        }
         // In beat edit mode, used tiles can still be toggled
-        if(window._beatEditToggleTile&&window._beatEditToggleTile(parseInt(tile.dataset.sndIdx)||idx)) return;
+        // [v2.47] Use document query instead of stale loop-captured tile.
+        var _bEditTile = document.querySelector('.bt[data-bank-idx="'+idx+'"]') || tile;
+        if(window._beatEditToggleTile&&window._beatEditToggleTile(parseInt(_bEditTile.dataset.sndIdx)||idx)) return;
         // Used tiles do nothing for puzzle placement
         if(PZ.bank[idx].used) return;
         // [v1.35] If the touchstart-SEL branch already handled this tap
@@ -8012,11 +8348,24 @@ function renderBank(){
         // render(). The clone removes itself after the spin completes.
         // Particles still spawn from the original location and live in
         // the global particle pool which survives the rebuild.
+        // [v2.47] Resolve the actual tile element by idx instead of
+        // using the IIFE-captured `tile` reference. Pre-v2.46, this
+        // block almost never ran on mobile because the touchstart-
+        // SEL path placed first and the gate at line ~8288 short-
+        // circuited the click handler. v2.46 disables the touchstart
+        // path when drag-tiles is OFF, which makes THIS block run for
+        // every place — exposing a latent bug where `tile` was a
+        // stale closure capture referring to the LAST tile from the
+        // renderBank loop (lower-right). Result: every place spun
+        // the lower-right tile no matter which one was tapped.
+        // Fix: query the DOM by data-bank-idx (same pattern used by
+        // the DEL-mode fallback above for the same reason).
+        var _realTile = document.querySelector('.bt[data-bank-idx="'+idx+'"]') || tile;
         try{
-          if(typeof tile._spawn === 'function') tile._spawn(tile);
+          if(typeof _realTile._spawn === 'function') _realTile._spawn(_realTile);
           var _clkSdm=(typeof window._spinDurMult==='number'&&window._spinDurMult>0)?window._spinDurMult:1.0;
           var _clkSpinDur=Math.max(80,Math.round(850*_clkSdm));
-          var _origRect = tile.getBoundingClientRect();
+          var _origRect = _realTile.getBoundingClientRect();
           // [v1.36] Ghost border — static dashed outline at original
           // position, fades out over the spin duration. Helps the eye
           // anchor on the tap location while the clone spins above.
@@ -8035,7 +8384,7 @@ function renderBank(){
           // the START of the blend animation. .placing-blend drives
           // both the spin transform AND the yellow→cyan color fade
           // over the same duration.
-          var _spinClone = tile.cloneNode(true);
+          var _spinClone = _realTile.cloneNode(true);
           // Clear inline styles set by applyTileColor that would
           // override the keyframe animation's border-color values.
           _spinClone.style.border = '';
@@ -8565,7 +8914,18 @@ function render(){
         if(isSolvedBlank||st==='ok'||blankDim) _bord='';
         else if(SEL===k) _bord='border:1px solid rgba(168,85,247,0.85);';
         else _bord='border:1px solid rgba(0,217,255,0.25);';
-        d.style.cssText+='background:'+bg+';color:'+col+';cursor:pointer;border-radius:'+RR+';'+_bord;
+        // [v2.48] touch-action:manipulation tells the browser this
+        // element handles taps (and pinch-zoom) but is NOT involved
+        // in pan gestures. Without this, blank cells inherit
+        // touch-action:pan-y from .gscroll, which makes Firefox
+        // particularly aggressive about canceling the click event
+        // when the finger reports any tiny movement on touchdown
+        // (finger "squish" producing 1-2px jitter is enough).
+        // Chromium-based browsers tolerate this; Firefox doesn't.
+        // Result on Firefox before this fix: cells felt like they
+        // had pinhead-sized hitboxes because most taps got
+        // reclassified as pan attempts and the click never fired.
+        d.style.cssText+='background:'+bg+';color:'+col+';cursor:pointer;border-radius:'+RR+';touch-action:manipulation;'+_bord;
         if(cell.value!=null){
           d.textContent=cell.value;
           if(!isSolvedBlank&&st!=='ok'&&st!=='bad'){
@@ -8990,8 +9350,15 @@ document.getElementById('playBtn').addEventListener('click',function(){playUICli
 // without these, the SIZE/GAP sliders are inert. Sequencer-side sync callbacks
 // (_syncTbSize, _syncTbGap, _syncToolbarBeat) are still called defensively but
 // no-op since they're undefined.
-function _puzzlePctToScaleH(pct){ return 0.3+(pct/100)*0.9; } // 0%=0.3x, 100%=1.2x
-function _puzzleScaleToPctH(s){ return (s-0.3)/0.9*100; }
+// [v2.41] Doubled the size slider's max range. Old: 0%→0.3x, 100%→1.2x.
+// New: 0%→0.3x, 100%→2.4x. Default size preserved by changing the
+// "default" slider percentage from 90 to 39 in all call sites below
+// (90% used to give 1.11x; 39% on the new formula gives ~1.119x —
+// essentially identical visually). The bumped max lets users push
+// tiles much larger when they want, which dwarfs any cross-browser
+// cyan ×N positioning drift below the visible threshold.
+function _puzzlePctToScaleH(pct){ return 0.3+(pct/100)*2.1; } // 0%=0.3x, 100%=2.4x
+function _puzzleScaleToPctH(s){ return (s-0.3)/2.1*100; }
 function _puzzlePctToGapMult(pct){ return pct/33.33; }       // 0%=0 gap, 33%=default(1.0), 100%=3x
 
 window.applyPctH = function(pct){
@@ -9029,13 +9396,17 @@ window.applyGapPct = function(pct){
 // [v1.72] Init defaults — bumped from 50/33.33 to 90/25 so tiles
 // default to nearly full size (TILE_SCALE ≈ 1.11) with a small gap
 // (TILE_GAP_MULT ≈ 0.75). Slider can still tune both.
+// [v2.41] Default size pct changed from 90 to 39 to match the new
+// formula's mapping for TILE_SCALE 1.11. The visual default size is
+// preserved exactly; only the slider position / numeric percentage
+// changed.
 if(document.readyState==='loading'){
   document.addEventListener('DOMContentLoaded', function(){
-    window.applyPctH(90);
+    window.applyPctH(39);
     window.applyGapPct(25);
   });
 } else {
-  window.applyPctH(90);
+  window.applyPctH(39);
   window.applyGapPct(25);
 }
 
@@ -9410,18 +9781,18 @@ if(document.readyState==='loading'){
         // Max size, zero gap. Don't trigger the slider's input handler
         // (which would call applyPctH inside its SEQ-mode branch);
         // instead drive the apply helpers directly.
-        sl.value = 90;
+        sl.value = 39;
         slGap.value = 25;
-        if(window.applyPctH) window.applyPctH(90);
+        if(window.applyPctH) window.applyPctH(39);
         if(window.applyGapPct) window.applyGapPct(25);
-        _drawVertPair(cv, hcv, 0.9);
+        _drawVertPair(cv, hcv, 0.39);
         _drawVertPair(cvGap, hcvGap, 0.25);
       } else {
         // Restore prior slider state. Fall back to defaults if no
         // snapshot was captured (e.g. user enabled condense via
         // localStorage on a fresh load).
         var snap = window._condenseSliderSnapshot;
-        var sizePct = snap ? snap.size : 90;
+        var sizePct = snap ? snap.size : 39;
         var gapPct  = snap ? snap.gap  : 25;
         sl.value = sizePct;
         slGap.value = gapPct;
@@ -9525,15 +9896,15 @@ if(document.readyState==='loading'){
       if(window._btnFx) window._btnFx(turningOn ? 'tool_on' : 'tool_off');
       // Apply slider changes (same logic as xN toggle).
       if(turningOn){
-        sl.value = 90;
+        sl.value = 39;
         slGap.value = 25;
-        if(window.applyPctH) window.applyPctH(90);
+        if(window.applyPctH) window.applyPctH(39);
         if(window.applyGapPct) window.applyGapPct(25);
-        _drawVertPair(cv, hcv, 0.9);
+        _drawVertPair(cv, hcv, 0.39);
         _drawVertPair(cvGap, hcvGap, 0.25);
       } else {
         var snap2 = window._condenseSliderSnapshot;
-        var sizePct2 = snap2 ? snap2.size : 90;
+        var sizePct2 = snap2 ? snap2.size : 39;
         var gapPct2  = snap2 ? snap2.gap  : 25;
         sl.value = sizePct2;
         slGap.value = gapPct2;
@@ -9635,9 +10006,9 @@ if(document.readyState==='loading'){
       _paintCyanBtn();
       if(window._btnFx) window._btnFx(turningOn ? 'tool_on' : 'tool_off');
       if(turningOn){
-        sl.value = 90;
+        sl.value = 39;
         slGap.value = 25;
-        TILE_SCALE = 1.11;       // matches applyPctH(90): 0.3 + 0.9*0.9
+        TILE_SCALE = 1.11;       // matches applyPctH(39) on v2.41 formula: 0.3 + 0.39*2.1 ≈ 1.119
         TILE_GAP_MULT = 0.75;    // matches applyGapPct(25): 25/33.33
         var sizePct1 = parseFloat(sl.value) || 0;
         var gapPct1 = parseFloat(slGap.value) || 0;
@@ -10201,6 +10572,42 @@ if(document.readyState==='loading'){
   }
 
   function _onTouchStart(e){
+    // [v2.44/v2.45] Drag-tiles toggle handling.
+    //
+    // When disabled (default): we don't initialize _state (so drag
+    // mode never engages and the page scrolls naturally), but we DO
+    // set up a tap-track record so the per-tile click handler can
+    // decide whether to honor the click. The browser's native click
+    // event fires after ANY quick touch — even a 1ms tap commits
+    // immediately, which is too eager for our use case (the user
+    // can't scroll past the tiles when a cell is selected without
+    // accidentally placing).
+    //
+    // v2.45 fix: track touch start time + position. Touchmove flags
+    // a "scrolled" state if movement exceeds 12px. Touchend evaluates
+    // duration vs the 200ms threshold. The per-tile click handler
+    // checks window._equilTapTrack.suppress and bails out if it's
+    // set, so a held-or-scrolled touch never triggers place().
+    if(!window._dragTilesEnabled){
+      _state = null;
+      // Set up tap tracking for the click handler to consult.
+      if(e.touches.length === 1){
+        var _tt = e.touches[0];
+        var _tile = _findBankTile(_tt.target);
+        var _idx = _tile ? parseInt(_tile.dataset.bankIdx) : NaN;
+        window._equilTapTrack = {
+          startT:    performance.now(),
+          startX:    _tt.clientX,
+          startY:    _tt.clientY,
+          idx:       isNaN(_idx) ? -1 : _idx,
+          scrolled:  false,
+          suppress:  false   // set true on long-hold or movement
+        };
+      } else {
+        window._equilTapTrack = null;
+      }
+      return;
+    }
     if(e.touches.length !== 1) return;
     var t = e.touches[0];
     var tile = _findBankTile(t.target);
@@ -10232,7 +10639,22 @@ if(document.readyState==='loading'){
   }
 
   function _onTouchMove(e){
-    if(!_state) return;
+    // [v2.45] When _state is null (drag disabled), we still need to
+    // watch movement to suppress the upcoming click if the user is
+    // scrolling. Don't preventDefault — let scroll happen naturally.
+    if(!_state){
+      var tt = window._equilTapTrack;
+      if(tt && e.touches.length === 1){
+        var _mt = e.touches[0];
+        var _mdx = _mt.clientX - tt.startX;
+        var _mdy = _mt.clientY - tt.startY;
+        if(Math.sqrt(_mdx*_mdx + _mdy*_mdy) > 12){
+          tt.scrolled = true;
+          tt.suppress = true;
+        }
+      }
+      return;
+    }
     if(e.touches.length !== 1){ _cancel(); return; }
     var t = e.touches[0];
     var dx = t.clientX - _state.startX;
@@ -10395,7 +10817,20 @@ if(document.readyState==='loading'){
   }
 
   function _onTouchEnd(e){
-    if(!_state) return;
+    // [v2.45] When _state is null (drag disabled path), evaluate
+    // tap-track. If the touch was held >200ms, mark suppress so the
+    // upcoming click event is ignored. (Movement was already checked
+    // in _onTouchMove and would have set suppress there.) The actual
+    // check happens in the per-tile click handler — it inspects
+    // window._equilTapTrack.suppress before calling place().
+    if(!_state){
+      var tt = window._equilTapTrack;
+      if(tt){
+        var elapsed = performance.now() - tt.startT;
+        if(elapsed > 200) tt.suppress = true;
+      }
+      return;
+    }
     if(!_state.dragging){
       _state = null;
       return;
@@ -10531,6 +10966,10 @@ if(document.readyState==='loading'){
 
   function _cancel(){
     if(_state) _cleanup();
+    // [v2.45] Clear tap-track on cancel so a stale touch (e.g. OS-
+    // interrupted by an incoming notification) doesn't leak suppress
+    // state into the next interaction.
+    window._equilTapTrack = null;
   }
 
   function _cleanup(){
@@ -11680,7 +12119,18 @@ if(shareBtn){
     partLifeMult:   55,
     partSpeedMult:  1.0,
     partSizeMult:   1.0,
-    glowBrightMult: 1.0
+    glowBrightMult: 1.0,
+    // [v2.44] Drag-tiles toggle + bank-padding settings.
+    // dragTiles OFF (default): tiles are not draggable; tap-to-place
+    //   only when a cell is selected; touching tiles otherwise scrolls
+    //   the page. Bank has zero side padding.
+    // dragTiles ON: original drag-and-magnet behavior; bank has side
+    //   padding (per the bankPadWidth/bankPadSide settings) so users
+    //   have scroll-grab strips on either side that can't accidentally
+    //   start a drag.
+    dragTiles:      false,
+    bankPadWidth:   40,         // px, when dragTiles is ON
+    bankPadSide:    'both'      // 'both' | 'left' | 'right'
   };
 
   // ── Load saved options (apply to globals) ──
@@ -11695,6 +12145,17 @@ if(shareBtn){
     // We override _padGlowScale to compose with our user mult.
     var g = (typeof window._optGlowBrightMult==='number') ? window._optGlowBrightMult : DEF.glowBrightMult;
     window._padGlowScale = function(){ return g; };
+    // [v2.44] Drag-tiles + bank padding hooks. The bank-level
+    // touchstart handler reads window._dragTilesEnabled at touch
+    // time. The bank padding is read inside renderBank() — call
+    // it after this so the UI reflects the new padding immediately
+    // when the user toggles or adjusts these settings.
+    window._dragTilesEnabled = (typeof window._optDragTiles==='boolean') ? window._optDragTiles : DEF.dragTiles;
+    window._bankPadWidth     = (typeof window._optBankPadWidth==='number') ? window._optBankPadWidth : DEF.bankPadWidth;
+    window._bankPadSide      = (typeof window._optBankPadSide==='string') ? window._optBankPadSide : DEF.bankPadSide;
+    // Re-render the bank if the puzzle is loaded so the padding
+    // change takes effect right away.
+    try{ if(typeof renderBank === 'function' && typeof PZ !== 'undefined' && PZ) renderBank(); }catch(_){}
   }
 
   function _loadOpts(){
@@ -11712,6 +12173,10 @@ if(shareBtn){
       if(typeof o.partSpeedMult ==='number') window._optPartSpeedMult  = o.partSpeedMult;
       if(typeof o.partSizeMult  ==='number') window._optPartSizeMult   = o.partSizeMult;
       if(typeof o.glowBrightMult==='number') window._optGlowBrightMult = o.glowBrightMult;
+      // [v2.44] drag-tiles + bank padding
+      if(typeof o.dragTiles    ==='boolean') window._optDragTiles      = o.dragTiles;
+      if(typeof o.bankPadWidth ==='number')  window._optBankPadWidth   = o.bankPadWidth;
+      if(typeof o.bankPadSide  ==='string')  window._optBankPadSide    = o.bankPadSide;
     }catch(e){}
     _applyTuning();
   }
@@ -11727,7 +12192,11 @@ if(shareBtn){
         partLifeMult:   (typeof window._optPartLifeMult  ==='number') ? window._optPartLifeMult   : DEF.partLifeMult,
         partSpeedMult:  (typeof window._optPartSpeedMult ==='number') ? window._optPartSpeedMult  : DEF.partSpeedMult,
         partSizeMult:   (typeof window._optPartSizeMult  ==='number') ? window._optPartSizeMult   : DEF.partSizeMult,
-        glowBrightMult: (typeof window._optGlowBrightMult==='number') ? window._optGlowBrightMult : DEF.glowBrightMult
+        glowBrightMult: (typeof window._optGlowBrightMult==='number') ? window._optGlowBrightMult : DEF.glowBrightMult,
+        // [v2.44] drag-tiles + bank padding
+        dragTiles:      (typeof window._optDragTiles    ==='boolean') ? window._optDragTiles    : DEF.dragTiles,
+        bankPadWidth:   (typeof window._optBankPadWidth ==='number')  ? window._optBankPadWidth : DEF.bankPadWidth,
+        bankPadSide:    (typeof window._optBankPadSide  ==='string')  ? window._optBankPadSide  : DEF.bankPadSide
       }));
     }catch(e){}
     _applyTuning();
@@ -11847,6 +12316,63 @@ if(shareBtn){
       wrap.appendChild(sliderBox);
     }
     _paintPill();
+    return wrap;
+  }
+
+  // [v2.44] Segmented row — small 3-button picker for a string-valued
+  // setting. Used for "padding side" (both / left / right) so the user
+  // can pick which side gets the bank scroll-grab strip. Visually
+  // similar to a row of toggle buttons; the selected one shows a
+  // filled cyan background, the others have transparent backgrounds.
+  function _mkSegmentedRow(label, getter, setter, options){
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'padding:6px 4px 10px 4px;';
+
+    var lbl = document.createElement('div');
+    lbl.textContent = label;
+    lbl.style.cssText = 'font-size:10px;color:rgba(255,255,255,0.7);margin-bottom:6px;letter-spacing:1px;';
+    wrap.appendChild(lbl);
+
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:6px;';
+
+    var btns = [];
+    function _paintBtns(){
+      var cur = getter();
+      btns.forEach(function(b){
+        if(b._value === cur){
+          b.style.background = 'rgba(0,217,255,0.25)';
+          b.style.color = 'var(--cyan,#00d9ff)';
+          b.style.borderColor = 'var(--cyan,#00d9ff)';
+        } else {
+          b.style.background = 'transparent';
+          b.style.color = 'rgba(255,255,255,0.55)';
+          b.style.borderColor = 'rgba(255,255,255,0.2)';
+        }
+      });
+    }
+
+    options.forEach(function(opt){
+      var b = document.createElement('button');
+      b._value = opt.value;
+      b.textContent = opt.label;
+      b.style.cssText =
+        'flex:1;padding:7px 0;font-family:inherit;'+
+        'font-size:9.5px;font-weight:700;letter-spacing:1.5px;'+
+        'border:1px solid rgba(255,255,255,0.2);border-radius:4px;cursor:pointer;'+
+        'transition:background 0.12s,color 0.12s,border-color 0.12s;';
+      b.addEventListener('click', function(e){
+        e.preventDefault();
+        setter(opt.value);
+        _paintBtns();
+        _saveOpts();
+      });
+      btns.push(b);
+      row.appendChild(b);
+    });
+
+    wrap.appendChild(row);
+    _paintBtns();
     return wrap;
   }
 
@@ -11977,6 +12503,54 @@ if(shareBtn){
       null
     ));
 
+    // [v2.44] Tile interaction section — drag-tiles toggle, bank
+    // padding controls. By default, tile dragging is OFF: tiles act
+    // as scrollable surface. Tap-to-place (with a cell selected)
+    // still works because the browser fires a synthetic click
+    // after a quick non-scrolled tap. When dragging is turned ON,
+    // the original drag-and-magnet flow returns, and the bank
+    // shows scroll-grab side padding so users have a place to
+    // swipe vertically without accidentally starting a drag. Both
+    // the padding width and which side(s) it appears on are
+    // user-configurable for finger-size and handedness.
+    var interactSub = document.createElement('div');
+    interactSub.textContent = 'Tile interaction';
+    interactSub.style.cssText =
+      'font-size:9px;color:rgba(255,255,255,0.45);letter-spacing:1.5px;'+
+      'margin:14px 0 8px 0;';
+    box.appendChild(interactSub);
+
+    box.appendChild(_mkToggleRow(
+      'Drag tiles',
+      'When ON, tiles can be dragged onto cells with a magnet snap. When OFF (default), tiles can only be tap-placed (after selecting a cell), and touching tiles otherwise scrolls the page.',
+      function(){
+        return (typeof window._optDragTiles==='boolean') ? window._optDragTiles : DEF.dragTiles;
+      },
+      function(v){ window._optDragTiles = v; _applyTuning(); },
+      [
+        function(){ return _mkSliderRow(
+          'Side padding width',
+          function(){
+            return (typeof window._optBankPadWidth==='number') ? window._optBankPadWidth : DEF.bankPadWidth;
+          },
+          function(v){ window._optBankPadWidth = v; _applyTuning(); },
+          0, 80, 1, 0, ' px'
+        ); },
+        function(){ return _mkSegmentedRow(
+          'Padding side',
+          function(){
+            return (typeof window._optBankPadSide==='string') ? window._optBankPadSide : DEF.bankPadSide;
+          },
+          function(v){ window._optBankPadSide = v; _applyTuning(); },
+          [
+            { value: 'both',  label: 'BOTH' },
+            { value: 'left',  label: 'LEFT' },
+            { value: 'right', label: 'RIGHT' }
+          ]
+        ); }
+      ]
+    ));
+
     // [v2.26] Debug section — snap velocity tuning sliders. The
     // velocity-gated magnet (v2.25) needs in-the-field tuning,
     // and the user is on mobile without console access. Sliders
@@ -12070,6 +12644,10 @@ if(shareBtn){
       window._optPartSpeedMult  = DEF.partSpeedMult;
       window._optPartSizeMult   = DEF.partSizeMult;
       window._optGlowBrightMult = DEF.glowBrightMult;
+      // [v2.44] Reset drag-tile + bank padding settings.
+      window._optDragTiles    = DEF.dragTiles;
+      window._optBankPadWidth = DEF.bankPadWidth;
+      window._optBankPadSide  = DEF.bankPadSide;
       _applyTuning();
       _saveOpts();
       // Rebuild panel to reflect reset state
