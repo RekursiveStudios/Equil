@@ -1,4 +1,577 @@
-<!-- Equil v1.94 | Built: 2026-05-02 CT | github.com/Spamboni
+<!-- Equil v2.34 | Built: 2026-05-02 CT | github.com/Spamboni
+     v2.34: Tile bounce-back animation + sound on cancel/release.
+     When the user releases a dragged tile WITHOUT dropping it on
+     a valid blank cell, the ghost previously vanished instantly.
+     Now it animates back to the source bank tile's position and
+     plays a home-arrival pop.
+     Animation:
+     - 180ms transition on left/top/width/height/border-radius/
+       opacity using cubic-bezier(0.2,0.8,0.2,1) — ease-out.
+       Fast departure, gentle settle.
+     - Ghost shrinks from MAGNET_BASE_SCALE (1.05× source) back
+       to 1.0× source while flying home.
+     - Opacity fades to 0 over the same window so the ghost
+       dissolves into the bank tile rather than landing on top.
+     - Source bank tile's opacity restored after the animation.
+     Sound — playTileReturn():
+     - Mirror of playTilePickup. Same waveform (sine), duration
+       (90ms env, 70ms sweep), and gain (0.18 peak).
+     - Pitch sweep is 180→280 Hz (rising), the inverse of
+       pickup's 280→180 Hz (falling). Reads as "coming back
+       up" to where the pickup pop started.
+     The cancel path (touchcancel — multi-touch interrupt etc.)
+     still skips the animation and goes straight to cleanup.
+     ---- previous changelog ----
+     v2.33: Three small UI polish changes.
+     1) Settings (gear ⚙) button restyled to match the New button:
+        cyan border, cyan icon, transparent background, soft cyan
+        glow shadow.
+     2) Undo button (↩) removed from the in-game toolbar. JS that
+        referenced it is guarded with null-checks; the undo
+        function itself is still wired (the .seq history still
+        records moves), the button is just gone from view.
+     3) Logo flipped: was "EQU" white + "IL" cyan; now "E" cyan
+        + "QUIL" white. Same .mast-title span rule, just moved
+        around the E. Applied to both the menu screen H1 and the
+        in-puzzle masthead.
+     ---- previous changelog ----
+     v2.32: Magnet stripped down to bare-minimum proximity logic.
+     Many layered systems were causing more problems than they
+     solved (push-off, ignored-set, directional-bias cones,
+     handoff lock-start tracking) — replaced with one rule:
+     ghost locks to a cell only when the magnet origin is within
+     LOCK_RANGE cell-widths of that cell's center. No memory, no
+     state machine.
+     Removed:
+     - PUSH_OFF_CELLS, DIRECTIONAL_LATERAL_CELLS,
+       UNLOCK_RANGE_CELLS, CLEAR_IGNORE_CELLS tunables.
+     - The ignored-set and lastPushOffCell tracking.
+     - The directional cone / alignment-discount weighting.
+     - lockStartX / lockStartY tracking.
+     - Smoothed velocity vector fields (_smoothVx / _smoothVy).
+       _smoothVel scalar kept for the velocity gate.
+     Kept:
+     - Velocity-gated snap (still works as before).
+     - Lock visual + snap sound.
+     - Hint highlight when finger is within ~3 cell-widths
+       (gives a soft "you're close" cue without snapping).
+     New tunable:
+     - window._equilLockRange.cells (default 0.7) — slider in
+       OPTIONS panel debug section. 0.7 means "finger basically
+       has to be on the cell."
+     ---- previous changelog ----
+     v2.31: Two changes.
+     1) Stronger directional bias for the magnet's nearest-cell
+        search. v2.30 added directional weighting only to the
+        post-push-off recompute. Now it applies to BOTH searches
+        (the top-of-frame nearest-cell pass and the post-push-off
+        recompute). The cone is also tighter — 60° half-angle
+        (cos 0.5) instead of ~80° (cos 0.17) — and the discount
+        is steeper. eff = rawDistance / (0.3 + 1.5 * align), so
+        align=1 cells get a 44% discount, align=0.5 cells get
+        ~5% discount, align<0.5 cells are excluded entirely.
+        Motion direction is taken from lock-start → locked-cell
+        when locked, falling back to a smoothed velocity vector
+        otherwise. The currently-locked cell is exempt from the
+        cone exclusion so an established lock can't be dropped
+        just because the user paused or wiggled.
+        Also added _smoothVx / _smoothVy fields tracking the
+        smoothed velocity vector (was just _smoothVel scalar).
+     2) Tap-to-return no longer auto-selects the cell. Previously
+        tapping a placed number returned it to bank AND selected
+        the cell with the magenta outline. User wanted the
+        selection cleared after return — they're undoing, not
+        starting a new placement.
+     ---- previous changelog ----
+     v2.30: Two changes addressing magnet jumpiness.
+     1) Sideways-jump fix. When the magnet pushed off cell A and
+        searched for the next cell to lock to, it used pure
+        Euclidean distance from the magnet origin. After push-off
+        the magnet origin sits right at A's position, so all four
+        adjacent cells (above, below, left, right) are
+        approximately equidistant. Finger jitter could pick a
+        sideways neighbor when the user clearly intended to
+        continue in the direction of motion (e.g. dragging
+        straight up).
+        Now the recompute uses directional weighting: the motion
+        direction is computed from lock-start → A, and candidate
+        cells are scored by effective distance =
+        rawDistance / (0.5 + alignment), where alignment is the
+        dot product of (cell - A) and motion direction. Cells
+        more than ~80° off the motion direction (alignment < 0.17)
+        are excluded entirely. Cells aligned with motion get up
+        to a ~67% distance discount.
+        Net effect: when dragging up, B (one cell up) wins over
+        R (one cell right) even if finger jitter put R slightly
+        closer in raw distance.
+     2) Re-lock delay reduced. CLEAR_IGNORE_CELLS was 2.5 (cell
+        widths the magnet origin must travel from a pushed-off
+        cell before the cell becomes eligible again). Reduced to
+        1.5. With ~50px cells that's ~75px of finger travel
+        instead of 125px before the magnet can re-lock to a
+        recently-departed cell — feels much more responsive
+        when the user reverses direction.
+     ---- previous changelog ----
+     v2.29: Snap velocity slider range narrowed to 30–100 px/s
+     (was 30–3000) with step 1 (was 10) and default 60. The
+     px/sec values that map to actual placement vs fly-across
+     drags are tiny on this device — finger movements that look
+     fast still register as low double-digit values after the
+     EMA smoothing. The wide range made the useful zone too
+     compressed at the slider's left edge.
+     ---- previous changelog ----
+     v2.28: Slider range now 30–3000 px/s (was 300–3000), step 10
+     (was 50), so finer values are reachable. Hysteresis gap is
+     now adaptive instead of fixed ±100 — scales as 20% of the
+     threshold value with a minimum of 10 px/s. At a midpoint of
+     30 the gap is ±10; at 1000 it's ±200; at 3000 it's ±600.
+     Fixed ±100 didn't work at low values (would push snapOn
+     negative).
+     ---- previous changelog ----
+     v2.27: Collapsed the two snap-velocity sliders into one.
+     Hysteresis (the gap between ON-below and OFF-above
+     thresholds) is real and prevents flicker when velocity
+     hovers exactly at the boundary, but it's a small benefit
+     and not worth the UI confusion of two sliders. Now one
+     slider sets the midpoint; the actual ON and OFF thresholds
+     are auto-derived as ±100 px/s around it (200 px/s fixed
+     hysteresis gap, plenty to prevent flicker without being
+     noticeable to the user).
+     Internal state: window._equilDragMagnet.snapMid (slider
+     value) drives snapOn = snapMid-100 and snapOff = snapMid+100.
+     ---- previous changelog ----
+     v2.26: Added in-app debug controls for tuning the velocity-
+     gated snap thresholds without needing a console. The user
+     is on a phone without remote DevTools access, so the values
+     get tuned via UI instead of console.
+     OPTIONS panel now has a "Debug — snap tuning" section with:
+     - "Drag velocity overlay" toggle: when on, a small floating
+       readout appears at the top of the screen during any tile
+       drag, showing live velocity (px/s) and whether the magnet
+       is currently ON or OFF. Cyan when on, orange when off.
+       Lets the user see what speeds their hand actually
+       produces during fast vs slow drags.
+     - "Magnet ON below" slider (200-3000 px/s, default 1000)
+     - "Magnet OFF above" slider (400-3500 px/s, default 1400)
+     - The two sliders are linked: setting one too close to the
+       other auto-bumps the other to keep at least 200 px/s of
+       hysteresis gap.
+     ---- previous changelog ----
+     v2.25: Velocity-gated snapping. The magnet now activates only
+     when the finger's velocity drops below a threshold. Dragging
+     fast across the board no longer triggers a chain of snap-
+     locks and snap-sounds on every cell the ghost passes over.
+     Mechanics:
+     - Per-frame finger velocity computed from position and time
+       deltas, smoothed with a 0.3-alpha exponential moving
+       average (~3 frames of smoothing — enough to ignore jitter,
+       not enough to feel laggy).
+     - Hysteresis: `snapOff` (default 1400 px/s) disables the
+       magnet when smoothed velocity rises above it; `snapOn`
+       (default 1000 px/s) re-enables it when velocity drops
+       below it. The gap between the two thresholds prevents
+       on/off flicker when velocity hovers near the boundary.
+     - When the magnet is gated off, any active lock is released
+       and cell highlights are cleared. Ghost continues to follow
+       the finger at base scale.
+     Tunables exposed at:
+       window._equilDragMagnet = { snapOn: 1000, snapOff: 1400 }
+     Edit those values in the browser console to test different
+     thresholds without re-shipping.
+     ---- previous changelog ----
+     v2.24: Two changes.
+     1) Ghost border-radius now scales with the ghost's size and
+        the radius/cap is tighter (0.15 ratio, 8px cap, was 0.22
+        ratio, 10px cap). When the ghost shrunk to snap size, the
+        previously-fixed-pixel radius dominated the small box and
+        made it look almost circular. Both _createGhost and
+        _setGhostTransform compute radius from current width;
+        border-radius is in the transition list so the change is
+        smooth alongside width/height/font-size.
+     2) Magnet ranges dialed back further: lock 4→3, unlock
+        6.5→5, push-off 1.5→1.2, lateral tolerance 2→1.8,
+        clear-ignore 3→2.5. Snap zones noticeably tighter so the
+        ghost locks only when the user is genuinely on a cell.
+     ---- previous changelog ----
+     v2.23: Drag ghost rebuilt as a fresh element instead of a
+     clone of the bank tile.
+     Why: cloning carried over the xN/mini/cyan child structure
+     (×N badges, mini grids, etc.), which didn't scale when the
+     ghost's width/height shrank during snap — the tile box
+     shrank, but the inner number(s) stayed full size. The user
+     also wanted the ghost to display ONE clean number while
+     dragging, not the full docked-tile structure.
+     New ghost:
+     - Single span containing the value, centered.
+     - White outline-stroke (-webkit-text-stroke) by default.
+     - Dark cyan (#0093aa) when ### (all-cyan) mode is on —
+       same color used for mini/cyan-mode small numbers in the
+       docked state.
+     - Border + background match the .bt rule visually.
+     - font-size is computed as ~55% of ghost width and updated
+       in _setGhostTransform on every position/scale change.
+       font-size is also in the transition list so the number
+       smoothly scales during the snap-shrink animation.
+     ---- previous changelog ----
+     v2.22: Two changes.
+     1) Floating zoom-pan pill is now opt-in. Default OFF (was
+        always shown when entering puzzle mode). User can enable
+        it via OPTIONS panel → "Zoom pill" toggle. When toggled
+        on, the pill spawns at the bottom-right of the puzzle
+        area and plays a brief pop sound on appearance.
+        State persists in localStorage like other options.
+     2) Ghost-stuck bug, attempt #5. v2.21 used left/top for
+        position and transform:scale for sizing. The ghost-at-
+        upper-left issue was gone, but a new manifestation
+        appeared: on fast pickup, the snap-shrink animation
+        sometimes failed (ghost arrived at the cell at wrong/
+        full size). That's transform:scale racing with the rAF
+        transition setup.
+        New approach: NO transforms at all. Sizing now via
+        width/height directly. The "scale" multiplier in
+        _setGhostTransform multiplies the source tile's base
+        dimensions and writes width/height. The lock-fly + snap-
+        shrink animation transitions left/top/width/height
+        together. Pure layout, zero compositor.
+        Should also handle the original ghost-stuck bug since
+        no transforms means no compositor races at any phase.
+     ---- previous changelog ----
+     v2.21: Two changes.
+     1) Text-stroke 0.3px → 0.5px. Even more visible across all
+        browsers without overcrowding digit interiors.
+     2) Ghost-stuck bug — fundamentally different approach. The
+        v2.19 (rAF + transition:none) and v2.20 (opacity:0 +
+        rAF + force reflow) attempts both failed on Chrome/Brave
+        on Android. Switching positioning model entirely:
+        - Ghost is now positioned via left/top properties.
+        - transform is used ONLY for the scale factor.
+        - The lock-fly animation transitions left, top, AND
+          transform together over 180ms.
+        This sidesteps every transform-related compositor race
+        in Chromium because position changes are now pure layout
+        operations rather than composited transforms. Slightly
+        less GPU-friendly than pure transform animation but
+        should be reliable across all Chromium variants.
+     ---- previous changelog ----
+     v2.20: Two changes.
+     1) Text-stroke 0.1px → 0.3px. The 0.1px value was effectively
+        invisible in mainline Chrome/Brave on Android — only the
+        Claude app and DuckDuckGo were rendering it visibly. 0.3px
+        is a compromise between visibility everywhere and not
+        being so thick that the digit interiors close up.
+     2) More aggressive fix for the "ghost stuck upper-left" bug.
+        v2.19's `transition:none + rAF` approach didn't fully
+        eliminate the issue on Chrome/Brave. New approach: append
+        the ghost at opacity:0, force a layout read with `void
+        ghost.offsetHeight`, then in requestAnimationFrame:
+        - re-set the transform one more time
+        - fade opacity in
+        - enable the 180ms transition
+        - enable will-change:transform
+        Net effect: the user never sees the initial paint of the
+        freshly-appended element, so even if Chrome's compositor
+        is racing on the transform, the visible state is always
+        "ghost at finger position". Also moved will-change off
+        the initial cssText since promoted layers seemed
+        correlated with the bug.
+        This works around a Chromium-on-Android bug where
+        transforms applied via inline style on a freshly-
+        appended element occasionally fail to render on the
+        first paint, leaving the element at viewport origin.
+        DuckDuckGo (Chromium-based with different defaults) was
+        not affected, which pointed at compositor/will-change
+        defaults as the trigger.
+     ---- previous changelog ----
+     v2.19: Fix the ghost-stuck-at-upper-left bug (more thoroughly
+     this time). User reported it was speed-dependent and ~80%
+     reproducible at moderate-to-fast pickup speeds — slow drags
+     never triggered it.
+     Hypothesis: when the ghost was created with the 180ms
+     transform transition already enabled, on a fast initial drag
+     the freshly-appended element seemed to either:
+       (a) Animate FROM transform:none (origin) TO the initial
+           finger position over 180ms, sometimes never completing
+           the animation, or
+       (b) Drop the inline transform during initial layout, leaving
+           the element at its computed default (origin position).
+     Fix:
+     - Initial cssText now sets transition:none, so no animation
+       happens during the first paint of the freshly-created
+       element.
+     - Transform is also set redundantly via style.transform after
+       cssText, in case the cssText parsing dropped it.
+     - The 180ms transition is enabled in a requestAnimationFrame
+       callback, so subsequent updates (which fly the ghost
+       between cells during magnet locks) still animate smoothly.
+     ---- previous changelog ----
+     v2.18: Two bug fixes.
+     1) Middle-cell skip when hopping through a column. Before:
+        ghost locked to cell A, user dragged through A toward B
+        and beyond, ghost jumped from A directly to C (the cell
+        beyond B) — B was skipped. Cause: when push-off from A
+        triggered a handoff to B, B's lock-start was set to the
+        current ghost position (which is at A's location since
+        the lock just transferred). That made B's "approach
+        distance" effectively zero, so the directional push-off
+        for B fired almost immediately, bouncing the ghost
+        through to C. Fix: when push-off occurs, save the cell
+        that was pushed off. On the next fresh lock, use THAT
+        cell's center as lock-start instead of the current ghost
+        position. Now B's approach axis spans A→B (one cell
+        width) and directional push-off requires the ghost to
+        travel from A past B by another cell width.
+     2) Defensive ghost rendering. The "ghost stuck in upper-
+        left corner" bug was likely a combination of:
+        - `.bt` class CSS rules (flex, min-width, aspect-ratio)
+          fighting the cloned ghost's inline width/height,
+        - rect.width somehow ending up zero in some edge cases
+          (mid-render, hidden tile, etc.),
+        - bad numeric inputs producing malformed CSS transforms
+          that the browser silently dropped.
+        Fixes: ghost dimensions fall back to 50px if rect is
+        zero; cssText now includes `flex:none; min-width:0;
+        max-width:none; aspect-ratio:auto` to override the .bt
+        rule's layout properties; _setGhostTransform validates
+        finite numbers before constructing the transform string
+        and uses safe fallback dimensions.
+     ---- previous changelog ----
+     v2.17: Three changes.
+     1) Snap sound switched from the bandpass-noise whoosh to a
+        sine pop (playTileSnap) that's a higher-pitched, slightly
+        quieter variant of the pickup pop (playTilePickup).
+        Pickup is 280→180 Hz, snap is 360→520 Hz with an upward
+        contour — they read as related but distinct (down for
+        leaving, up for arriving). Snap peak gain 0.10 (was 0.18
+        for pickup, 0.09 for whoosh).
+     2) Magnet ranges dialed back to feel less aggressive than
+        v1.94's 6/8. Lock 6→4, unlock 8→6.5, push-off 2→1.5,
+        clear-ignore 3.5→3.0. Tighter snap zones overall.
+     3) FINGER_OFFSET_Y doubled: 24 → 48. Ghost now sits about
+        half an inch above the finger so there's plenty of clear
+        air between fingertip and tile. Magnet origin uses this
+        same point (per v1.94's offset model), so the ghost is
+        what's "interacting" with cells from the cells'
+        perspective, not the fingertip.
+     ---- previous changelog ----
+     v2.16: Several changes.
+     1) ADJUST button now reads "TILE" / "ADJUST" on two lines.
+        Cyan border by default (matching the inactive display-
+        mode buttons in the same row), turning purple via the
+        existing .active class only when the modal is open. The
+        `active` class is now toggled by the modal open/close
+        handlers. Removed the always-purple #tileAdjustBtn
+        style override that previously kept it permanently
+        magenta. line-height tightened to 1.15 so the two lines
+        sit cleanly within the button.
+     2) New playTilePickup() — a quiet low sine-wave pop (~280Hz
+        → 180Hz over 70ms, peak gain 0.18). Plays when the user
+        first picks up a tile from the bank (drag enters dragging
+        state). Confirms the lift audibly even if the visual
+        ghost is hidden under the finger.
+     3) New playTileSnapWhoosh() — short bandpass-filtered noise
+        burst (90ms, 900Hz→1700Hz sweep, peak gain 0.09 — about
+        half the perceived volume of the previous snap click).
+        Replaces the playSelEmpty() click that fired on every
+        fresh magnet lock since v1.92. Character matches the
+        pill's drag-wind sound rather than a UI button click,
+        per user request.
+     ---- previous changelog ----
+     v2.15: Two refinements.
+     1) Multi-digit white centering: v2.14's 1px left-nudge went
+        too far. User reports right gap is correct but left gap
+        is about half what it should be — digit needs to come
+        back to the right. Switched from padding-right:1px to
+        padding-left:0.5px. Sub-pixel CSS values resolve to the
+        nearest device-pixel boundary at the device DPR.
+     2) Cyan ×N opacity reduced (color:#0093aa → rgba(0,147,170,
+        0.6)) only in xN mode. Now that cyan numbers are larger
+        after the v2.11 sizing, a slightly dimmer cyan reads
+        more clearly as secondary to the white digit. Mini-mode
+        and cyan-mode renderings unchanged — they have their
+        own color logic that wasn't affected.
+     ---- previous changelog ----
+     v2.14: Two refinements.
+     1) Centering nudge for multi-digit whites: 2px → 1px. v2.13's
+        2px overshot by a hair.
+     2) Cyan ×N pulled up off the bottom border. Was: margin-top:
+        +2px, putting a 2px gap above cyan. Now: margin-top: -2px,
+        pulling cyan upward by 2px. Combined with the 10% bottom
+        padding from v2.13, cyan now sits well clear of the
+        border with the empty space below where there used to be
+        empty space above.
+     ---- previous changelog ----
+     v2.13: Three small fixes.
+     1) Tile border opacity 0.85 → 0.5. Updated both the .bt CSS
+        rule AND the inline border set in applyTileColor (which
+        runs at render time and beats the CSS rule) so all
+        uncolored tile borders read at the new lighter weight.
+     2) xN mode: cyan ×N was bleeding into the bottom border.
+        Split the symmetric padding into separate top/bottom —
+        top stays at 5% (white position unchanged), bottom
+        doubles to 10% so cyan sits clearly inside the tile.
+     3) Double-digit white numbers appearing right-shifted: this
+        is an optical artifact of "1" being narrower than other
+        digits in IBM Plex Mono — when "10" or "12" is centered,
+        the visible ink leans right because the "1" doesn't
+        extend leftward as much as the second digit extends
+        rightward. Fixed with a 2px padding-right on the white
+        span when the value has 2+ digits, which nudges the
+        text slightly leftward to balance optically. Single
+        digits get no nudge.
+     ---- previous changelog ----
+     v2.12: xN mode layout refinement.
+     - Layout switched from space-between to flex-start so cyan
+       sits right under white instead of being pushed to the
+       tile's bottom edge. 2px margin between them.
+     - Cyan ×N font size: 0.84× of white → 0.6×. Was too big in
+       v2.11.
+     - White position uniform across all xN tiles regardless of
+       whether they have duplicates — single-instance tiles now
+       use the same top-anchored layout (just without the cyan
+       ×N), so all white digits sit in the same spot row-to-row.
+     - White size unchanged (still 1.6× tileFontSize).
+     - White span gets margin-top:-1px to shift it up 1 device
+       pixel from the top padding (per user request — wanted a
+       small upward bump independent of tile size).
+     - Padding 6% → 5% of tile size top/bottom.
+     ---- previous changelog ----
+     v2.11: xN mode redesigned to a vertically-stacked layout.
+     Was: white number flex-centered (single line in middle of
+     tile), with a small cyan ×N label absolutely-positioned at
+     the bottom. The cyan was ~42% of the white digit's font.
+     Now: white number on top, cyan ×N on bottom, both filling
+     most of the tile's vertical space. Tile is switched to
+     flex-column with justify-content:space-between when xN
+     fires, and equal top/bottom padding (~6% of tile size).
+     White digit keeps the v2.10 size (1.6× tileFontSize).
+     Cyan ×N is now ~84% of the white digit's size — net ~3.2×
+     bigger than before, roughly matching the white digit's
+     visual presence.
+     Single-instance tiles (where ×N would be ×1, hidden) keep
+     the centered layout via the existing else branch.
+     For reference: in default + xN modes the white digit is
+     typically rendering at ~22-24px in XL2 mode (was ~14px
+     before v2.10), and the cyan ×N is now ~18-20px (was ~6-7).
+     ---- previous changelog ----
+     v2.10: White main-number font size bumped 1.6× in xN mode
+     and default mode (no display style chosen). The outline-only
+     stroke renders cleaner at larger sizes and there's plenty of
+     room when no cyan content is layered. Mini and cyan modes
+     keep the original font size since the cyan numbers around/
+     over the main digit need that breathing room.
+     ---- previous changelog ----
+     v2.09: text-stroke 0.7px → 0.1px. Sub-pixel CSS values are
+     valid; rendering is up to the browser. On Android Chrome
+     this typically resolves to the thinnest renderable line
+     (one device pixel) or an alpha-blended near-invisible
+     trace. Either way, this is as thin as the outline can go.
+     ---- previous changelog ----
+     v2.08: Two fixes for v2.07.
+     1) Outline thickness — 1px stroke at 24px font was filling
+        the glyph interiors. Bumped font to 28px and thinned
+        stroke to 0.7px so digit interiors are clearly visible.
+     2) Cyan ×N multiplier badge (._btXN) was inheriting the
+        outline treatment and turning into a white-outlined
+        version of the cyan number. Added it to the stroke-
+        disabling rule alongside the cyan/mini grid children.
+        Also explicitly added ._btMiniNum since v2.07's wildcard
+        selector might not have been catching it on all browsers.
+     ---- previous changelog ----
+     v2.07: Three changes.
+     1) Pill tab lengthened from 24px to 36px. Gives more visual
+        presence to the grip area now that the top portion is
+        hidden behind the circle.
+     2) Tile number font bumped from 20px to 24px so the 1px
+        text-stroke doesn't fully close the narrow interior gaps
+        in glyphs like 8, 5, 0 — letting the transparent interior
+        actually show through as expected.
+     3) Cyan-mode and mini-mode child number elements now have
+        text-stroke explicitly disabled, so only the WHITE main
+        tile numbers get the outline treatment. Cyan numbers
+        render as solid cyan fills as before.
+     ---- previous changelog ----
+     v2.06: Two unrelated changes.
+     1) Floating pill: connected the tab's vertical border lines
+        to the circle. Was: TAB_GAP=2 — small gap between circle
+        and tab so they looked like two stacked shapes. Now:
+        TAB_GAP=-11, raising the tab into the circle so the
+        tab's top corners sit ON the circle's bottom arc at
+        x=±22 from circle center (where chord coords land at
+        y=45.32 on a 28-radius circle). Added z-index ordering
+        (circle:2, tab:1) so the circle covers the part of the
+        tab that's inside its silhouette — the visible result
+        is the tab's vertical borders cleanly meeting the
+        circle. Grip dots also pushed to the bottom of the tab
+        with align-items:flex-end + 5px bottom padding so they
+        sit in the visible portion (the upper half of the tab
+        is now hidden behind the circle).
+     2) Bank tile numbers: switched from filled white text to
+        1px outline (-webkit-text-stroke). Color is transparent
+        so only the stroke is visible. Font size bumped from
+        18px to 20px to compensate for the slight visual loss
+        of stroked-only text.
+     ---- previous changelog ----
+     v2.05: Fix v2.04 — the .btiles CSS padding update I made
+     was being overridden by an inline style set in renderBank
+     (line ~5852) that pinned puzzle-mode left/right padding to
+     0px. Updated those inline assignments to 40px.
+     ---- previous changelog ----
+     v2.04: Added 40px horizontal padding inside .btiles (the bank
+     tile container). Gives the user a clear band on either side
+     of the tile row to grab for vertical scrolling without
+     accidentally landing on a tile and starting a drag-to-place
+     operation. Tiles still center-justify within the remaining
+     space so spacing between them is unchanged.
+     ---- previous changelog ----
+     v2.03: Corner diagonals 10.5×11.5 → 10.3×11.3. Sub-half-pixel
+     OCD calibration. SVG handles arbitrary float precision in
+     viewBox/coords, so this resolves to whatever the device
+     actually renders.
+     ---- previous changelog ----
+     v2.02: Corner diagonals 10×11.5 → 10.5×11.5.
+     ---- previous changelog ----
+     v2.01: Corner diagonals 10.5×11 → 10×11.5. Steeper angle.
+     ---- previous changelog ----
+     v2.00: Corner diagonals 11×11 → 10.5×11. Slight asymmetry —
+     a hair shorter horizontally than vertically.
+     ---- previous changelog ----
+     v1.99: Corner diagonals 11.5×11.5 → 11×11. Tightens up the
+     inner-end overlap with grid-clip border by half a pixel.
+     Held off on the variable-width taper experiment — it's
+     genuinely doable (replace <line> with <polygon>, compute
+     wedge vertices for each of the 4 corners) but adds enough
+     complexity per corner that I'd want to confirm the taste
+     for it before changing it.
+     ---- previous changelog ----
+     v1.98: Two refinements to the corner diagonals.
+     1) 12×12 → 11.5×11.5. Slight shortening to avoid overlap
+        with the grid-clip border at the inner end. (Yes,
+        fractional viewBox values are valid SVG.)
+     2) Bright end stop-opacity dropped from 1 to 0.5 to match
+        the gscroll outer border (rgba(0,217,255,0.5)) — the
+        diagonals were noticeably brighter than the border at
+        the upper-left corner. Now the line color blends
+        smoothly into the border rather than glowing past it.
+     ---- previous changelog ----
+     v1.97: Corner diagonals to 12×12 — perfect 45° angle, slightly
+     shorter than 15×12.
+     ---- previous changelog ----
+     v1.96: Corner diagonal SVGs adjusted from 14×12 to 15×12.
+     v1.95's grid-clip padding bump (+3 → +6) moved the grid-
+     clip corners ~3px further from gscroll's corners, throwing
+     off the diagonals which were tuned to land on the grid-clip
+     corners. Bumping the horizontal extent compensates.
+     ---- previous changelog ----
+     v1.95: Grid-clip padding bumped from +3 to +6 on both
+     dimensions, so the bottom (and right) edge of the grid
+     isn't clipped. Previously the bottom horizontal line of
+     the grid was getting eaten by the clip layer. The +3
+     fudge from earlier wasn't quite enough — apparent
+     subpixel rounding, outline-style cell borders, and the
+     inner box-shadow seem to push the visible content a
+     couple pixels past the clip box. +6 gives comfortable
+     headroom on both edges.
+     ---- previous changelog ----
      v1.94: The 24px above-finger offset is now the "magnet origin"
      for all distance and lock checks — not just where the ghost is
      drawn. Cells react to the ghost's position as if it were the
@@ -676,7 +1249,7 @@
      v1.40: Rebrand from MathCross to Equil. App name (PWA manifest,
      apple-mobile-web-app-title), share-card footer (equil.app),
      localStorage key (equil_opts_v2), in-DOM titles on menu screen
-     and in-puzzle masthead (now "EQU<span>IL</span>"), and menu
+     and in-puzzle masthead (now "<span>E</span>QUIL"), and menu
      version tag all updated. NOTE: localStorage key change means
      existing users will see options reset to defaults on first load
      after upgrade. Manifest start_url points to ./Equil.html (the
@@ -794,12 +1367,12 @@ body{font-family:'IBM Plex Mono',monospace;background:var(--bg);color:var(--text
   pointer-events:none;
   z-index:2;
   background-image:
-    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 12"><defs><linearGradient id="g" x1="0" y1="0" x2="14" y2="12" gradientUnits="userSpaceOnUse"><stop offset="0%25" stop-color="%2300d9ff" stop-opacity="1"/><stop offset="100%25" stop-color="%2300d9ff" stop-opacity="0.22"/></linearGradient></defs><line x1="0" y1="0" x2="14" y2="12" stroke="url(%23g)" stroke-width="1"/></svg>'),
-    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 12"><defs><linearGradient id="g" x1="14" y1="0" x2="0" y2="12" gradientUnits="userSpaceOnUse"><stop offset="0%25" stop-color="%2300d9ff" stop-opacity="1"/><stop offset="100%25" stop-color="%2300d9ff" stop-opacity="0.22"/></linearGradient></defs><line x1="14" y1="0" x2="0" y2="12" stroke="url(%23g)" stroke-width="1"/></svg>'),
-    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 12"><defs><linearGradient id="g" x1="0" y1="12" x2="14" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0%25" stop-color="%2300d9ff" stop-opacity="1"/><stop offset="100%25" stop-color="%2300d9ff" stop-opacity="0.22"/></linearGradient></defs><line x1="0" y1="12" x2="14" y2="0" stroke="url(%23g)" stroke-width="1"/></svg>'),
-    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 12"><defs><linearGradient id="g" x1="14" y1="12" x2="0" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0%25" stop-color="%2300d9ff" stop-opacity="1"/><stop offset="100%25" stop-color="%2300d9ff" stop-opacity="0.22"/></linearGradient></defs><line x1="14" y1="12" x2="0" y2="0" stroke="url(%23g)" stroke-width="1"/></svg>');
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10.3 11.3"><defs><linearGradient id="g" x1="0" y1="0" x2="10.3" y2="11.3" gradientUnits="userSpaceOnUse"><stop offset="0%25" stop-color="%2300d9ff" stop-opacity="0.5"/><stop offset="100%25" stop-color="%2300d9ff" stop-opacity="0.22"/></linearGradient></defs><line x1="0" y1="0" x2="10.3" y2="11.3" stroke="url(%23g)" stroke-width="1"/></svg>'),
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10.3 11.3"><defs><linearGradient id="g" x1="10.3" y1="0" x2="0" y2="11.3" gradientUnits="userSpaceOnUse"><stop offset="0%25" stop-color="%2300d9ff" stop-opacity="0.5"/><stop offset="100%25" stop-color="%2300d9ff" stop-opacity="0.22"/></linearGradient></defs><line x1="10.3" y1="0" x2="0" y2="11.3" stroke="url(%23g)" stroke-width="1"/></svg>'),
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10.3 11.3"><defs><linearGradient id="g" x1="0" y1="11.3" x2="10.3" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0%25" stop-color="%2300d9ff" stop-opacity="0.5"/><stop offset="100%25" stop-color="%2300d9ff" stop-opacity="0.22"/></linearGradient></defs><line x1="0" y1="11.3" x2="10.3" y2="0" stroke="url(%23g)" stroke-width="1"/></svg>'),
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10.3 11.3"><defs><linearGradient id="g" x1="10.3" y1="11.3" x2="0" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0%25" stop-color="%2300d9ff" stop-opacity="0.5"/><stop offset="100%25" stop-color="%2300d9ff" stop-opacity="0.22"/></linearGradient></defs><line x1="10.3" y1="11.3" x2="0" y2="0" stroke="url(%23g)" stroke-width="1"/></svg>');
   background-position: top left, top right, bottom left, bottom right;
-  background-size: 14px 12px;
+  background-size: 10.3px 11.3px;
   background-repeat: no-repeat;
 }
 .xl2-mode .gscroll,.xl2-mode .mast,.xl2-mode .bank-outer,.xl2-mode .bot,.xl2-mode .bsound-row,.xl2-mode .info-bar{max-width:100%;}
@@ -842,7 +1415,7 @@ body{font-family:'IBM Plex Mono',monospace;background:var(--bg);color:var(--text
 @keyframes givenpop{0%{transform:scale(1);background:rgba(0,217,255,0.05)}50%{transform:scale(1.15);background:rgba(0,217,255,0.3);color:#00ffff}100%{transform:scale(1);background:rgba(0,217,255,0.2);color:#00d9ff}}
 .bank{flex:1;min-width:0;background:var(--bg-secondary);touch-action:pan-y;}
 .blbl{font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--cyan);}
-.btiles{display:flex;flex-wrap:wrap;gap:6px;padding:4px 0;flex:1;touch-action:pan-y;justify-content:center;}
+.btiles{display:flex;flex-wrap:wrap;gap:6px;padding:4px 40px;flex:1;touch-action:pan-y;justify-content:center;}
 .info-bar{width:100%;max-width:520px;padding:4px 14px 2px;display:flex;flex-direction:column;gap:4px;flex-shrink:0;}
 .info-bar .blbl{color:var(--text-muted);font-size:7px;}
 .bsize-wrap{display:flex;flex-direction:column;align-items:stretch;flex-shrink:0;gap:4px;padding-bottom:4px;border-right:2px solid var(--cyan);}
@@ -904,7 +1477,20 @@ body{font-family:'IBM Plex Mono',monospace;background:var(--bg);color:var(--text
 .sizebar-handle{position:absolute;left:-2px;right:-2px;height:8px;background:var(--bg);border:1px solid var(--cyan);border-radius:2px;pointer-events:none;transition:bottom .05s;z-index:3;}
 .sizebar-arrows{position:absolute;left:50%;transform:translate(-50%,50%);width:5px;height:16px;border:1.5px solid var(--cyan);border-radius:3px;background:var(--bg-secondary);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:6px;line-height:1;color:var(--cyan);pointer-events:none;transition:bottom .05s;z-index:4;}
 .sizebar-lbl{position:absolute;top:50%;left:0;right:0;transform:translateY(-50%);z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:7px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--cyan);text-align:center;line-height:1.6;pointer-events:none;user-select:none;}
-.bt{min-width:44px;height:44px;padding:0 8px;border:1.5px solid rgba(0,217,255,0.85);background:var(--bg-secondary);color:var(--text-primary);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;font-family:'IBM Plex Mono',monospace;cursor:pointer;box-shadow:0 0 4px rgba(0,217,255,0.18) inset;transition:transform 0.04s,box-shadow 0.15s,background 0.1s,border-color 0.15s;touch-action:pan-y;aspect-ratio:1;isolation:isolate;}
+.bt{min-width:44px;height:44px;padding:0 8px;border:1.5px solid rgba(0,217,255,0.5);background:var(--bg-secondary);color:transparent;-webkit-text-stroke:0.5px var(--text-primary);text-stroke:0.5px var(--text-primary);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;font-family:'IBM Plex Mono',monospace;cursor:pointer;box-shadow:0 0 4px rgba(0,217,255,0.18) inset;transition:transform 0.04s,box-shadow 0.15s,background 0.1s,border-color 0.15s;touch-action:pan-y;aspect-ratio:1;isolation:isolate;}
+/* [v2.07] Cancel the outline-style on cyan-mode and mini-mode child
+   number elements so they render as solid colored fills, not as
+   white outlines (which would happen because they inherit
+   color:transparent + text-stroke from the .bt parent rule).
+   [v2.08] Also covers the xN multiplier badge (._btXN) which is the
+   small "×6" cyan label below tile numbers when xN mode is on — it
+   was inheriting the stroke too. */
+.bt ._btCyanGrid, .bt ._btCyanGrid *,
+.bt ._btMiniGrid, .bt ._btMiniGrid *,
+.bt ._btXN, .bt ._btMiniNum{
+  -webkit-text-stroke:0;
+  text-stroke:0;
+}
 /* Waveform canvas sits behind tile content via z-index:-1 (inside the tile's
    isolation:isolate stacking context so the negative z stays scoped to this
    tile). Uses border-radius matching the tile so the canvas's pixel content
@@ -1142,11 +1728,15 @@ body:not(.seq-mode) #sizeCanvasWrap{display:none!important;}
   background:rgba(168,85,247,0.1);
   box-shadow:0 0 8px rgba(168,85,247,0.35);
 }
-#tileAdjustBtn{
-  border-color:#a855f7;
-  color:#a855f7;
-}
-#tileAdjustBtn:active{ background:rgba(168,85,247,0.15); }
+/* [v2.16] Removed the always-purple #tileAdjustBtn override — it
+   now inherits the default cyan-bordered look from
+   .tile-controls-row > button when inactive, and turns purple
+   only when its .active class is set (matching the display-mode
+   buttons). The active class is toggled by the modal open/close
+   handlers below. line-height tightened so the two-line "TILE /
+   ADJUST" text fits cleanly. */
+#tileAdjustBtn{ line-height:1.15; }
+#tileAdjustBtn:active{ background:rgba(0,217,255,0.1); }
 
 /* [v1.74] ADJUST modal — overlay containing the SIZE+GAP sliders
    (which are physically moved into here when the modal opens, then
@@ -1614,7 +2204,7 @@ window.onerror=function(msg,src,line,col,err){
 <!-- SELECTION SCREEN -->
 <div class="sel-screen" id="selScreen" style="visibility:hidden;">
   <div class="sel-mast">
-    <h1>EQU<span>IL</span></h1>
+    <h1><span>E</span>QUIL</h1>
     <p>Math crossword · No coins · No hints · No BS</p>
   </div>
 
@@ -1642,18 +2232,17 @@ window.onerror=function(msg,src,line,col,err){
 
   <button class="sel-play" id="playBtn">▶ PLAY</button>
   <button id="statsBtn" style="margin-top:10px;width:100%;padding:10px;background:transparent;border:1.5px solid rgba(0,217,255,0.4);border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;font-weight:700;">📊 Stats</button>
-  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v1.94</div>
+  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v2.34</div>
 </div>
 
 <!-- GAME SCREEN -->
 <div class="game-screen" id="gameScreen">
   <div class="mast">
     <button class="mast-back" id="backBtn">← Menu</button>
-    <div class="mast-title" id="mastTitle">EQU<span>IL</span></div>
+    <div class="mast-title" id="mastTitle"><span>E</span>QUIL</div>
     <div style="display:flex;gap:4px;align-items:center;flex-shrink:0;">
-      <button class="bbtn bundo" id="undo" disabled style="font-size:8px;padding:4px 7px;">↩</button>
       <button class="bbtn bnew" id="newp" style="font-size:8px;padding:4px 7px;">New</button>
-      <button class="bbtn" id="optBtn" style="font-size:10px;padding:4px 7px;" title="Options">⚙</button>
+      <button class="bbtn" id="optBtn" style="font-size:10px;padding:4px 7px;background:transparent;border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 8px rgba(0,217,255,0.3);" title="Options">⚙</button>
     </div>
     <div class="mast-info" id="mastInfo">HARD · XL2</div>
   </div>
@@ -1885,7 +2474,7 @@ window.onerror=function(msg,src,line,col,err){
        toggle handlers live in the existing IIFE; we just forward
        clicks to those original buttons. -->
   <div class="tile-controls-row" id="tileControlsRow">
-    <button type="button" id="tileAdjustBtn" title="Adjust tile size and gap">ADJUST</button>
+    <button type="button" id="tileAdjustBtn" title="Adjust tile size and gap">TILE<br>ADJUST</button>
     <button type="button" id="tileModeXn"   title="Condense repeated tiles">×N</button>
     <button type="button" id="tileModeMini" title="Mini-numbers display">####</button>
     <button type="button" id="tileModeCyan" title="All-cyan display">###</button>
@@ -4975,6 +5564,115 @@ function playReturn(){    if(!AC)return;resumeAC();_dispatch(playSA_Return,playS
 function playError(){     if(!AC)return;resumeAC();_dispatch(playSA_Error,playSB_Error,playSC_Error,playSD_Error,playSE_Error);}
 function playNewGame(){   if(!AC)return;resumeAC();_dispatch(playSA_NewGame,playSB_NewGame,playSC_NewGame,playSD_NewGame,playSE_NewGame);}
 function playFanfare(){   if(!AC)return;resumeAC();_dispatch(playSA_Fanfare,playSB_Fanfare,playSC_Fanfare,playSD_Fanfare,playSE_Fanfare);}
+// [v2.16] Drag-related tile sounds.
+//
+// playTilePickup — quiet low pop when the user first picks up a tile
+//   from the bank (drag enters dragging state). A brief sine burst,
+//   short and quiet, just to confirm the lift.
+//
+// playTileSnapWhoosh — short filtered-noise whoosh when the magnet
+//   snaps a tile to a cell. Replaces the v1.92 click (playSelEmpty)
+//   per user feedback that the click was too loud and the wrong
+//   character. Approximately half the perceived volume of the click.
+function playTilePickup(){
+  if(!AC) return; resumeAC();
+  if(!window._sfxSettings || !window._sfxSettings.buttonFx) return;
+  try{
+    var t = AC.currentTime;
+    var g = AC.createGain();
+    g.gain.setValueAtTime(0.18, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    g.connect(AC.destination);
+    var o = AC.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(280, t);
+    o.frequency.exponentialRampToValueAtTime(180, t + 0.07);
+    o.connect(g);
+    o.start(t);
+    o.stop(t + 0.09);
+  }catch(e){}
+}
+// [v2.17] Tile-snap pop — variant of playTilePickup, used when the
+// magnet locks a tile to a cell. Same timbre (sine pop, sub-second)
+// so the dock and undock sounds feel related, but pitched a bit
+// HIGHER and the contour goes UP→DOWN→UP slightly (a "pip") so it
+// reads as the inverse of the pickup. Quieter than pickup so high
+// snap-rates during cell-to-cell hopping aren't fatiguing.
+function playTileSnap(){
+  if(!AC) return; resumeAC();
+  if(!window._sfxSettings || !window._sfxSettings.buttonFx) return;
+  try{
+    var t = AC.currentTime;
+    var g = AC.createGain();
+    g.gain.setValueAtTime(0.10, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+    g.connect(AC.destination);
+    var o = AC.createOscillator();
+    o.type = 'sine';
+    // Up-pitch sweep, the inverse contour of pickup's down-sweep.
+    o.frequency.setValueAtTime(360, t);
+    o.frequency.exponentialRampToValueAtTime(520, t + 0.05);
+    o.connect(g);
+    o.start(t);
+    o.stop(t + 0.07);
+  }catch(e){}
+}
+// [v2.34] Tile-return pop — fired when a dragged tile bounces
+// back to its bank slot (drag released without dropping on a
+// cell). Mirror of playTilePickup: same waveform, duration, and
+// gain, but the pitch sweep goes UP (180→280 Hz) instead of
+// down. Reads as the inverse of pickup: lift = pitch falls,
+// return = pitch rises back to where pickup started.
+function playTileReturn(){
+  if(!AC) return; resumeAC();
+  if(!window._sfxSettings || !window._sfxSettings.buttonFx) return;
+  try{
+    var t = AC.currentTime;
+    var g = AC.createGain();
+    g.gain.setValueAtTime(0.18, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    g.connect(AC.destination);
+    var o = AC.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(180, t);
+    o.frequency.exponentialRampToValueAtTime(280, t + 0.07);
+    o.connect(g);
+    o.start(t);
+    o.stop(t + 0.09);
+  }catch(e){}
+}
+function playTileSnapWhoosh(){
+  if(!AC) return; resumeAC();
+  if(!window._sfxSettings || !window._sfxSettings.buttonFx) return;
+  try{
+    var t = AC.currentTime;
+    var dur = 0.09;
+    // Short noise buffer
+    var sr = AC.sampleRate;
+    var len = Math.floor(sr * (dur + 0.02));
+    var buf = AC.createBuffer(1, len, sr);
+    var d = buf.getChannelData(0);
+    for(var i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    var src = AC.createBufferSource();
+    src.buffer = buf;
+    var filt = AC.createBiquadFilter();
+    filt.type = 'bandpass';
+    filt.frequency.setValueAtTime(900, t);
+    filt.frequency.linearRampToValueAtTime(1700, t + dur);
+    filt.Q.value = 0.9;
+    var g = AC.createGain();
+    // Half volume of the prior playSelEmpty click. The click was
+    // ~0.45 peak; we target ~0.09 peak here (well below half) since
+    // bandpass-filtered noise reads louder than a tone at the same
+    // peak amplitude.
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.09, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(filt); filt.connect(g); g.connect(AC.destination);
+    src.start(t);
+    src.stop(t + dur + 0.02);
+  }catch(e){}
+}
 function playUIClick(){
   if(!AC)return;resumeAC();
   try{
@@ -5350,6 +6048,10 @@ var PARTICLES_ON=false;
 // [Equil 1.08] Equation-pulse wave on bank tap with no cell selected.
 // Off by default for clean puzzle feel; togglable via OPTIONS panel.
 var PULSE_EQ_ON=false;
+// [v2.22] Floating zoom-pan pill — disabled by default. User can
+// enable it via OPTIONS panel. When enabled, the pill spawns when
+// entering puzzle mode and persists across screen swaps.
+var PILL_ON=false;
 var PAD_PAN_ON=false; // per-tap panning based on hit position within pad
 var PAD_EXPR_ON=false; // per-tap expression: X=volume, Y=pitch
 // Hold mode is now per-pad. _holdTaggedPads is a Set of pad indices (using
@@ -5451,7 +6153,12 @@ function selCell(k){
         HIST.push({k:k,ov:cell.value,bi:i,pv:null});
         PZ.bank[i].used=false;
         cell.value=null;
-        SEL=k; // keep cell selected so player can immediately place a new number
+        // [v2.31] Previously: SEL = k (auto-select the cell so the
+        // user could immediately place a new number). User feedback:
+        // when tapping to RETURN a number, they didn't want a fresh
+        // selection because they were undoing, not starting a new
+        // placement. Now the selection is cleared after a return.
+        SEL=null;
         render();
         return;
       }
@@ -5675,7 +6382,7 @@ function applyTileColor(tile, idx){
     // beats CSS specificity. Box-shadow cleared so the CSS-rule's
     // inset glow applies (otherwise we'd have to duplicate it here).
     tile.style.boxShadow = '';
-    tile.style.border = '1.5px solid rgba(0,217,255,0.85)';
+    tile.style.border = '1.5px solid rgba(0,217,255,0.5)';
   }
   var cv = tile.querySelector('.bt-wave');
   if(cv){
@@ -5793,8 +6500,13 @@ function renderBank(){
     document.getElementById('bank').style.paddingTop=(6+BANK_PAD_T)+'px';
     document.getElementById('bank').style.paddingBottom=(6+BANK_PAD_B)+'px';
   } else {
-    document.getElementById('bank').style.paddingLeft='0px';
-    document.getElementById('bank').style.paddingRight='0px';
+    // [v2.05] Puzzle-mode bank padding: 40px on left/right gives a
+    // scroll-grab band on each side so the user can swipe vertically
+    // without accidentally landing on a tile and starting a drag-to-
+    // place. The earlier .btiles CSS rule (padding:4px 40px) was
+    // being overridden by these inline styles, which set 0px before.
+    document.getElementById('bank').style.paddingLeft='40px';
+    document.getElementById('bank').style.paddingRight='40px';
     document.getElementById('bank').style.paddingTop='4px';
     document.getElementById('bank').style.paddingBottom='4px';
   }
@@ -5909,7 +6621,13 @@ function renderBank(){
     }
     var tile=document.createElement('div');tile.className='bt';
     var tileRadius=Math.max(2,Math.min(10,Math.round(tileSize*0.22)));
-    tile.style.cssText='min-width:'+tileSize+'px;height:'+tileSize+'px;padding:'+tilePad+';font-size:'+tileFontSize+'px;border-radius:'+tileRadius+'px;';
+    // [v2.10] Bump the main white-number font size in xN and default
+    // modes so the outline-stroked digits read clearly. Mini and cyan
+    // modes keep the smaller size because they pack additional cyan
+    // numbers around/over the main digit and a bigger white digit
+    // would crowd them out.
+    var _whiteFont = (!miniOn && !cyanOn) ? Math.round(tileFontSize * 1.6) : tileFontSize;
+    tile.style.cssText='min-width:'+tileSize+'px;height:'+tileSize+'px;padding:'+tilePad+';font-size:'+_whiteFont+'px;border-radius:'+tileRadius+'px;';
     // For collapsed tiles, "used" means ALL instances of this value
     // are placed (unused count is 0). Otherwise lit if SEL is active.
     var tileIsUsed = item.used;
@@ -6010,21 +6728,72 @@ function renderBank(){
       }
     } else if(xnOn && condenseOn && collapsedGroup){
       // ── xN MODE ─────────────────────────────────────────────────
-      // White number CENTERED. Cyan ×N badge at bottom only when total>1.
+      // [v2.12] Top-anchored uniform layout. Both single- and
+      // multi-instance tiles align the white number at the top
+      // (so all white digits sit in the same row across the bank,
+      // unaffected by whether the tile has a cyan ×N below it).
+      // Multi-instance tiles add the cyan ×N right beneath the
+      // white digit with a small gap. Cyan is ~0.6× the white
+      // digit's font (was 0.84× in v2.11 — too big).
+      // [v2.13] Separate top vs bottom padding — bottom is doubled
+      // so cyan has clear breathing room from the bottom border
+      // (was bleeding into it). Also added small padding-right on
+      // multi-digit white numbers to correct an apparent right-
+      // shift caused by the digit "1" being narrower than other
+      // digits (purely an optical issue with monospace centering).
       tile.style.position = 'relative';
       tile.dataset.collapsedValue = item.value;
-      tile.textContent = item.value;
+      var padTop = Math.max(2, Math.round(tileSize * 0.05));
+      var padBot = Math.max(4, Math.round(tileSize * 0.10));
+      tile.style.flexDirection = 'column';
+      tile.style.justifyContent = 'flex-start';
+      tile.style.alignItems = 'center';
+      tile.style.paddingTop = padTop + 'px';
+      tile.style.paddingBottom = padBot + 'px';
+      // Tile uses inline padding "0 X" set earlier — override the
+      // horizontal padding to 0 here so the white span's text-align
+      // center has the full tile width to work with.
+      tile.style.paddingLeft = '0px';
+      tile.style.paddingRight = '0px';
+
+      var whiteSpan = document.createElement('span');
+      whiteSpan.className = '_btMain';
+      whiteSpan.textContent = item.value;
+      // [v2.15] Reversed direction. v2.14's 1px left-nudge moved
+      // multi-digit whites too far left. User reports the right
+      // gap is now correct but the left gap is about half the
+      // right gap — meaning the digit needs to come back to the
+      // RIGHT by ~half the difference. Sub-pixel padding-left
+      // value handles the small magnitude.
+      var _digRightNudge = (String(item.value).length >= 2) ? 'padding-left:0.5px;' : '';
+      whiteSpan.style.cssText = 'display:block;text-align:center;'
+        + 'line-height:1;width:100%;'
+        + 'margin-top:-1px;'
+        + 'box-sizing:border-box;'
+        + _digRightNudge
+        + 'font-size:inherit;';
+      tile.appendChild(whiteSpan);
+
       if(hasMultiple){
         var unused = collapsedGroup.unused;
-        var bottomPad = Math.max(1, Math.round(tileSize * 0.04));
         var mulSpan = document.createElement('span');
         mulSpan.className = '_btXN';
         mulSpan.textContent = '×' + unused;
-        var mulSize = Math.max(7, Math.round(tileFontSize * 0.42));
-        mulSpan.style.cssText = 'position:absolute;left:0;right:0;bottom:'
-          + bottomPad + 'px;'
-          + 'text-align:center;line-height:1;'
-          + 'font-size:' + mulSize + 'px;color:#0093aa;'
+        // Tighter cyan: ~60% of the bumped white font size.
+        var mulSize = Math.max(8, Math.round(_whiteFont * 0.6));
+        mulSpan.style.cssText = 'display:block;text-align:center;'
+          + 'line-height:1;width:100%;'
+          // [v2.14] margin-top -2px (was +2px) pulls cyan UP into
+          // the empty space above it, which simultaneously gives
+          // it clearance from the bottom border. The visible glyph
+          // wasn't actually touching the border — the line-box's
+          // built-in below-baseline space was — but reducing the
+          // top margin also pulls the line-box itself upward.
+          + 'margin-top:-2px;'
+          // [v2.15] Lower opacity (0.6) since cyan numbers are now
+          // bigger after v2.11 — dimmer reads as more clearly
+          // secondary to the white digit above.
+          + 'font-size:' + mulSize + 'px;color:rgba(0,147,170,0.6);'
           + 'font-weight:600;letter-spacing:0.5px;'
           + 'pointer-events:none;';
         tile.appendChild(mulSpan);
@@ -7306,7 +8075,10 @@ function renderBank(){
     applyTileColor(tile, renderIdx);
     be.appendChild(tile);
   }
-  document.getElementById('undo').disabled=HIST.length===0;
+  // [v2.33] Undo button removed from UI; guard the lookup so the
+  // null doesn't throw.
+  var _undoBtn = document.getElementById('undo');
+  if(_undoBtn) _undoBtn.disabled = HIST.length === 0;
   // Apply pad name labels (and refresh mic icons) now that tiles are fresh
   if(window._updateSampleIcons) window._updateSampleIcons();
   if(window._updateExprGrid) window._updateExprGrid();
@@ -7718,8 +8490,15 @@ function render(){
   // Size the clip container exactly to the grid's natural pixel size so overflow:hidden clips correctly
   var clipEl=document.getElementById('gridClip');
   if(clipEl){
-    var gridW=cols*CS+(cols-1)+2; // cells + gaps + 1px border each side
-    var gridH=rows*CS+(rows-1)+2+3; // +3px to prevent bottom cell border clipping (was +1)
+    // [v1.95] Bumped clip-padding from +3 to +6 on both axes
+    // because the bottom edge of the grid (and the right edge,
+    // by symmetry) was still being clipped at certain zooms.
+    // The grid's natural border-box is rows*CS + (rows-1) + 2,
+    // but subpixel rendering, cell outline-style borders, and
+    // the inner box-shadow seem to push things a couple pixels
+    // beyond. +6 gives comfortable headroom on both edges.
+    var gridW=cols*CS+(cols-1)+2+6;
+    var gridH=rows*CS+(rows-1)+2+6;
     clipEl.style.width=gridW+'px';
     clipEl.style.height=gridH+'px';
   }
@@ -8150,8 +8929,11 @@ function showGame(opts){
   // v8.99 — show the floating zoom-pan pill in puzzle mode. Defer
   // until next frame so .gscroll has its layout dimensions for the
   // initial spawn position calculation.
+  // [v2.22] Only show if user has explicitly enabled it via the
+  // OPTIONS panel (PILL_ON). Default off — user opted out of
+  // having the pill on screen by default.
   requestAnimationFrame(function(){
-    if(window._zoomPill) window._zoomPill.show();
+    if(PILL_ON && window._zoomPill) window._zoomPill.show();
   });
 }
 function showMenu(){
@@ -9106,6 +9888,10 @@ if(document.readyState==='loading'){
         modalSliders.appendChild(wrap);
       }
       modal.classList.add('open');
+      // [v2.16] Mark the button active so it picks up the purple
+      // styling defined by .tile-controls-row > button.active —
+      // matches the display-mode buttons' open/active state.
+      adjustBtn.classList.add('active');
     }
     function _closeModal(){
       var wrap = document.getElementById('sizeCanvasWrap');
@@ -9119,6 +9905,7 @@ if(document.readyState==='loading'){
       _origParent = null;
       _origNextSibling = null;
       modal.classList.remove('open');
+      adjustBtn.classList.remove('active');
     }
     adjustBtn.addEventListener('click', _openModal);
     modalClose.addEventListener('click', _closeModal);
@@ -9167,23 +9954,27 @@ if(document.readyState==='loading'){
   // ── Drag-to-place tunables ──
   var DRAG_THRESHOLD = 8;     // px — finger must move this far to start drag
   var GHOST_OPACITY = 0.85;
-  // [v1.94] FINGER_OFFSET_Y is now also the offset used for magnet
-  // distance calculations — the ghost's position acts as the
-  // effective "finger" for cell proximity. Combined with dialed-
-  // back lock ranges this gives a more natural feel: the ghost
-  // really is where the user's "interaction point" is, and that's
-  // what cells react to.
-  var FINGER_OFFSET_Y = 24;
-  // [v1.94] Pulled back from 10/13 to 6/8. With the offset model
-  // (magnet measures from the ghost, not the finger) these ranges
-  // feel tighter than they would with raw-finger measurement.
-  var LOCK_RANGE_CELLS    = 6.0;    // lock when ghost is this close to cell center
-  var UNLOCK_RANGE_CELLS  = 8.0;    // unlock when ghost leaves the grid neighborhood
-  var PUSH_OFF_CELLS      = 2.0;    // radial push-off threshold
-  var DIRECTIONAL_LATERAL_CELLS = 2.5; // lateral tolerance for directional push-off
-  var CLEAR_IGNORE_CELLS  = 3.5;    // ghost this far from ignored cell → re-eligible
-  var SNAPPED_FILL = 1.5;           // snapped ghost = 1.5 × cell width
-  var MAGNET_BASE_SCALE = 1.05;     // ghost's natural size at finger
+  var FINGER_OFFSET_Y = 48;   // ghost sits this many px above fingertip
+  // [v2.32] Simplified magnet: pure proximity, no push-off, no
+  // directional bias, no ignored set. Ghost locks to a cell only
+  // when the magnet origin is within LOCK_RANGE_CELLS of that
+  // cell's center; unlocks immediately when origin leaves that
+  // radius. The previous push-off + direction-bias system added
+  // too many failure modes — this is dead-simple and predictable.
+  // LOCK_RANGE_CELLS is in cell-widths. 0.7 means "finger has to
+  // be on the cell." Live-tunable via window._equilLockRange.
+  window._equilLockRange = window._equilLockRange || {
+    cells: 0.7   // lock radius in multiples of cell width
+  };
+  var SNAPPED_FILL = 1.5;     // snapped ghost = 1.5 × cell width
+  var MAGNET_BASE_SCALE = 1.05; // ghost's natural size at finger
+  // [v2.25] Velocity-gated snap (kept). Magnet doesn't engage at
+  // all when the smoothed finger velocity exceeds the threshold.
+  window._equilDragMagnet = window._equilDragMagnet || {
+    snapMid: 60,
+    snapOn:  48,
+    snapOff: 72
+  };
 
   var _state = null; // null when idle; object during touch session
 
@@ -9241,47 +10032,137 @@ if(document.readyState==='loading'){
 
   function _createGhost(srcTile, x, y){
     var rect = srcTile.getBoundingClientRect();
-    var ghost = srcTile.cloneNode(true);
+    var ghostW = (rect.width  > 0) ? rect.width  : 50;
+    var ghostH = (rect.height > 0) ? rect.height : 50;
+    var initW = ghostW * MAGNET_BASE_SCALE;
+    var initH = ghostH * MAGNET_BASE_SCALE;
+    var initLeft = x - initW/2;
+    var initTop  = y - FINGER_OFFSET_Y - initH/2;
+
+    // [v2.23] Build ghost fresh instead of cloning the bank tile.
+    // Reasons:
+    //  1. Cloned bank tiles include the xN/mini/cyan child structure
+    //     (×N badges, mini grids of cyan numbers), which don't scale
+    //     with the ghost when we resize via width/height — making the
+    //     ghost shrink while its contents stayed full size.
+    //  2. The user wants the ghost to show ONE clean number while
+    //     dragging, not the docked-tile structure.
+    // Display rules:
+    //  - In all modes EXCEPT all-cyan (###): white number, centered.
+    //  - In all-cyan mode (###): same number, but in dark cyan
+    //    (#0093aa, the same color used for mini/cyan-mode small
+    //    numbers when docked).
+    // Font size scales with ghost dimensions in _setGhostTransform.
+    var cyanMode = !!window._allCyanPuzzleTiles;
+    var numberColor = cyanMode ? '#0093aa' : 'var(--text-primary,#fff)';
+    var ghost = document.createElement('div');
     ghost.id = '_dragGhost';
-    var inner = ghost.querySelectorAll('[id]');
-    for(var i=0;i<inner.length;i++) inner[i].removeAttribute('id');
-    // [v1.83] Use transform for both translation and scale so they
-    // can be animated together via a CSS transition during the
-    // final snap. left/top would force layout reflow and resist
-    // smooth animation.
+    // Pull the value from the source tile. Bank tiles store their
+    // displayed value as their textContent in default mode, or in
+    // dataset.collapsedValue when condensed (xN/mini/cyan).
+    var val = '';
+    try{
+      val = srcTile.dataset.collapsedValue || '';
+      if(!val){
+        // Walk the source tile's text — its textContent contains
+        // the main number (and possibly the ×N badge text), so
+        // strip anything that isn't a digit.
+        var tc = srcTile.textContent || '';
+        var m = tc.match(/\d+/);
+        val = m ? m[0] : tc.trim();
+      }
+    }catch(_){ val = ''; }
+
+    // [v2.23] Border + background match the tile's CSS rule (.bt)
+    // so the ghost reads as "a tile" without inheriting all the
+    // tile's child structure.
+    var borderRadius = Math.max(2, Math.min(8, Math.round(initW * 0.15)));
     ghost.style.cssText =
       'position:fixed;'+
-      'left:0;top:0;'+
-      'width:'+rect.width+'px;'+
-      'height:'+rect.height+'px;'+
+      'left:'+initLeft+'px;'+
+      'top:'+initTop+'px;'+
+      'width:'+initW+'px;'+
+      'height:'+initH+'px;'+
+      'border:1.5px solid rgba(0,217,255,0.5);'+
+      'background:var(--bg-secondary,#0a0a0a);'+
+      'border-radius:'+borderRadius+'px;'+
+      'box-sizing:border-box;'+
+      'display:flex;'+
+      'align-items:center;'+
+      'justify-content:center;'+
       'pointer-events:none;'+
       'z-index:9999;'+
-      'opacity:'+GHOST_OPACITY+';'+
-      // [v1.93] Spawn the ghost above the finger so it's visible
-      // immediately (not hidden under the fingertip). The same
-      // offset is applied in the move loop's unlocked state.
-      'transform:translate('+(x-rect.width/2)+'px,'+(y-FINGER_OFFSET_Y-rect.height/2)+'px) scale('+MAGNET_BASE_SCALE+');'+
-      'transform-origin:center center;'+
-      // [v1.86] 180ms transition makes the lock-fly motion clearly
-      // visible as a slide from finger to cell. Long enough to be
-      // perceived; short enough not to feel laggy.
-      'transition:transform 180ms cubic-bezier(0.2,0.8,0.2,1), box-shadow 120ms ease-out;'+
-      'will-change:transform;'+
+      'opacity:0;'+
+      'transition:none;'+
       'box-shadow:0 0 12px rgba(168,85,247,0.6),0 4px 12px rgba(0,0,0,0.5);';
+
+    var span = document.createElement('span');
+    span.textContent = val;
+    span.style.cssText =
+      'font-family:"IBM Plex Mono",monospace;'+
+      'font-weight:700;'+
+      'color:transparent;'+
+      '-webkit-text-stroke:0.5px '+numberColor+';'+
+      'text-stroke:0.5px '+numberColor+';'+
+      'line-height:1;'+
+      'pointer-events:none;'+
+      // Initial font size — overwritten by _setGhostTransform on
+      // every update.
+      'font-size:'+ Math.round(initW * 0.55) +'px;';
+    ghost.appendChild(span);
+    ghost._numberSpan = span;
+
     document.body.appendChild(ghost);
-    // Stash dimensions on the ghost for later transform updates.
-    ghost._w = rect.width;
-    ghost._h = rect.height;
+    ghost._w = initW;
+    ghost._h = initH;
+    ghost._baseW = ghostW;
+    ghost._baseH = ghostH;
+    // Force a layout read.
+    void ghost.offsetHeight;
+    requestAnimationFrame(function(){
+      try{
+        ghost.style.opacity = GHOST_OPACITY;
+        // [v2.23] Transition includes font-size so the number
+        // smoothly scales with the tile during snap-shrink.
+        ghost.style.transition = 'left 180ms cubic-bezier(0.2,0.8,0.2,1), top 180ms cubic-bezier(0.2,0.8,0.2,1), width 180ms cubic-bezier(0.2,0.8,0.2,1), height 180ms cubic-bezier(0.2,0.8,0.2,1), border-radius 180ms cubic-bezier(0.2,0.8,0.2,1), opacity 120ms ease-out';
+        if(ghost._numberSpan){
+          ghost._numberSpan.style.transition = 'font-size 180ms cubic-bezier(0.2,0.8,0.2,1)';
+        }
+      }catch(_){}
+    });
     return ghost;
   }
 
-  // [v1.83] Position-and-scale ghost in one transform. cx, cy are the
-  // visual center coordinates (where the ghost should appear), and
-  // scale is the size multiplier.
+  // [v1.83] Position-and-scale ghost. cx, cy are the visual center
+  // coordinates (where the ghost should appear), and scale is the
+  // size multiplier relative to the source tile's natural size.
+  // [v2.22] Sizes via width/height directly (no transform). Scale
+  // value is treated as a multiplier on _baseW / _baseH (the
+  // source tile's unscaled dimensions).
   function _setGhostTransform(ghost, cx, cy, scale){
-    var tx = cx - ghost._w/2;
-    var ty = cy - ghost._h/2;
-    ghost.style.transform = 'translate('+tx+'px,'+ty+'px) scale('+scale+')';
+    if(!ghost) return;
+    if(!isFinite(cx) || !isFinite(cy) || !isFinite(scale)) return;
+    var bw = (ghost._baseW && ghost._baseW > 0) ? ghost._baseW : 50;
+    var bh = (ghost._baseH && ghost._baseH > 0) ? ghost._baseH : 50;
+    var w = bw * scale;
+    var h = bh * scale;
+    ghost._w = w;
+    ghost._h = h;
+    ghost.style.left = (cx - w/2) + 'px';
+    ghost.style.top  = (cy - h/2) + 'px';
+    ghost.style.width  = w + 'px';
+    ghost.style.height = h + 'px';
+    // [v2.23] Scale the number's font-size with the ghost so it
+    // shrinks/grows proportionally during snap and unsnap.
+    if(ghost._numberSpan){
+      ghost._numberSpan.style.fontSize = Math.round(w * 0.55) + 'px';
+    }
+    // [v2.24] Tighter radius — was 0.22 ratio with cap 10, which
+    // made the ghost look near-circular when shrunk to snap size.
+    // 0.15 ratio with cap 8 keeps the box recognizably square at
+    // all sizes.
+    var br = Math.max(2, Math.min(8, Math.round(w * 0.15)));
+    ghost.style.borderRadius = br + 'px';
   }
 
   function _highlightCell(cellEl, locked){
@@ -9341,7 +10222,12 @@ if(document.readyState==='loading'){
       _lastHi: null,
       cellCache: null,    // populated on drag start
       lockedCell: null,   // currently magnet-locked cell entry from cache
-      ignoredCells: {}    // [v1.89] {cellKey: true} — temporarily disqualified
+      // [v2.25] Velocity tracking for snap-gating.
+      _lastMoveX: t.clientX,
+      _lastMoveY: t.clientY,
+      _lastMoveT: performance.now(),
+      _smoothVel: 0,
+      _snapEnabled: true
     };
   }
 
@@ -9359,48 +10245,102 @@ if(document.readyState==='loading'){
       _state.tile.style.opacity = '0.3';
       // [v1.83] Build the cell-position cache once at drag start.
       _state.cellCache = _buildCellCache();
+      // [v2.16] Quiet low pop on pickup so the user has audible
+      // confirmation that the drag has actually started (otherwise
+      // the only feedback is the visual ghost appearing, which
+      // they might miss if their finger covers it).
+      try{
+        if(typeof playTilePickup === 'function') playTilePickup();
+        else if(window.playTilePickup) window.playTilePickup();
+      }catch(_){}
     }
     e.preventDefault();
 
-    // ── Magnet logic with push-off (v1.89) ──
-    var fx = t.clientX, fy = t.clientY;
-    // [v1.94] Magnet origin is the ghost's effective position —
-    // 24px above the finger. Cells "see" this point for all
-    // distance/lock/push-off checks, so the ghost behaves as if
-    // it IS the finger from the magnet's perspective.
-    var mx = fx, my = fy - FINGER_OFFSET_Y;
-    var cache = _state.cellCache;
-    var ignored = _state.ignoredCells;
+    // ── [v2.25] Velocity tracking + snap gating ──
+    // Compute instantaneous finger velocity, smooth it, and update
+    // _snapEnabled with hysteresis. When disabled, the magnet block
+    // below is skipped entirely — ghost just follows the finger.
+    var nowT = performance.now();
+    var prevX = _state._lastMoveX;
+    var prevY = _state._lastMoveY;
+    var prevT = _state._lastMoveT;
+    var dtMs = nowT - prevT;
+    if(dtMs > 0){
+      var vdx = t.clientX - prevX;
+      var vdy = t.clientY - prevY;
+      var instVel = Math.sqrt(vdx*vdx + vdy*vdy) / (dtMs / 1000); // px/sec
+      _state._smoothVel = _state._smoothVel * 0.7 + instVel * 0.3;
+    }
+    _state._lastMoveX = t.clientX;
+    _state._lastMoveY = t.clientY;
+    _state._lastMoveT = nowT;
 
-    // [v1.89] First pass: clear any ignored cells where the finger
-    // has moved CLEAR_IGNORE_CELLS away from the cell center. Once
-    // out of that radius, the cell is re-eligible for locking.
-    if(cache){
-      for(var ki in ignored){
-        if(!ignored.hasOwnProperty(ki)) continue;
-        // Find the cell entry by key
-        for(var j=0;j<cache.cells.length;j++){
-          if(cache.cells[j].key === ki){
-            var ic = cache.cells[j];
-            var idx_dx = mx - ic.cx, idx_dy = my - ic.cy;
-            var idx_d = Math.sqrt(idx_dx*idx_dx + idx_dy*idx_dy);
-            var clearPx = ic.w * CLEAR_IGNORE_CELLS;
-            if(idx_d > clearPx){
-              delete ignored[ki];
-            }
-            break;
+    // [v2.26] Live velocity overlay (when enabled in OPTIONS panel).
+    // Throttled to ~10/sec to avoid hammering the DOM. Creates the
+    // overlay element on first use; reuses it on subsequent drags.
+    try{
+      if(window._equilShowVelOverlay){
+        if(!_state._lastVelReadoutT || (nowT - _state._lastVelReadoutT) > 100){
+          var ov = document.getElementById('_equilVelOverlay');
+          if(!ov){
+            ov = document.createElement('div');
+            ov.id = '_equilVelOverlay';
+            ov.style.cssText =
+              'position:fixed;top:8px;left:50%;transform:translateX(-50%);'+
+              'z-index:10000;pointer-events:none;'+
+              'background:rgba(0,0,0,0.85);border:1px solid rgba(0,217,255,0.4);'+
+              'border-radius:4px;padding:6px 12px;'+
+              'font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:700;'+
+              'color:var(--cyan,#00d9ff);letter-spacing:1px;'+
+              'box-shadow:0 2px 8px rgba(0,0,0,0.6);';
+            document.body.appendChild(ov);
           }
+          var enabled = _state._snapEnabled;
+          var v = Math.round(_state._smoothVel);
+          ov.textContent = v + ' px/s · MAGNET ' + (enabled ? 'ON' : 'OFF');
+          ov.style.color = enabled ? 'var(--cyan,#00d9ff)' : 'rgba(255,165,80,0.9)';
+          ov.style.borderColor = enabled ? 'rgba(0,217,255,0.4)' : 'rgba(255,165,80,0.5)';
+          _state._lastVelReadoutT = nowT;
         }
       }
+    }catch(_){}
+
+    var snapOn  = (window._equilDragMagnet && window._equilDragMagnet.snapOn)  || 48;
+    var snapOff = (window._equilDragMagnet && window._equilDragMagnet.snapOff) || 72;
+    if(_state._snapEnabled){
+      // Currently enabled — disable if velocity exceeds the OFF threshold.
+      if(_state._smoothVel > snapOff) _state._snapEnabled = false;
+    } else {
+      // Currently disabled — re-enable when velocity drops below ON threshold.
+      if(_state._smoothVel < snapOn) _state._snapEnabled = true;
     }
 
-    // Second pass: find the nearest non-ignored blank cell.
+    if(!_state._snapEnabled){
+      // Magnet off: ghost just follows finger at base scale.
+      _state.lockedCell = null;
+      _clearHighlight();
+      var fxA = t.clientX, fyA = t.clientY;
+      var mxA = fxA, myA = fyA - FINGER_OFFSET_Y;
+      _setGhostTransform(_state.ghost, mxA, myA, MAGNET_BASE_SCALE);
+      return;
+    }
+
+    // ── Magnet logic — simple proximity lock (v2.32) ──
+    // Origin is the ghost's effective position (FINGER_OFFSET_Y
+    // above the actual finger). We find the closest blank cell
+    // and lock to it ONLY if the origin is within
+    // (cell.w * window._equilLockRange.cells) of the cell's
+    // center. No push-off, no ignored set, no directional bias.
+    // Ghost unsnaps the moment the origin leaves that radius.
+    var fx = t.clientX, fy = t.clientY;
+    var mx = fx, my = fy - FINGER_OFFSET_Y;
+    var cache = _state.cellCache;
+
     var nearest = null;
     var nearestDist = Infinity;
     if(cache){
       for(var i=0;i<cache.cells.length;i++){
         var c = cache.cells[i];
-        if(ignored[c.key]) continue;
         var ddx = mx - c.cx, ddy = my - c.cy;
         var d = Math.sqrt(ddx*ddx + ddy*ddy);
         if(d < nearestDist){
@@ -9415,116 +10355,33 @@ if(document.readyState==='loading'){
     var hiCell = null;
     var locked = false;
 
-    // Lock decision with push-off:
-    //   - If currently locked to cell A, check if finger has gotten
-    //     too close to A's center (PUSH_OFF_CELLS). If so, add A to
-    //     ignored set and break the lock.
-    //   - Otherwise, behave like the old binary lock: lock when
-    //     nearest is within LOCK_RANGE, unlock when beyond UNLOCK.
-    if(_state.lockedCell){
-      var lc = _state.lockedCell;
-      var lcDx = mx - lc.cx, lcDy = my - lc.cy;
-      var lcDist = Math.sqrt(lcDx*lcDx + lcDy*lcDy);
-      var pushOffPx = lc.w * PUSH_OFF_CELLS;
-
-      // [v1.91] Directional push-off: project the finger's motion
-      // since the lock fired onto the approach axis (lock-start →
-      // cell center). If the projection has reached or passed the
-      // cell, AND the lateral offset from that axis is within
-      // tolerance, push off. This makes the magnet release when the
-      // finger drags past the cell in any direction (not just radial).
-      var directionalTrigger = false;
-      var lsX = (typeof _state.lockStartX === 'number') ? _state.lockStartX : null;
-      var lsY = (typeof _state.lockStartY === 'number') ? _state.lockStartY : null;
-      if(lsX !== null && lsY !== null){
-        var apX = lc.cx - lsX;
-        var apY = lc.cy - lsY;
-        var apLen = Math.sqrt(apX*apX + apY*apY);
-        if(apLen > 4){ // ignore degenerate cases where lock fired right on cell
-          // Unit vector along approach axis.
-          var ux = apX / apLen, uy = apY / apLen;
-          // Finger vector from lock-start.
-          var fpX = mx - lsX, fpY = my - lsY;
-          // Projection length along approach axis.
-          var proj = fpX * ux + fpY * uy;
-          // Lateral component magnitude (distance from axis).
-          var latX = fpX - proj * ux;
-          var latY = fpY - proj * uy;
-          var lat = Math.sqrt(latX*latX + latY*latY);
-          var lateralTolerancePx = lc.w * DIRECTIONAL_LATERAL_CELLS;
-          if(proj >= apLen && lat <= lateralTolerancePx){
-            directionalTrigger = true;
-          }
-        }
-      }
-
-      if(lcDist <= pushOffPx || directionalTrigger){
-        // Push off: finger has reached the locked cell (radially or
-        // by passing it along the approach axis). Add it to ignored,
-        // break the lock.
-        ignored[lc.key] = true;
-        _state.lockedCell = null;
-        // Recompute nearest now that the cell is ignored.
-        nearest = null; nearestDist = Infinity;
-        if(cache){
-          for(var ii=0;ii<cache.cells.length;ii++){
-            var cc = cache.cells[ii];
-            if(ignored[cc.key]) continue;
-            var dxx = mx - cc.cx, dyy = my - cc.cy;
-            var dd = Math.sqrt(dxx*dxx + dyy*dyy);
-            if(dd < nearestDist){
-              nearestDist = dd;
-              nearest = cc;
-            }
-          }
-        }
-      }
-    }
-
-    // After push-off handling, evaluate lock against current nearest.
     if(nearest && _state.tile){
-      var lockPx   = nearest.w * LOCK_RANGE_CELLS;
-      var unlockPx = nearest.w * UNLOCK_RANGE_CELLS;
-      var wasLocked = !!_state.lockedCell;
-      var sameCell  = wasLocked && _state.lockedCell.key === nearest.key;
+      var lockCells = (window._equilLockRange && window._equilLockRange.cells) || 0.7;
+      var lockPx = nearest.w * lockCells;
 
-      if(sameCell){
-        locked = (nearestDist <= unlockPx);
-      } else if(wasLocked){
-        // Handoff: lock transfers from old cell to new nearest if
-        // finger is in the unlock range of the new one.
-        locked = (nearestDist <= unlockPx);
-      } else {
-        locked = (nearestDist <= lockPx);
-      }
-
-      if(locked){
+      if(nearestDist <= lockPx){
+        // Within lock range → snap to this cell.
         var tileRect = _state.tile.getBoundingClientRect();
         ghostCx = nearest.cx;
         ghostCy = nearest.cy;
         ghostScale = (nearest.w * SNAPPED_FILL) / tileRect.width;
         hiCell = nearest.el;
-        // [v1.91] Record finger position at the moment the lock first
-        // fires for THIS cell, so the directional push-off check can
-        // test whether the finger has crossed the cell along the
-        // approach direction.
+        locked = true;
+        // Sound on fresh lock only (not while held).
         var freshLock = !_state.lockedCell || _state.lockedCell.key !== nearest.key;
         if(freshLock){
-          _state.lockStartX = mx;
-          _state.lockStartY = my;
-          // [v1.92] Play a click sound on every fresh snap — gives
-          // audible feedback when the ghost lands on a cell that
-          // the user can't see (covered by their finger).
           try{
-            if(typeof playSelEmpty === 'function') playSelEmpty();
-            else if(window.playSelEmpty) window.playSelEmpty();
+            if(typeof playTileSnap === 'function') playTileSnap();
+            else if(window.playTileSnap) window.playTileSnap();
           }catch(_){}
         }
         _state.lockedCell = nearest;
       } else {
         _state.lockedCell = null;
-        var hintRange = nearest.w * 6;
-        if(nearestDist <= hintRange){
+        // Light hint highlight if cell is somewhat near (within
+        // 3 cell-widths) — gives the user a soft cue that they're
+        // closing in on a target without snapping yet.
+        if(nearestDist <= nearest.w * 3){
           hiCell = nearest.el;
         }
       }
@@ -9573,7 +10430,10 @@ if(document.readyState==='loading'){
       // render() repaints the cell with the placed value.
       try{
         if(_state.ghost){
-          _state.ghost.style.transition = 'transform 110ms ease-out, opacity 110ms ease-out';
+          // [v2.22] Drop-snap transition uses width/height (not
+          // transform) for the size shrink, matching the new
+          // sizing model.
+          _state.ghost.style.transition = 'left 110ms ease-out, top 110ms ease-out, width 110ms ease-out, height 110ms ease-out, border-radius 110ms ease-out, opacity 110ms ease-out';
           _setGhostTransform(_state.ghost, dropCell.cx, dropCell.cy, MAGNET_MIN_SCALE * 0.7);
           _state.ghost.style.opacity = '0';
         }
@@ -9604,11 +10464,66 @@ if(document.readyState==='loading'){
           savedState._lastHi.style.outlineOffset = '';
           savedState._lastHi.style.boxShadow = '';
         }
+        // [v2.26] Velocity overlay cleanup (drop path).
+        try{
+          var ovd = document.getElementById('_equilVelOverlay');
+          if(ovd && ovd.parentNode) ovd.parentNode.removeChild(ovd);
+        }catch(_){}
       }, 110);
       _state = null; // clear immediately so further touches start fresh
       dropped = true;
     } else {
-      _cleanup();
+      // [v2.34] No drop target — animate the ghost back to the
+      // source bank tile's position before cleanup. Plays a
+      // home-arrival pop (mirror of pickup pop). Eases out so the
+      // motion settles gently instead of feeling yanked.
+      var savedReturn = _state;
+      var srcTile = savedReturn.tile;
+      var srcRect = srcTile ? srcTile.getBoundingClientRect() : null;
+      if(savedReturn.ghost && srcRect && srcRect.width > 0){
+        try{
+          var srcCx = srcRect.left + srcRect.width/2;
+          var srcCy = srcRect.top  + srcRect.height/2;
+          // Ease-out gives fast departure and gentle settle.
+          savedReturn.ghost.style.transition =
+            'left 180ms cubic-bezier(0.2,0.8,0.2,1), '+
+            'top 180ms cubic-bezier(0.2,0.8,0.2,1), '+
+            'width 180ms cubic-bezier(0.2,0.8,0.2,1), '+
+            'height 180ms cubic-bezier(0.2,0.8,0.2,1), '+
+            'border-radius 180ms cubic-bezier(0.2,0.8,0.2,1), '+
+            'opacity 180ms ease-out';
+          // Scale 1.0 = source tile's natural size (the ghost was
+          // sized at MAGNET_BASE_SCALE × source for the "lifted"
+          // feel; we shrink back to 1.0 to match the bank tile).
+          _setGhostTransform(savedReturn.ghost, srcCx, srcCy, 1.0);
+          savedReturn.ghost.style.opacity = '0';
+          // Update the inner number's font-size transition so it
+          // shrinks alongside the box.
+          if(savedReturn.ghost._numberSpan){
+            savedReturn.ghost._numberSpan.style.transition =
+              'font-size 180ms cubic-bezier(0.2,0.8,0.2,1)';
+          }
+          try{
+            if(typeof playTileReturn === 'function') playTileReturn();
+            else if(window.playTileReturn) window.playTileReturn();
+          }catch(_){}
+        }catch(_){}
+        _clearHighlight();
+        _state = null; // clear so further touches start fresh
+        setTimeout(function(){
+          if(savedReturn.ghost && savedReturn.ghost.parentNode){
+            savedReturn.ghost.parentNode.removeChild(savedReturn.ghost);
+          }
+          if(savedReturn.tile) savedReturn.tile.style.opacity = '';
+          // Velocity overlay cleanup (matches drop-path cleanup).
+          try{
+            var ovr = document.getElementById('_equilVelOverlay');
+            if(ovr && ovr.parentNode) ovr.parentNode.removeChild(ovr);
+          }catch(_){}
+        }, 190);
+      } else {
+        _cleanup();
+      }
     }
 
     if(dropped) e.preventDefault();
@@ -9629,6 +10544,11 @@ if(document.readyState==='loading'){
       _clearHighlight();
     }
     _state = null;
+    // [v2.26] Remove the velocity-debug overlay if it exists.
+    try{
+      var ov = document.getElementById('_equilVelOverlay');
+      if(ov && ov.parentNode) ov.parentNode.removeChild(ov);
+    }catch(_){}
   }
 
   function _wire(){
@@ -9698,8 +10618,19 @@ if(document.readyState==='loading'){
   // and centered horizontally.
   var CIRCLE_D = 56;
   var TAB_W    = 44;
-  var TAB_H    = 24;
-  var TAB_GAP  = 2;          // vertical gap between circle and tab
+  // [v2.07] Tab lengthened from 24 to 36 — gives more visual
+  // presence to the grip area now that the top portion of it is
+  // covered by the circle.
+  var TAB_H    = 36;
+  // [v2.06] TAB_GAP from 2 to -11 so the tab overlaps the circle.
+  // The tab's top corners now sit ON the circle's bottom arc at
+  // x = ±22 from circle center (where chord meets circle: y =
+  // 28 + sqrt(28² - 22²) ≈ 45.32, so tab.top = 45.32 → GAP =
+  // 45.32 - 56 ≈ -11). Combined with z-index on circle (added
+  // below) so the circle covers the part of the tab that's
+  // inside its silhouette, the visible result is the tab's
+  // vertical borders connecting cleanly to the circle's bottom.
+  var TAB_GAP  = -11;
   var PILL_W   = CIRCLE_D;
   var PILL_H   = CIRCLE_D + TAB_GAP + TAB_H;
 
@@ -9775,7 +10706,12 @@ if(document.readyState==='loading'){
       'box-sizing:border-box',
       'display:flex',
       'align-items:center',
-      'justify-content:center'
+      'justify-content:center',
+      // [v2.06] z-index so circle covers the part of the tab that
+      // overlaps it (TAB_GAP is now negative so tab raises into
+      // circle silhouette — without z-index ordering, the tab
+      // would render on top and obscure the circle's bottom).
+      'z-index:2'
     ].join(';');
     // A small inner indicator dot so the circle reads as "interactive
     // pad" rather than empty hole. Subtle, no glow yet.
@@ -9809,9 +10745,15 @@ if(document.readyState==='loading'){
       'touch-action:none',
       'box-sizing:border-box',
       'display:flex',
-      'align-items:center',
+      // [v2.06] Push dots to bottom of tab + bottom padding so they
+      // sit in the visible portion below where the circle covers
+      // the upper part of the tab.
+      'align-items:flex-end',
       'justify-content:center',
-      'gap:2px'
+      'padding-bottom:5px',
+      'gap:2px',
+      // Lower z-index than circle so circle covers the overlap area.
+      'z-index:1'
     ].join(';');
     // Three little grip dots so the tab looks pinch-able.
     for(var gi=0; gi<3; gi++){
@@ -10596,7 +11538,8 @@ document.getElementById('playBtn').addEventListener('click',function(){
   resumeAC();showGame();
 });
 document.getElementById('backBtn').addEventListener('click',showMenu);
-document.getElementById('undo').addEventListener('click',undo);
+// [v2.33] Undo button removed from toolbar; guard the wire.
+(function(){ var u=document.getElementById('undo'); if(u) u.addEventListener('click',undo); })();
 document.getElementById('newp').addEventListener('click',newPuzzle);
 document.getElementById('nxt').addEventListener('click',newPuzzle);
 
@@ -10732,6 +11675,7 @@ if(shareBtn){
     particles:      false,
     spin:           false,
     pulseEq:        false,
+    pill:           false,
     spinDurMult:    1.0,
     partLifeMult:   55,
     partSpeedMult:  1.0,
@@ -10762,6 +11706,7 @@ if(shareBtn){
       if(typeof o.particles ==='boolean') PARTICLES_ON = o.particles;
       if(typeof o.spin      ==='boolean') SPIN_ON      = o.spin;
       if(typeof o.pulseEq   ==='boolean') PULSE_EQ_ON  = o.pulseEq;
+      if(typeof o.pill      ==='boolean') PILL_ON      = o.pill;
       if(typeof o.spinDurMult   ==='number') window._optSpinDurMult    = o.spinDurMult;
       if(typeof o.partLifeMult  ==='number') window._optPartLifeMult   = o.partLifeMult;
       if(typeof o.partSpeedMult ==='number') window._optPartSpeedMult  = o.partSpeedMult;
@@ -10777,6 +11722,7 @@ if(shareBtn){
         particles:      PARTICLES_ON,
         spin:           SPIN_ON,
         pulseEq:        PULSE_EQ_ON,
+        pill:           PILL_ON,
         spinDurMult:    (typeof window._optSpinDurMult   ==='number') ? window._optSpinDurMult    : DEF.spinDurMult,
         partLifeMult:   (typeof window._optPartLifeMult  ==='number') ? window._optPartLifeMult   : DEF.partLifeMult,
         partSpeedMult:  (typeof window._optPartSpeedMult ==='number') ? window._optPartSpeedMult  : DEF.partSpeedMult,
@@ -11002,6 +11948,108 @@ if(shareBtn){
       null
     ));
 
+    // [v2.22] Floating zoom-pill toggle. The pill is a draggable
+    // floating control with a thumb-sized zoom circle and a grip
+    // tab for relocation. Off by default — user can enable it
+    // here. When toggled on, the pill spawns at the bottom-right
+    // corner of the puzzle area and plays a brief pop sound on
+    // appearance. Toggling off hides it (preserving last
+    // position for next reveal).
+    box.appendChild(_mkToggleRow(
+      'Zoom pill',
+      'Floating zoom-and-pan handle. Drag the grip to relocate, tap the circle to zoom into the grid.',
+      function(){ return PILL_ON; },
+      function(v){
+        PILL_ON = v;
+        try{
+          if(v && window._zoomPill){
+            window._zoomPill.show();
+            // Brief pop on appearance — same family as the
+            // tile-pickup pop, slightly higher pitch.
+            if(typeof playTilePickup === 'function'){
+              try{ playTilePickup(); }catch(_){}
+            }
+          } else if(window._zoomPill){
+            window._zoomPill.hide();
+          }
+        }catch(_){}
+      },
+      null
+    ));
+
+    // [v2.26] Debug section — snap velocity tuning sliders. The
+    // velocity-gated magnet (v2.25) needs in-the-field tuning,
+    // and the user is on mobile without console access. Sliders
+    // here let the thresholds be adjusted while testing. A live
+    // velocity readout above the sliders shows the smoothed
+    // px/sec value during a drag, so the user can SEE how fast
+    // they're dragging and pick threshold values that match.
+    var dbgSub = document.createElement('div');
+    dbgSub.textContent = 'Debug — snap tuning';
+    dbgSub.style.cssText =
+      'font-size:9px;color:rgba(255,255,255,0.45);letter-spacing:1.5px;'+
+      'margin:14px 0 8px 0;';
+    box.appendChild(dbgSub);
+
+    // Toggle: floating readout overlay during drags
+    box.appendChild(_mkToggleRow(
+      'Drag velocity overlay',
+      'When dragging a tile, show a small live readout at the top of the screen with the current velocity (px/sec) and whether the magnet is ON or OFF. Use it to find good threshold values for the sliders below.',
+      function(){ return !!window._equilShowVelOverlay; },
+      function(v){ window._equilShowVelOverlay = v; },
+      null
+    ));
+
+    // Hint
+    var dbgHint = document.createElement('div');
+    dbgHint.textContent = 'Turn the overlay on, close this panel, drag a tile, watch the velocity readout. Note the peak values for fast drags vs slow placement drags. Then reopen this panel and set the threshold roughly halfway between them.';
+    dbgHint.style.cssText =
+      'font-size:8.5px;color:rgba(255,255,255,0.35);line-height:1.4;'+
+      'padding:0 4px;margin-bottom:8px;';
+    box.appendChild(dbgHint);
+
+    // [v2.27] Single threshold slider replacing the two-slider
+    // ON/OFF setup. The slider value is the midpoint; the actual
+    // ON and OFF thresholds are ±100 px/s around it (fixed
+    // hysteresis gap of 200 px/s, plenty to prevent flicker at
+    // the boundary). Saved as window._equilDragMagnet.snapMid;
+    // snapOn and snapOff are derived from it.
+    box.appendChild(_mkSliderRow(
+      'Snap velocity threshold',
+      function(){
+        var m = window._equilDragMagnet && window._equilDragMagnet.snapMid;
+        if(typeof m === 'number') return m;
+        return 60;
+      },
+      function(v){
+        if(!window._equilDragMagnet) window._equilDragMagnet = {};
+        window._equilDragMagnet.snapMid = v;
+        // [v2.28] Adaptive hysteresis: gap scales with the
+        // threshold value. Use 20% of the value with a minimum of 10.
+        var gap = Math.max(10, Math.round(v * 0.2));
+        window._equilDragMagnet.snapOn  = Math.max(0, v - gap);
+        window._equilDragMagnet.snapOff = v + gap;
+      },
+      30, 100, 1, 0, ' px/s'
+    ));
+
+    // [v2.32] Magnet lock-range slider — how close (in cell-widths)
+    // the finger has to be to a cell's center for the snap to fire.
+    // 0.5 = "finger has to be inside the cell"; 1.0 = within one
+    // cell's worth of distance; etc.
+    box.appendChild(_mkSliderRow(
+      'Magnet lock range',
+      function(){
+        var v = window._equilLockRange && window._equilLockRange.cells;
+        return (typeof v === 'number') ? v : 0.7;
+      },
+      function(v){
+        if(!window._equilLockRange) window._equilLockRange = {};
+        window._equilLockRange.cells = v;
+      },
+      0.3, 2.5, 0.05, 2, ' cell-widths'
+    ));
+
     // Reset button
     var reset = document.createElement('button');
     reset.textContent = 'Reset to defaults';
@@ -11015,6 +12063,8 @@ if(shareBtn){
       PARTICLES_ON = DEF.particles;
       SPIN_ON      = DEF.spin;
       PULSE_EQ_ON  = DEF.pulseEq;
+      PILL_ON      = DEF.pill;
+      try{ if(!PILL_ON && window._zoomPill) window._zoomPill.hide(); }catch(_){}
       window._optSpinDurMult    = DEF.spinDurMult;
       window._optPartLifeMult   = DEF.partLifeMult;
       window._optPartSpeedMult  = DEF.partSpeedMult;
