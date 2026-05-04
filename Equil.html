@@ -1,4 +1,317 @@
-<!-- Equil v2.48 | Built: 2026-05-04 CT | github.com/Spamboni
+<!-- Equil v2.65 | Built: 2026-05-04 CT | github.com/Spamboni
+     v2.65: Three modal/menu cleanup tweaks.
+     1. The tile-controls-row (TILE ADJUST + xN/####/cyan buttons)
+        was always visible at the bottom of the screen, including
+        on the menu where it didn't belong. Added a "menu-active"
+        body class set by showMenu() and cleared when a puzzle
+        starts. CSS hides the row when this class is present.
+        Body now starts with the class set since the page loads
+        on the menu screen.
+     2. Removed the border + background on the "ADJUST TILES"
+        title in the modal — it was reading as a button (which
+        confused the user since tapping it just dragged). Kept
+        the grab cursor and a faint press-feedback tint so it
+        still reads as draggable.
+     3. The advanced panel previously stretched to match the main
+        box's height (align-self:stretch), leaving xN's panel
+        with a lot of empty dark space at the bottom (xN has 4
+        sliders vs ####'s 6). Now the panel sizes to its content
+        and ends with a small drag-handle strip at the bottom —
+        same horizontal-line pattern as the bottom drag strips
+        flanking DONE. Both modes get the same compact bottom
+        area, and that area is now an additional drag handle.
+     ---- previous changelog ----
+     v2.64: Two TILE ADJUST modal usability tweaks.
+     1. ADJUST button now TOGGLES the modal — open when closed,
+        close when open. Saves a hop when the user wants to
+        dismiss the modal (no need to reach the small DONE button
+        at the bottom; just tap the same ADJUST that opened it).
+        DONE button still works as a close path.
+     2. The "ADJUST TILES" title bar at the top of the modal is
+        now a drag handle. Much larger grab target than the slim
+        horizontal-line strips flanking DONE — useful since the
+        ADVANCED panel slides out to the side now (v2.60), so the
+        modal stays short and the title is always at a comfortable
+        thumb position near the top edge. Title gets a subtle
+        purple border + background tint to read as interactive,
+        and a grab cursor on hover. The bottom drag strips remain
+        as a backup grab area.
+     ---- previous changelog ----
+     v2.63: Per-mode size slider position persistence. Each display
+     mode (xN, mini, cyan, off) now remembers where the user last
+     had the size slider, restored when switching back to that mode
+     or reloading the page. Falls back to 50% (the "Default" anchor)
+     for any mode the user hasn't yet positioned the slider in.
+     Implementation:
+       - New localStorage key 'equilSliderPosByMode_v1' stores
+         {xn: pct, mini: pct, cyan: pct, off: pct}.
+       - Saving happens ONLY on user-driven slider movements (the
+         <input> input event and the canvasWrap touchmove handler);
+         applyPctH calls from page init, mode toggles, and other
+         programmatic paths do NOT save (would clobber state).
+       - Loading happens on page init AND on every mode-switch in
+         the _relay handler. Old code applied the current slider
+         pct after toggle; new code looks up the new mode's saved
+         pct and applies that, with current slider pct as fallback.
+       - Cyan gets its own bucket separate from off, even though
+         they share anchor data (cyan tuning is too varied for
+         dedicated anchors yet, but the slider position can still
+         be remembered independently).
+     ---- previous changelog ----
+     v2.62: Tuning anchor system. Replaces the formula-driven size
+     slider with a 3-anchor interpolation model. The user dialed in
+     preferred values for Small / Default / Large per display mode
+     (xN, off, ####); those values are now hard-anchored to slider
+     positions 0% / 50% / 100%, with linear interpolation between.
+     The size slider drives EVERY tunable now (tile size, font
+     multipliers, spacing offsets) — not just tile size.
+     Behavior:
+       - Move size slider → all settings recompute from current
+         mode's anchors at that slider position. ADVANCED-panel
+         slider knobs visibly update to match.
+       - Switch display mode → size slider re-applies at current
+         position using the new mode's anchors. Tiles can change
+         size on mode switch (intentional — different modes have
+         different "default tile size" anchors).
+       - Manual nudge of an ADVANCED slider → value sticks until
+         the size slider moves again, then snaps back to calculated.
+       - Initial slider default changed from 39% to 50% so first
+         render lands directly on the user's "Default" anchors.
+     Anchor data hard-coded from user's hand-recorded values
+     (collected at 2XL bank size). Cyan mode falls through to
+     "off" anchors as a sensible approximation since cyan tuning
+     is too varied to dial in for now.
+     ---- previous changelog ----
+     v2.61: Two mini-mode tweaks.
+     1. Bumped mini-mode WHITE FONT SIZE max from 2.0× to 3.0×.
+        The white digit is the dominant visual in mini mode (often
+        the only text on single-instance tiles) and benefits from
+        being able to go bigger. Cyan max stays at 2.0× since the
+        grid doesn't need to grow that much.
+     2. Fixed double-digit white numbers drifting right when font
+        gets large. Root cause: the white span had width:100% which
+        caused asymmetric overflow when the digit pair approached
+        or exceeded the tile's content width (after the 18%
+        horizontal padding). With width:100% gone and the span
+        sized to its content, the tile's existing
+        justify-content:center keeps the digit centered regardless
+        of how wide the glyphs become. Overflow (when it happens)
+        is now even on both sides instead of rightward.
+     ---- previous changelog ----
+     v2.60: Advanced panel slides RIGHT instead of DOWN. The previous
+     v2.59 implementation slid the advanced sliders downward inside
+     the modal box, which made the modal taller and started covering
+     the bank tiles below — exactly what the user is tuning against
+     and needs to keep visible. Top-of-screen clamping prevented
+     repositioning the modal high enough to clear the bank.
+     New layout:
+       - Outer flex-row wrapper holds main box (left) + advanced
+         panel (right) as siblings.
+       - Advanced panel animates width 0→220px and opacity 0→1 on
+         expand. When collapsed, it takes no horizontal space.
+       - Drag handles still control modal position, but now position
+         the OUTER wrapper so both pieces move together.
+       - Clamping uses MAIN BOX dimensions (not wrapper width), so
+         the advanced panel can extend off the right side of the
+         screen — covering the puzzle area, which the user said is
+         fine since they're focused on the tile bank below.
+     ---- previous changelog ----
+     v2.59: TILE ADJUST modal upgraded with drag, advanced toggle,
+     mode-aware sliders, and position persistence.
+     1. Modal box is draggable. Two horizontal-line drag handles
+        flank the DONE button at the bottom. Dragging triggers the
+        same wind sound the floating pill uses (window._dragWind),
+        and the new position persists in localStorage so reopening
+        the modal puts it back where the user left it.
+     2. Advanced toggle ▶/▼. The spacing/font sliders are hidden
+        by default behind a collapsible "ADVANCED" expander. Click
+        the toggle to slide the sliders down; click again to collapse.
+        Toggle state persists in localStorage. Arrow rotates to
+        match.
+     3. Mode-aware slider rebuild. When the user taps the xN, ####,
+        or cyan display-mode buttons, the modal's slider set rebuilds
+        to show the appropriate controls for that mode (xN sliders
+        for xN, mini sliders for ####, NO advanced sliders for cyan).
+        Previously the modal only rebuilt on open.
+     4. Cyan/no-mode hides the ADVANCED toggle entirely since those
+        modes don't have any tunable spacing/font sliders.
+     ---- previous changelog ----
+     v2.58: ROW/COLUMN SPACING sliders in mini mode now go negative.
+     CSS row-gap/column-gap clamp negative values to 0 (same issue
+     as padding in v2.55), so negative gap is implemented via
+     per-grid-item negative margins:
+       - Items past row 0 get margin-top set to the negative gap
+       - Items past col 0 get margin-left set to the negative gap
+     Layout still uses CSS gap = max(0, value) so cells size
+     sensibly; the negative margins are purely visual overlap.
+     Slider ranges reduced from 0..20 to -10..+5 since the user
+     said most tuning happens in that band.
+     Changed grid overflow from hidden to visible so overlapped
+     content isn't clipped at the grid container's edges.
+     ---- previous changelog ----
+     v2.57: Mini-mode (####) tuning support. The xN-mode tuning
+     sliders (TILE ADJUST modal) now have parallel siblings for
+     mini mode, with separately persisted values so each display
+     mode can be dialed in independently.
+     New mini-mode settings (all percentages of tileSize):
+       - miniTopPct: white digit's distance from top border
+       - miniGapPct: gap from white digit to first cyan row
+       - miniRowGapPct: vertical gap between cyan rows (NEW concept)
+       - miniColGapPct: horizontal gap between cyan columns (NEW)
+       - miniWhiteMult: multiplier on white font (1.0 = no change)
+       - miniCyanMult: multiplier on cyan font (1.0 = no change)
+     The TILE ADJUST modal now detects which display mode is
+     active and shows the appropriate slider set (header label
+     shows "xN MODE TUNING" or "#### MODE TUNING"). Slider set
+     gets rebuilt every time the modal opens.
+     Implementation:
+       - _computeMiniGrid now accepts rowGap/colGap params
+         (previously hardcoded GAP=1)
+       - mini-mode render block reads all six new settings
+       - Top offset uses same positive=padding / negative=marginTop
+         split as v2.55's xN fix
+       - Cyan font multiplier applied on top of grid.fontPx
+     ---- previous changelog ----
+     v2.56: Inline size readout. Replaces the floating viewport-
+     anchored readout (v2.51-2.55) with a compact box that lives
+     INSIDE the slider panel (#sizeCanvasWrap) at the top, above
+     the SIZE/GAP slider columns. Always visible — no need to tap
+     the slider to see the values. Travels with the slider whether
+     it lives in the in-bank dock or in the ADJUST modal because
+     it's a child of the wrap that gets moved between contexts.
+     Also kept the show/hide hooks as no-op functions for backward
+     compat — older code paths that called them won't error.
+     ---- previous changelog ----
+     v2.55: Fix WHITE TOP OFFSET not working below 0%. Root cause:
+     CSS clamps negative padding values to 0 silently. v2.54 was
+     setting tile.style.paddingTop to a negative pixel value, which
+     the browser ignored — explaining why the slider appeared to do
+     nothing past 0% (and the mysterious horizontal jitter was just
+     re-render noise from value changes that had no visible effect).
+     Fix: split positive vs negative top offsets:
+     - Positive: tile gets paddingTop as before, pushing white down.
+     - Negative: tile gets paddingTop:0 AND the white SPAN gets
+       margin-top set to the negative pixel value. Negative margin
+       on a flex item IS valid CSS and pulls the item upward,
+       exposing area above where it would normally sit (and
+       allowing the white digit to poke into / above the top
+       border at large negative values).
+     ---- previous changelog ----
+     v2.54: Tuning prep for dialing in per-display-mode bounds.
+     1. WHITE TOP OFFSET slider now goes negative (-20% to +20%,
+        was 0 to +20%). At top=0% there's still a visible gap above
+        the white digit because of font line-box ascender padding;
+        negative values eat into that ascender space. Same reasoning
+        as v2.53's negative NUMBER GAP. Removed the corresponding
+        Math.max(0,...) clamp in the render code.
+     2. Two new sliders in the TILE ADJUST modal:
+        - WHITE FONT SIZE — multiplier on the auto-computed white
+          font size. Default 1.0 (no change). Range 0.3× to 2.0×.
+        - CYAN FONT SIZE — multiplier on the auto-computed cyan
+          font size (which itself is 0.6× of the post-multiplier
+          white). Default 1.0. Range 0.3× to 2.0×.
+        Multipliers applied in renderBank: _whiteFont and mulSize
+        both multiplied by their respective settings. Persisted in
+        localStorage alongside the existing xnTopPct/xnGapPct.
+     With all four sliders, the user can dial in low-end and high-end
+     limits per display mode (xN, mini-grid, all-cyan) and report
+     concrete numerical values back. From those numbers we'll build
+     a better proportional scale that adjusts automatically as the
+     size slider changes, without needing to manually re-tune.
+     ---- previous changelog ----
+     v2.53: Two fixes for v2.52.
+     1. Size readout wasn't updating during canvas drag. Root cause:
+        the actual touch handling for the size slider lives on the
+        canvasWrap element (which sets sl.value programmatically),
+        not on the <input> itself. Programmatic .value changes don't
+        fire input events, so my sl.input listener never ran during
+        a drag. Fix: exposed the readout's update/show/hide hooks on
+        window, and called them from the canvasWrap touch handlers
+        AND from inside applyPctH (so every code path that changes
+        the size triggers the readout refresh).
+     2. NUMBER GAP slider now goes negative (-30% to +30%, was
+        0 to 30%). At gap=0% there was still a visible space between
+        white and cyan because the white span's line-height:1 includes
+        font ascender/descender padding above and below the visible
+        glyph. Negative margin-top eats into that padding so the
+        cyan can sit flush against (or even overlap) the white.
+        Removed the Math.max(0,...) clamp in the render code that
+        was preventing negative pixel values from passing through.
+     ---- previous changelog ----
+     v2.52: Two fixes for v2.51 issues.
+     1. Size-slider readout was appearing under the user's thumb
+        (next to the slider), making it unreadable. Moved to
+        TOP CENTER of the viewport — well clear of any normal
+        thumb position. Also bumped the font from 12px to 18px
+        and added a stronger border so it's easy to glance at
+        from across the screen.
+     2. Moved the xN tile spacing sliders (white top offset,
+        number gap) from the OPTIONS panel to the TILE ADJUST
+        modal where they belong. They now sit directly below
+        the size/gap slider strip with a purple border-top
+        separator. Same percentage-based scaling as before;
+        same DEF values; same persistence in localStorage.
+        Implementation: exposed _applyTuning and _saveOpts via
+        window so the modal-wiring IIFE can drive the same
+        save+apply chain the OPTIONS panel uses.
+     ---- previous changelog ----
+     v2.51: Two improvements for tuning xN tile spacing.
+     1. Floating size readout. While the user actively drags the
+        size slider, a small overlay appears next to the slider
+        showing the current pct value (0-100) plus the resulting
+        tile and font sizes in pixels. Hides on touch release.
+        Useful for picking concrete numerical values when dialing
+        in size limits or per-mode bounds.
+     2. New OPTIONS panel section "xN tile spacing" with two
+        sliders:
+        - "White top offset" (% of tile size, 0-20%) — distance
+          from the tile's top border to the white digit.
+        - "Number gap" (% of tile size, 0-30%) — distance between
+          the white digit and the cyan ×N badge.
+        Both are percentages so they scale proportionally as the
+        user changes tile size with the size slider. Replaces the
+        previous hardcoded margin-top:auto on the cyan span (which
+        was pushing it to the bottom of the flex container) with
+        an explicit pixel gap, so the white + gap + cyan stack
+        tightly at the top with the remaining space as natural
+        breathing room above the bottom border.
+     ---- previous changelog ----
+     v2.50: Found the actual cause of "fonts don't scale". The
+     condense/xN mode had a hardcoded 28px minimum tile size
+     enforcement that I'd missed across the v2.42-v2.49 debugging.
+     When the user slid the size slider smaller, the tile would
+     clamp at 28px and STAY there. Both fonts therefore stayed
+     locked at the cap value, and the cyan kept its fixed flex-
+     layout position relative to the white — so the cyan kept
+     poking through the bottom border (the layout proportions
+     broke at the floor: padTop/padBot hit their own minimums,
+     fonts hit the cap, cyan had nowhere to go).
+     Fix: removed the 28px floor entirely. The snapping pass's
+     existing floor of 15px (line ~6796) is still in place, so
+     tiles can't disappear; but fonts now scale all the way down
+     with the tile size as the user expected. At very small
+     sizes both white and cyan become illegible, but they stay
+     INSIDE the tile.
+     ---- previous changelog ----
+     v2.49: Fix cyan ×N overflowing past tile bottom at small tile
+     sizes. The cyan font had a Math.max(8, ...) minimum size floor
+     dating back to before the size-slider work. The white digit
+     scales freely down with the tile (no min cap), but cyan would
+     hit 8px and stop shrinking — so as the user dragged the size
+     slider smaller, cyan took up proportionally more and more of
+     the tile's vertical space until the flex layout's
+     margin-top:auto couldn't fit it inside the tile and pushed it
+     past the bottom border.
+     Fix: removed the 8px floor. Cyan now scales freely with the
+     white font (still 0.6× the white font size). At very small
+     tile sizes the cyan becomes too tiny to read, but it stays
+     INSIDE the tile — and the white digit at that size is also
+     barely readable, so the cyan being readable doesn't matter.
+     Also: bumped the on-screen version tag from v2.34 to v2.49.
+     The version tag had been stale since the cross-browser CSS
+     work started — easy to forget to update it. Going forward it
+     gets updated every shipped version.
+     ---- previous changelog ----
      v2.48: Firefox cell tap fix. User reported cells felt like
      they had pinhead-sized hitboxes on Firefox (mom's browser),
      and that the cell-tap audio sounded clipped — both pointing
@@ -1994,6 +2307,10 @@ body:not(.seq-mode) #sizeCanvasWrap{display:none!important;}
   flex-shrink:0;background:var(--bg-secondary);
   border-top:1px solid rgba(0,217,255,0.12);
 }
+/* [v2.65] Hide the tile-controls-row when the menu screen is
+   visible. The row is for puzzle-mode UI only; on the menu it
+   was just floating at the bottom looking out of place. */
+body.menu-active .tile-controls-row{ display:none!important; }
 .tile-controls-row > button{
   flex:1;
   font-family:'IBM Plex Mono',monospace;
@@ -2037,12 +2354,25 @@ body:not(.seq-mode) #sizeCanvasWrap{display:none!important;}
      pass through to the page; the inner box re-enables them. */
   background:transparent;
   pointer-events:none;
-  align-items:center;justify-content:flex-start;
-  padding:8px;
+  /* [v2.59/v2.60] Removed flex centering — outer wrapper now
+     positions itself with absolute left/top so the user can drag
+     it. The wrapper's first-show position is set in JS. */
+  padding:0;
 }
-#tileAdjustModal.open{display:flex;}
-#tileAdjustModalBox{
+#tileAdjustModal.open{display:block;}
+/* [v2.60] Outer wrapper: contains main box (left) and the slide-out
+   advanced panel (right) as flex row siblings. Dragging operates on
+   THIS element so both pieces move together. */
+#tileAdjustModalOuter{
   pointer-events:auto;
+  position:absolute;
+  display:flex;
+  flex-direction:row;
+  align-items:flex-start;
+  /* No background/border on the wrapper — they live on the
+     inner box and panel. */
+}
+#tileAdjustModalBox{
   background:var(--bg-secondary);
   border:2px solid #a855f7;
   border-radius:8px;
@@ -2051,11 +2381,25 @@ body:not(.seq-mode) #sizeCanvasWrap{display:none!important;}
   font-family:'IBM Plex Mono',monospace;
   box-shadow:0 0 24px rgba(168,85,247,0.35);
   display:flex;flex-direction:column;align-items:stretch;gap:8px;
+  /* No more position:absolute — the OUTER wrapper handles position.
+     The box itself is just a normal flex item. */
+  flex-shrink:0;
 }
 #tileAdjustModalTitle{
   font-weight:700;font-size:11px;letter-spacing:1.5px;
   color:#a855f7;text-align:center;
+  /* [v2.64] Title doubles as a drag handle — large, easy-to-grab
+     area along the top edge of the modal. The smaller bottom drag
+     strips are still functional as a backup.
+     [v2.65] Removed border (was reading as a button); kept just
+     the grab cursor and a faint background tint on press so it
+     reads as draggable without looking tappable. */
+  cursor:grab;
+  touch-action:none;
+  user-select:none;
+  padding:4px 4px;
 }
+#tileAdjustModalTitle:active{ cursor:grabbing; background:rgba(168,85,247,0.08);border-radius:4px; }
 #tileAdjustModalSliders{
   /* Container into which we move #sizeCanvasWrap when modal opens.
      The wrap is column-flexed with vertical sliders inside; give it
@@ -2071,6 +2415,34 @@ body:not(.seq-mode) #sizeCanvasWrap{display:none!important;}
   display:flex!important; /* override the body:not(.seq-mode) hide */
   padding:0!important;    /* the wrap's own padding adds dead space */
 }
+/* [v2.59] DONE row — DONE button flanked by drag handles on each side.
+   The handles are wide flex-stretching strips with horizontal lines
+   so they read as "grab here." Tapping/dragging anywhere on a handle
+   moves the modal. The DONE button stays the only tappable element
+   that closes the modal. */
+#tileAdjustModalDoneRow{
+  display:flex;flex-direction:row;align-items:center;
+  gap:6px;
+}
+.tileAdjustDragHandle{
+  flex:1;
+  height:30px;
+  background:linear-gradient(
+    to bottom,
+    transparent 0%, transparent 30%,
+    rgba(168,85,247,0.3) 30%, rgba(168,85,247,0.3) 36%,
+    transparent 36%, transparent 50%,
+    rgba(168,85,247,0.3) 50%, rgba(168,85,247,0.3) 56%,
+    transparent 56%, transparent 70%,
+    rgba(168,85,247,0.3) 70%, rgba(168,85,247,0.3) 76%,
+    transparent 76%, transparent 100%
+  );
+  border-radius:3px;
+  cursor:grab;
+  touch-action:none;
+  user-select:none;
+}
+.tileAdjustDragHandle:active{ cursor:grabbing; background-color:rgba(168,85,247,0.08); }
 #tileAdjustModalClose{
   font-family:'IBM Plex Mono',monospace;
   font-size:10px;font-weight:700;letter-spacing:1px;
@@ -2080,10 +2452,84 @@ body:not(.seq-mode) #sizeCanvasWrap{display:none!important;}
   background:rgba(168,85,247,0.1);
   color:#a855f7;
   cursor:pointer;
-  align-self:center;
   min-width:80px;
 }
 #tileAdjustModalClose:active{ background:rgba(168,85,247,0.25); }
+/* [v2.59] Advanced section toggle — collapsed by default. */
+#tileAdjustModalAdvancedToggle{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:9px;font-weight:700;letter-spacing:1.5px;
+  color:rgba(168,85,247,0.85);
+  background:rgba(168,85,247,0.08);
+  border:1px solid rgba(168,85,247,0.3);
+  border-radius:3px;
+  padding:5px 8px;
+  cursor:pointer;
+  text-align:left;
+  display:flex;align-items:center;gap:6px;
+}
+#tileAdjustModalAdvancedToggle:active{ background:rgba(168,85,247,0.16); }
+#tileAdjustModalAdvancedToggle .arrow{ display:inline-block; width:10px; }
+/* [v2.60] Advanced panel — slides out to the RIGHT of the main box.
+   Animates width from 0 to content width. Background and border match
+   the main box's purple theme so they read as connected.
+   Width-based animation is used because the panel sits as a flex
+   sibling of the main box; expanding to the right doesn't displace
+   the main box, just adds new flex items. */
+#tileAdjustModalXnSpacing{
+  display:flex;flex-direction:column;gap:6px;
+  background:var(--bg-secondary);
+  border:2px solid #a855f7;
+  border-left:none;
+  border-radius:0 8px 8px 0;
+  box-shadow:0 0 24px rgba(168,85,247,0.35);
+  /* Slide-out animation. When collapsed, width and padding are 0
+     so the panel takes no horizontal space. When expanded, width
+     becomes the content's natural width (~220px target) and padding
+     gives the inner sliders breathing room. */
+  overflow:hidden;
+  width:0;
+  padding:0;
+  opacity:0;
+  flex-shrink:0;
+  transition:width 0.28s ease, padding 0.28s ease, opacity 0.22s ease;
+  /* [v2.65] No more align-self:stretch — let the panel size to its
+     own content + a small bottom drag area. Previously it stretched
+     to match the main box height, leaving xN's panel with a lot of
+     unused dark space at the bottom (xN has 4 sliders vs ####'s 6).
+     Now both modes get a compact panel sized to content. */
+  align-self:flex-start;
+}
+#tileAdjustModalXnSpacing.expanded{
+  width:220px;
+  padding:10px 10px 0 10px; /* zero bottom — drag area provides its own */
+  opacity:1;
+}
+/* [v2.65] Bottom drag handle inside the advanced panel — a small
+   strip below the sliders that the user can grab to drag the modal.
+   Same horizontal-line pattern as the bottom drag handles for
+   visual consistency. */
+.tileAdjustAdvancedDragArea{
+  height:24px;
+  margin-top:8px;
+  margin-bottom:6px;
+  background:linear-gradient(
+    to bottom,
+    transparent 0%, transparent 30%,
+    rgba(168,85,247,0.3) 30%, rgba(168,85,247,0.3) 36%,
+    transparent 36%, transparent 50%,
+    rgba(168,85,247,0.3) 50%, rgba(168,85,247,0.3) 56%,
+    transparent 56%, transparent 70%,
+    rgba(168,85,247,0.3) 70%, rgba(168,85,247,0.3) 76%,
+    transparent 76%, transparent 100%
+  );
+  border-radius:3px;
+  cursor:grab;
+  touch-action:none;
+  user-select:none;
+  flex-shrink:0;
+}
+.tileAdjustAdvancedDragArea:active{ cursor:grabbing; background-color:rgba(168,85,247,0.08); }
 .bbtn{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:10px 12px;border-radius:3px;cursor:pointer;border:1.5px solid;}
 .bundo{background:none;border-color:var(--cyan);color:var(--text-secondary);}.bundo:not(:disabled):active{background:rgba(0,217,255,0.1);}.bundo:disabled{opacity:.3;cursor:default;}
 .bnew{flex:1;background:transparent;border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 8px rgba(0,217,255,0.3);}.bnew:active{background:rgba(0,217,255,0.12);}
@@ -2458,7 +2904,7 @@ body:not(.seq-mode) #sizeCanvasWrap{display:none!important;}
 #padsBarCopy:not(.active):not(.paste){color:rgba(74,222,128,0.85);}
 </style>
 </head>
-<body>
+<body class="menu-active">
 <div id="_err" style="display:none;position:fixed;inset:0;z-index:9999;background:#0f0f0f;color:#00d9ff;padding:20px;font-family:monospace;font-size:12px;overflow:auto;border:2px solid #00d9ff;"></div>
 <script>
 window.onerror=function(msg,src,line,col,err){
@@ -2519,7 +2965,7 @@ window.onerror=function(msg,src,line,col,err){
 
   <button class="sel-play" id="playBtn">▶ PLAY</button>
   <button id="statsBtn" style="margin-top:10px;width:100%;padding:10px;background:transparent;border:1.5px solid rgba(0,217,255,0.4);border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;font-weight:700;">📊 Stats</button>
-  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v2.34</div>
+  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v2.65</div>
 </div>
 
 <!-- GAME SCREEN -->
@@ -2775,10 +3221,32 @@ window.onerror=function(msg,src,line,col,err){
        closures, so they keep working regardless of where in the DOM
        the wrap currently lives. -->
   <div id="tileAdjustModal">
-    <div id="tileAdjustModalBox">
-      <div id="tileAdjustModalTitle">ADJUST TILES</div>
-      <div id="tileAdjustModalSliders"></div>
-      <button type="button" id="tileAdjustModalClose">DONE</button>
+    <!-- [v2.60] Outer wrapper holds the main box and the side-
+         extending advanced panel as flex siblings. The advanced
+         panel slides out to the right when expanded — keeping it
+         away from the bank tiles below the modal (which the user
+         is tuning against and needs to keep visible). -->
+    <div id="tileAdjustModalOuter">
+      <div id="tileAdjustModalBox">
+        <div id="tileAdjustModalTitle">ADJUST TILES</div>
+        <div id="tileAdjustModalSliders"></div>
+        <!-- [v2.59] Advanced toggle — collapsed by default since the
+             spacing/font sliders are rarely needed for casual use. -->
+        <button type="button" id="tileAdjustModalAdvancedToggle">
+          <span class="arrow">▶</span><span>ADVANCED</span>
+        </button>
+        <!-- [v2.59] DONE button flanked by drag handles for moving
+             the modal anywhere on screen. Position persists. -->
+        <div id="tileAdjustModalDoneRow">
+          <div class="tileAdjustDragHandle" data-side="left"></div>
+          <button type="button" id="tileAdjustModalClose">DONE</button>
+          <div class="tileAdjustDragHandle" data-side="right"></div>
+        </div>
+      </div>
+      <!-- [v2.60] Advanced panel — slides in/out from the right of
+           the main box. Position is to the right of the main box;
+           expanded width animates from 0 to its content width. -->
+      <div id="tileAdjustModalXnSpacing"></div>
     </div>
   </div>
 
@@ -6711,22 +7179,26 @@ function applyTileColor(tile, idx){
 // considering the glyph aspect ratio (~0.6 width-per-em for IBM
 // Plex Mono digits) AND (b) row height after subtracting gap
 // space. Pick the cols that yields the largest legible font.
-window._computeMiniGrid = function(miniCount, tileSize, tileFontSize, whiteZone, bottomPad){
+window._computeMiniGrid = function(miniCount, tileSize, tileFontSize, whiteZone, bottomPad, rowGap, colGap){
   var areaW = tileSize - 4;     // 2px inset each side
   var areaH = Math.max(4, tileSize - whiteZone - bottomPad);
   var hardMax = Math.max(7, Math.round(tileFontSize * 0.42));
   var GLYPH_W_PER_EM = 0.62;    // monospace digit width as fraction of em
-  var GAP = 1;                  // 1px between grid cells
+  // [v2.57] Accept row/column gaps as params (previously hardcoded
+  // GAP=1). Defaults match the old behavior so callers that don't
+  // pass these get unchanged layout.
+  var ROW_GAP = (typeof rowGap === 'number') ? rowGap : 1;
+  var COL_GAP = (typeof colGap === 'number') ? colGap : 1;
   var bestCols = 1, bestFont = 0, bestRows = 1;
   var maxCols = Math.max(1, Math.min(miniCount, 12));
   for(var tc = 1; tc <= maxCols; tc++){
     var tr = Math.ceil(miniCount / tc);
     // Width per column (after gaps), then divide by glyph aspect to
     // get the max font size that fits horizontally.
-    var colW = (areaW - (tc - 1) * GAP) / tc;
+    var colW = (areaW - (tc - 1) * COL_GAP) / tc;
     var fontW = colW / GLYPH_W_PER_EM;
     // Height per row (after gaps).
-    var rowH = (areaH - (tr - 1) * GAP) / tr;
+    var rowH = (areaH - (tr - 1) * ROW_GAP) / tr;
     // Allow a small line-height buffer of ~5% so glyphs don't kiss
     // the row above. Use 0.95 as the row-height-to-font ratio.
     var fontH = rowH * 0.95;
@@ -6742,8 +7214,8 @@ window._computeMiniGrid = function(miniCount, tileSize, tileFontSize, whiteZone,
   var fontPx = Math.max(3, Math.floor(bestFont));
   // For animation positioning, expose the computed cell size as
   // the smaller of the width/height per cell.
-  var cellSize = Math.min((areaW - (cols - 1) * GAP) / cols, (areaH - (rows - 1) * GAP) / rows);
-  return {cols:cols, rows:rows, cellSize:cellSize, fontPx:fontPx, areaW:areaW, areaH:areaH};
+  var cellSize = Math.min((areaW - (cols - 1) * COL_GAP) / cols, (areaH - (rows - 1) * ROW_GAP) / rows);
+  return {cols:cols, rows:rows, cellSize:cellSize, fontPx:fontPx, areaW:areaW, areaH:areaH, rowGap:ROW_GAP, colGap:COL_GAP};
 };
 
 function renderBank(){
@@ -6898,17 +7370,21 @@ function renderBank(){
         }
       }
     }
-    // In collapsed mode, enforce a minimum tile size so the multiplier
-    // text remains readable. 28px gives enough room for the main number
-    // at ~16px font + the small ×N badge at ~9px.
-    if(tileSize < 28){
-      tileSize = 28;
-      tileFontSize = Math.round(baseFontSize * (tileSize/baseSize));
-      // [v2.42] Apply same cap as in the snapping pass for consistency.
-      var _fontCap2 = Math.round(baseFontSize * 1.11);
-      if(tileFontSize > _fontCap2) tileFontSize = _fontCap2;
-      tilePad = '0 ' + Math.round(tileSize*0.18) + 'px';
-    }
+    // [v2.50] Removed the 28px minimum tile size that was preventing
+    // fonts from scaling at small slider positions. The original 28px
+    // floor was added for readability (to keep the white digit + cyan
+    // ×N legible), but it caused a worse visual problem: as the user
+    // dragged the size slider smaller, the tile would clamp to 28px
+    // and the fonts would stop shrinking, but the cyan ×N would still
+    // be pushed past the tile's bottom edge by the flex layout
+    // (because padTop/padBot also have hard minimums and the proportions
+    // become broken at the floor).
+    // The snappedSize floor (Math.max(15, ...)) on line ~6796 already
+    // prevents the tile from shrinking below 15px. That's enough.
+    // Fonts now scale all the way down with the tile; at very small
+    // sizes both white and cyan become illegible, but they stay
+    // INSIDE the tile, which is what the user actually wants.
+    // (Old code: if(tileSize < 28){ tileSize = 28; ... })
   }
   var puzzleSeen = {};
   for(var i=0;i<renderCount;i++){
@@ -6945,7 +7421,10 @@ function renderBank(){
     // modes keep the smaller size because they pack additional cyan
     // numbers around/over the main digit and a bigger white digit
     // would crowd them out.
-    var _whiteFont = (!miniOn && !cyanOn) ? Math.round(tileFontSize * 1.6) : tileFontSize;
+    // [v2.54] Apply user-configurable white font multiplier on top of
+    // the existing 1.6× scaling for xN mode. Default 1.0 = no change.
+    var _wMult = (typeof window._xnWhiteMult === 'number') ? window._xnWhiteMult : 1.0;
+    var _whiteFont = (!miniOn && !cyanOn) ? Math.round(tileFontSize * 1.6 * _wMult) : Math.round(tileFontSize * _wMult);
     tile.style.cssText='min-width:'+tileSize+'px;height:'+tileSize+'px;padding:'+tilePad+';font-size:'+_whiteFont+'px;border-radius:'+tileRadius+'px;';
     // For collapsed tiles, "used" means ALL instances of this value
     // are placed (unused count is 0). Otherwise lit if SEL is active.
@@ -7062,8 +7541,27 @@ function renderBank(){
       // to push it to the bottom of available flex space.
       tile.style.position = 'relative';
       tile.dataset.collapsedValue = item.value;
-      var padTop = Math.max(2, Math.round(tileSize * 0.04));
-      var padBot = Math.max(2, Math.round(tileSize * 0.04));
+      // [v2.51] padTop now driven by user setting (xnTopPct, default 4%
+      // of tileSize). padBot kept tiny — leftover vertical space below
+      // the cyan ×N reads as natural breathing room from the bottom
+      // border, no need for symmetric padding here. Cyan's margin-top
+      // (set below) is now a fixed gap instead of margin-top:auto, so
+      // the white digit + gap + cyan stacks tightly at the top with
+      // empty space underneath rather than spreading across the tile.
+      var _xnTopPct = (typeof window._xnTopPct === 'number') ? window._xnTopPct : 4;
+      var _xnGapPct = (typeof window._xnGapPct === 'number') ? window._xnGapPct : 0;
+      // [v2.55] Split positive and negative top offsets:
+      // - Positive: use tile's paddingTop (white digit gets pushed
+      //   down by that many pixels from the tile's top border).
+      // - Negative: paddingTop:0 + marginTop on the white SPAN itself
+      //   (since CSS clamps negative padding to 0, and we need the
+      //   white digit to actually move UP into / past the top border).
+      // Negative margin on a flex item is valid and pulls the item
+      // upward, exposing area above where it would normally sit.
+      var _topOffsetPx = Math.round(tileSize * (_xnTopPct/100));
+      var padTop = Math.max(0, _topOffsetPx);
+      var _whiteMarginTop = (_topOffsetPx < 0) ? _topOffsetPx : 0;
+      var padBot = 0;
       tile.style.flexDirection = 'column';
       tile.style.justifyContent = 'flex-start';
       tile.style.alignItems = 'center';
@@ -7081,6 +7579,11 @@ function renderBank(){
         + 'box-sizing:border-box;'
         + _digRightNudge
         + 'font-size:inherit;'
+        // [v2.55] When user dialed a negative top offset, padTop is
+        // 0 (CSS clamps negative padding) and we apply the negative
+        // value as marginTop here instead. Pulls the white digit up
+        // into / above the tile's top border.
+        + 'margin-top:' + _whiteMarginTop + 'px;'
         + 'flex-shrink:0;';
       tile.appendChild(whiteSpan);
 
@@ -7095,10 +7598,40 @@ function renderBank(){
         // the better fix — at larger tile sizes the small per-browser
         // line-box drift becomes invisible. Cyan at 0.6× reads more
         // clearly as a labeled multiplier.
-        var mulSize = Math.max(8, Math.round(_whiteFont * 0.6));
+        // [v2.49] Removed Math.max(8, ...) floor on cyan font.
+        // The 8px minimum was causing the cyan ×N to overflow past
+        // the tile's bottom border at small tile sizes: the white
+        // font shrinks freely with the tile, but cyan would hit
+        // 8px and stop. The cyan then took up proportionally more
+        // and more of the tile's vertical space as the tile kept
+        // shrinking, until the flex layout's margin-top:auto
+        // couldn't fit it inside the tile and pushed it past the
+        // bottom edge. Now cyan scales freely with _whiteFont, so
+        // it stays inside the tile at any size — at very small
+        // sizes it becomes too tiny to read, but that's fine
+        // (the white digit at that size is also barely readable).
+        // [v2.54] Apply user cyan font multiplier on top of the
+        // 0.6× white-font scaling. Default 1.0 = no change.
+        var _cMult = (typeof window._xnCyanMult === 'number') ? window._xnCyanMult : 1.0;
+        var mulSize = Math.round(_whiteFont * 0.6 * _cMult);
+        // [v2.51] Cyan margin-top now uses xnGapPct (% of tileSize)
+        // instead of 'auto'. With 'auto', the cyan was pushed all the
+        // way to the bottom edge of the available flex space, which
+        // looked broken at small tile sizes (cyan poking through the
+        // bottom border). With an explicit pixel gap, the cyan sits
+        // a controlled distance below the white digit, leaving the
+        // remaining vertical space as empty room above the bottom
+        // border. Default gap of 0 = cyan sits immediately below.
+        // [v2.53] Removed Math.max(0,...) so the gap can go negative,
+        // letting cyan pull up and overlap with the white digit's
+        // line-box descender. Negative margin-top is valid CSS and
+        // is how the user gets cyan to sit immediately under the
+        // white glyph (the line-box descender otherwise enforces a
+        // few pixels of gap at gap=0%).
+        var _gapPx = Math.round(tileSize * (_xnGapPct/100));
         mulSpan.style.cssText = 'display:block;text-align:center;'
           + 'line-height:1;width:100%;'
-          + 'margin-top:auto;'
+          + 'margin-top:' + _gapPx + 'px;'
           + 'font-size:' + mulSize + 'px;color:rgba(0,147,170,0.6);'
           + 'font-weight:600;letter-spacing:0.5px;'
           + 'flex-shrink:0;'
@@ -7110,19 +7643,82 @@ function renderBank(){
       // White number ALWAYS at top (even with total=1, for consistent
       // visual baseline across the bank). Cyan grid of N-1 copies fills
       // bottom only when there ARE duplicates.
+      // [v2.57] Now uses user-tunable settings (parallel to xN mode):
+      //   miniTopPct  — white digit's distance from top border
+      //   miniGapPct  — gap from white's bottom to first cyan row
+      //   miniRowGapPct, miniColGapPct — grid gaps inside the cyan area
+      //   miniWhiteMult, miniCyanMult — font multipliers
+      // Top offset uses the same positive=padding / negative=marginTop
+      // split as v2.55's xN fix (CSS clamps negative padding to 0).
+      var _miniTopPct = (typeof window._miniTopPct === 'number') ? window._miniTopPct : 6;
+      var _miniGapPct = (typeof window._miniGapPct === 'number') ? window._miniGapPct : 0;
+      var _miniRowGapPct = (typeof window._miniRowGapPct === 'number') ? window._miniRowGapPct : 0.5;
+      var _miniColGapPct = (typeof window._miniColGapPct === 'number') ? window._miniColGapPct : 0.5;
+      var _miniWhiteMult = (typeof window._miniWhiteMult === 'number') ? window._miniWhiteMult : 1.0;
+      var _miniCyanMult  = (typeof window._miniCyanMult  === 'number') ? window._miniCyanMult  : 1.0;
+
       tile.style.position = 'relative';
       tile.style.alignItems = 'flex-start';
       tile.dataset.collapsedValue = item.value;
-      var topPad = Math.max(2, Math.round(tileSize*0.06));
+
+      var _miniTopOffsetPx = Math.round(tileSize * (_miniTopPct/100));
+      var topPad = Math.max(0, _miniTopOffsetPx);
+      var _miniWhiteMarginTop = (_miniTopOffsetPx < 0) ? _miniTopOffsetPx : 0;
       tile.style.paddingTop = topPad + 'px';
-      tile.textContent = item.value;
+
+      // White digit. If we need to apply a font multiplier or a
+      // negative top offset, replace tile.textContent with an
+      // explicitly-styled span so we can attach the styles. When
+      // both are at default, we can keep the legacy textContent
+      // path for cheaper DOM.
+      // [v2.61] Removed width:100% from the span. With width:100%,
+      // when the white font got large enough that a 2-digit number
+      // approached or exceeded the tile's width, the span overflowed
+      // asymmetrically (digits visually drifted right). Letting the
+      // span size to its content width and centering it via the
+      // tile's existing justify-content:center keeps the digit
+      // centered regardless of how wide the glyphs become — and
+      // when the digits exceed the tile, they overflow EVENLY
+      // rather than rightward.
+      if(_miniWhiteMult !== 1.0 || _miniWhiteMarginTop !== 0){
+        var _miniWhiteSpan = document.createElement('span');
+        _miniWhiteSpan.textContent = item.value;
+        _miniWhiteSpan.style.cssText =
+          'display:inline-block;text-align:center;'+
+          'font-size:' + Math.round(tileFontSize * _miniWhiteMult) + 'px;'+
+          'line-height:1;'+
+          'margin-top:' + _miniWhiteMarginTop + 'px;'+
+          'white-space:nowrap;'+
+          'flex-shrink:0;';
+        tile.appendChild(_miniWhiteSpan);
+      } else {
+        tile.textContent = item.value;
+      }
+
       if(hasMultiple){
         var unused = collapsedGroup.unused;
-        var whiteZone = topPad + tileFontSize + 2;
+        // Apply user-tunable gap between white digit and the first
+        // cyan row. miniGapPct positive = bigger gap, negative = pull
+        // cyan up into white's line-box space.
+        var _whiteAdvance = Math.round(tileFontSize * _miniWhiteMult); // height of white glyph
+        var _gapPx = Math.round(tileSize * (_miniGapPct/100));
+        var whiteZone = topPad + _whiteAdvance + _gapPx;
         var bottomPad = Math.max(1, Math.round(tileSize * 0.04));
+        // [v2.58] Row/col gaps can now be negative. Strategy:
+        // - Compute layout using max(0, gap) so cells size sensibly.
+        // - For positive gap: use CSS row-gap/column-gap as before.
+        // - For negative gap: use CSS gap of 0 AND apply negative
+        //   margin-top / margin-left to grid items past row 0 / col 0
+        //   to pull them visually closer (or overlap).
+        var _rawRowGapPx = Math.round(tileSize * (_miniRowGapPct/100));
+        var _rawColGapPx = Math.round(tileSize * (_miniColGapPct/100));
+        var _rowGapForLayout = Math.max(0, _rawRowGapPx);
+        var _colGapForLayout = Math.max(0, _rawColGapPx);
+        var _rowGapNeg = (_rawRowGapPx < 0) ? _rawRowGapPx : 0;
+        var _colGapNeg = (_rawColGapPx < 0) ? _rawColGapPx : 0;
         var miniCount = Math.max(0, unused - 1);
         if(miniCount > 0){
-          var grid = window._computeMiniGrid(miniCount, tileSize, tileFontSize, whiteZone, bottomPad);
+          var grid = window._computeMiniGrid(miniCount, tileSize, tileFontSize, whiteZone, bottomPad, _rowGapForLayout, _colGapForLayout);
           var miniWrap = document.createElement('div');
           miniWrap.className = '_btMiniGrid';
           miniWrap.style.cssText = 'position:absolute;'
@@ -7131,19 +7727,32 @@ function renderBank(){
             + 'display:grid;'
             + 'grid-template-columns:repeat(' + grid.cols + ',1fr);'
             + 'grid-template-rows:repeat(' + grid.rows + ',1fr);'
-            + 'gap:1px;'
-            + 'overflow:hidden;'
+            + 'row-gap:' + _rowGapForLayout + 'px;'
+            + 'column-gap:' + _colGapForLayout + 'px;'
+            + 'overflow:visible;'
             + 'pointer-events:none;'
             + 'line-height:1;';
+          // [v2.57] Apply cyan font multiplier on top of the
+          // grid-computed fontPx.
+          var _miniCyanFontPx = Math.max(3, Math.round(grid.fontPx * _miniCyanMult));
           for(var mi = 0; mi < miniCount; mi++){
             var miniNum = document.createElement('span');
             miniNum.className = '_btMiniNum';
             miniNum.textContent = item.value;
+            // [v2.58] Per-item negative margins for negative gap.
+            // Items past row 0 get marginTop=_rowGapNeg.
+            // Items past col 0 get marginLeft=_colGapNeg.
+            var _row = Math.floor(mi / grid.cols);
+            var _col = mi % grid.cols;
+            var _marginTop  = (_row > 0 && _rowGapNeg < 0) ? _rowGapNeg : 0;
+            var _marginLeft = (_col > 0 && _colGapNeg < 0) ? _colGapNeg : 0;
             miniNum.style.cssText = 'display:flex;'
               + 'align-items:center;justify-content:center;'
-              + 'font-size:' + grid.fontPx + 'px;'
+              + 'font-size:' + _miniCyanFontPx + 'px;'
               + 'color:#0093aa;font-weight:600;'
               + 'line-height:1;'
+              + (_marginTop  ? 'margin-top:'  + _marginTop  + 'px;' : '')
+              + (_marginLeft ? 'margin-left:' + _marginLeft + 'px;' : '')
               + 'overflow:hidden;'
               + 'white-space:nowrap;';
             miniWrap.appendChild(miniNum);
@@ -9295,10 +9904,19 @@ function showGame(opts){
   requestAnimationFrame(function(){
     if(PILL_ON && window._zoomPill) window._zoomPill.show();
   });
+  // [v2.65] Game/puzzle is now active — clear the menu-active body
+  // class so the tile-controls-row (TILE ADJUST + display-mode
+  // buttons) becomes visible. CSS hides .tile-controls-row when
+  // body.menu-active is set.
+  document.body.classList.remove('menu-active');
 }
 function showMenu(){
   document.getElementById('gameScreen').style.display='none';
   document.getElementById('selScreen').style.display='flex';
+  // [v2.65] Add menu-active body class so puzzle-mode-only UI
+  // (the tile-controls-row, etc.) hides via CSS while the user
+  // is on the menu screen. Removed when the user starts a puzzle.
+  document.body.classList.add('menu-active');
   // [Equil 1.13] Dismiss the win overlay when going back to menu —
   // the win card is z-index:300 (above gameScreen) so without this it
   // would persist on top of the menu screen.
@@ -9361,13 +9979,201 @@ function _puzzlePctToScaleH(pct){ return 0.3+(pct/100)*2.1; } // 0%=0.3x, 100%=2
 function _puzzleScaleToPctH(s){ return (s-0.3)/2.1*100; }
 function _puzzlePctToGapMult(pct){ return pct/33.33; }       // 0%=0 gap, 33%=default(1.0), 100%=3x
 
+// ─────────────────────────────────────────────────────────────
+// [v2.62] TUNING ANCHOR SYSTEM
+// ─────────────────────────────────────────────────────────────
+// Replaces the formula-based size slider with a 3-anchor model.
+// At slider position 0%, 50%, and 100%, the system snaps to the
+// dialed-in values for the currently-active display mode (xN /
+// off / ####). Between anchors, all values interpolate linearly.
+//
+// The user dialed in their preferred values per mode; the size
+// slider now drives EVERY tunable (tile size, font multipliers,
+// spacing offsets) instead of just tile size. Switching display
+// modes recomputes everything for that mode at the current
+// slider position.
+//
+// Manual ADVANCED-panel sliders still work — the user can nudge
+// them to override interpolated values — but moving the size
+// slider snaps everything back to the calculated targets.
+//
+// Anchor data was collected by the user at slider positions
+// 13-26%, 40-50%, and 64-80% (per mode), then re-mapped here so
+// those targets land at exact 0/50/100 anchor points. The
+// recorded slider %s were converted to TILE_SCALE values via
+// the previous formula (TILE_SCALE = 0.3 + (pct/100) * 2.1) so
+// the size component of each anchor matches what the user saw
+// when they made the dial-in choices.
+// ─────────────────────────────────────────────────────────────
+window._TUNING_ANCHORS = {
+  xn: {
+    tileScale: { S: 0.678, D: 1.350, L: 1.980 },
+    wTop:      { S: -8.0,  D: -5.5,  L:  2.5  },
+    nGap:      { S: -10.0, D: -10.0, L:  0.5  },
+    wFont:     { S:  1.00, D:  1.45, L:  2.00 },
+    cFont:     { S:  1.00, D:  0.85, L:  1.00 }
+  },
+  off: {
+    tileScale: { S: 0.573, D: 1.140, L: 1.770 },
+    wFont:     { S:  1.05, D:  1.15, L:  1.70 }
+  },
+  mini: {
+    tileScale: { S: 0.846, D: 1.140, L: 1.644 },
+    wTop:      { S: -5.0,  D: -5.0,  L: -5.0  },
+    nGap:      { S:  6.0,  D:  6.0,  L:  1.5  },
+    wFont:     { S:  1.25, D:  1.50, L:  2.55 },
+    cFont:     { S:  1.05, D:  1.50, L:  2.00 },
+    rowGap:    { S:  0.25, D:  3.25, L:  5.00 },
+    colGap:    { S: -0.75, D:  4.00, L:  5.00 }
+  }
+};
+
+// Identify which display mode is active. xN, mini, and cyan are
+// mutually-exclusive flags; "off" means none of them are set.
+// (cyan/all-cyan mode uses 'off' anchors as a sensible fallback —
+// the user said cyan is too varied to dial in for now.)
+window._tuningCurrentMode = function(){
+  if(window._miniPuzzleTiles && !window._allCyanPuzzleTiles) return 'mini';
+  if(window._condensePuzzleTiles && !window._miniPuzzleTiles && !window._allCyanPuzzleTiles) return 'xn';
+  return 'off';
+};
+
+// [v2.63] Per-mode slider position persistence. Each display mode
+// (xN, mini, cyan, off) gets its own remembered slider pct so
+// switching modes restores where the user last had the slider in
+// THAT mode. Falls back to 50 (the "Default" anchor position) if
+// no value has been saved yet for a given mode.
+//
+// Returns a distinct key per visible mode — cyan gets its own
+// bucket here even though it shares anchor data with 'off' (so
+// the user can have cyan at one position and off at another).
+window._tuningPersistMode = function(){
+  if(window._miniPuzzleTiles && !window._allCyanPuzzleTiles) return 'mini';
+  if(window._condensePuzzleTiles && !window._miniPuzzleTiles && !window._allCyanPuzzleTiles) return 'xn';
+  if(window._allCyanPuzzleTiles) return 'cyan';
+  return 'off';
+};
+
+window._SLIDER_POS_KEY = 'equilSliderPosByMode_v1';
+window._tuningLoadSliderPos = function(mode){
+  try{
+    var raw = localStorage.getItem(window._SLIDER_POS_KEY);
+    if(!raw) return null;
+    var obj = JSON.parse(raw);
+    var v = obj && obj[mode];
+    return (typeof v === 'number' && !isNaN(v)) ? v : null;
+  }catch(_){ return null; }
+};
+window._tuningSaveSliderPos = function(mode, pct){
+  try{
+    var raw = localStorage.getItem(window._SLIDER_POS_KEY);
+    var obj = raw ? JSON.parse(raw) : {};
+    if(!obj || typeof obj !== 'object') obj = {};
+    obj[mode] = pct;
+    localStorage.setItem(window._SLIDER_POS_KEY, JSON.stringify(obj));
+  }catch(_){}
+};
+
+// Linearly interpolate between two values at fraction t (0..1).
+function _tuningLerp(a, b, t){ return a + (b - a) * t; }
+
+// Compute the interpolated value for a single setting at slider
+// position pct (0..100). Returns null if the mode doesn't define
+// that setting (caller falls back to the existing static default).
+function _tuningInterp(mode, key, pct){
+  var anchorSet = window._TUNING_ANCHORS[mode];
+  if(!anchorSet) return null;
+  var trio = anchorSet[key];
+  if(!trio) return null;
+  if(pct <= 50){
+    var t = pct / 50;
+    return _tuningLerp(trio.S, trio.D, t);
+  } else {
+    var t2 = (pct - 50) / 50;
+    return _tuningLerp(trio.D, trio.L, t2);
+  }
+}
+
+// Apply ALL interpolated values for the current mode at slider
+// position pct. Sets window._opt* values (which feed renderBank
+// via the existing _applyTuning machinery), then triggers any
+// open ADVANCED-panel sliders to refresh their displayed knob
+// positions to match.
+window._tuningApplyAll = function(pct){
+  var mode = window._tuningCurrentMode();
+  pct = Math.max(0, Math.min(100, pct));
+  // Tile scale — drives the actual tile pixel size in renderBank.
+  var ts = _tuningInterp(mode, 'tileScale', pct);
+  if(ts !== null) TILE_SCALE = ts;
+  // Per-mode settings. Only set the window._opt* if the anchor
+  // table defines this key for this mode.
+  if(mode === 'xn'){
+    var v;
+    if((v = _tuningInterp('xn','wTop', pct)) !== null) window._optXnTopPct    = v;
+    if((v = _tuningInterp('xn','nGap', pct)) !== null) window._optXnGapPct    = v;
+    if((v = _tuningInterp('xn','wFont',pct)) !== null) window._optXnWhiteMult = v;
+    if((v = _tuningInterp('xn','cFont',pct)) !== null) window._optXnCyanMult  = v;
+  } else if(mode === 'mini'){
+    var w;
+    if((w = _tuningInterp('mini','wTop',  pct)) !== null) window._optMiniTopPct    = w;
+    if((w = _tuningInterp('mini','nGap',  pct)) !== null) window._optMiniGapPct    = w;
+    if((w = _tuningInterp('mini','wFont', pct)) !== null) window._optMiniWhiteMult = w;
+    if((w = _tuningInterp('mini','cFont', pct)) !== null) window._optMiniCyanMult  = w;
+    if((w = _tuningInterp('mini','rowGap',pct)) !== null) window._optMiniRowGapPct = w;
+    if((w = _tuningInterp('mini','colGap',pct)) !== null) window._optMiniColGapPct = w;
+  } else {
+    // off mode — only tile scale and white font are tunable in
+    // the current data set. Map to xN settings since "off mode"
+    // shares the white-digit-only render with low-density xN
+    // tiles (single-instance values in the bank).
+    var u;
+    if((u = _tuningInterp('off','wFont',pct)) !== null) window._optXnWhiteMult = u;
+  }
+  // Push the new window._opt values into the live window._* values
+  // that renderBank actually reads.
+  if(typeof window._equilApplyTuning === 'function'){
+    try{ window._equilApplyTuning(); }catch(_){}
+  }
+  // Refresh ADVANCED-panel slider knob positions to reflect the
+  // new interpolated values (so the user sees them snap back to
+  // calculated targets when the size slider moves).
+  if(typeof window._equilRefreshAdvancedKnobs === 'function'){
+    try{ window._equilRefreshAdvancedKnobs(); }catch(_){}
+  }
+};
+
+// Helper for the size slider to use during scrubbing — wraps
+// the new system with a renderBank call.
+window._tuningSliderInput = function(pct){
+  window._tuningApplyAll(pct);
+  if(PZ) renderBank();
+};
+
 window.applyPctH = function(pct){
   pct=Math.max(0,Math.min(100,pct));
-  TILE_SCALE=_puzzlePctToScaleH(pct);
+  // [v2.62] All tunables now driven from anchored interpolation
+  // tables per display mode. _tuningApplyAll sets TILE_SCALE plus
+  // every window._opt* setting from the active mode's anchors at
+  // this slider position. Falls through to the existing render +
+  // sync chain below.
+  if(typeof window._tuningApplyAll === 'function'){
+    window._tuningApplyAll(pct);
+  } else {
+    // Fallback to legacy formula if the tuning system isn't loaded.
+    TILE_SCALE=_puzzlePctToScaleH(pct);
+  }
   if(PZ) renderBank();
   if(window._syncVertSizeBar) window._syncVertSizeBar(pct);
   if(window._syncTbSize) window._syncTbSize(pct);
   if(window._syncToolbarBeat) window._syncToolbarBeat();
+  // [v2.53] Update the floating size readout if it's visible.
+  if(window._equilUpdateSizeReadout) window._equilUpdateSizeReadout();
+  // [v2.63] NOTE: per-mode slider position persistence is NOT done
+  // here. applyPctH gets called from many code paths (page init,
+  // mode toggles, programmatic restores) and saving on every call
+  // would clobber the saved value during mode-switch flows.
+  // Instead, the user-driven slider event handlers explicitly call
+  // window._tuningSaveSliderPos after invoking applyPctH.
   // [v1.75] Removed bank-position drift compensation. It used
   // window.scrollBy to keep .bank-outer visually pinned during
   // slider drags, but when called from button toggles (xN/mini/
@@ -9400,14 +10206,29 @@ window.applyGapPct = function(pct){
 // formula's mapping for TILE_SCALE 1.11. The visual default size is
 // preserved exactly; only the slider position / numeric percentage
 // changed.
-if(document.readyState==='loading'){
-  document.addEventListener('DOMContentLoaded', function(){
-    window.applyPctH(39);
-    window.applyGapPct(25);
-  });
-} else {
-  window.applyPctH(39);
+// [v2.62] Initial slider default changed from 39 to 50 — the new
+// tuning anchor system uses 0/50/100 as the three control points,
+// with 50 being the user's "Default" dialed-in values per mode.
+// Old 39 default was tied to the legacy formula's visual baseline;
+// the new 50 default lands directly on the DEFAULT anchor.
+// [v2.63] On page load, restore the user's last-known slider
+// position FOR THE CURRENT DISPLAY MODE if one was saved. This
+// way the user's preferred slider position per mode survives
+// page reloads. Falls back to 50 if no saved value exists.
+function _equilInitSlider(){
+  var pct = 50;
+  if(typeof window._tuningLoadSliderPos === 'function'
+     && typeof window._tuningPersistMode === 'function'){
+    var saved = window._tuningLoadSliderPos(window._tuningPersistMode());
+    if(typeof saved === 'number' && !isNaN(saved)) pct = saved;
+  }
+  window.applyPctH(pct);
   window.applyGapPct(25);
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded', _equilInitSlider);
+} else {
+  _equilInitSlider();
 }
 
 // ── VERTICAL CANVAS SIZE BAR (always visible, left of bank) ──────
@@ -9643,6 +10464,68 @@ if(document.readyState==='loading'){
     sl.type='range'; sl.min=0; sl.max=100; sl.step=1; sl.value=50;
     sl.orient='vertical';
     sl.style.cssText='position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:ns-resize;z-index:5;-webkit-appearance:slider-vertical;writing-mode:vertical-lr;direction:rtl;touch-action:none;';
+    // [v2.56] Inline size readout — sits at the TOP of the slider
+    // panel, always visible (not hidden until touch). Travels with
+    // the slider whether it lives in its in-bank dock or in the
+    // ADJUST modal (because it's a child of #sizeCanvasWrap which
+    // gets moved between the two contexts). Replaces the v2.51-2.55
+    // floating overlay that was anchored to the viewport — that
+    // worked but required tap-to-show which made it fiddly to read
+    // exact values during a tuning pass.
+    var _sizeReadout = document.createElement('div');
+    _sizeReadout.style.cssText =
+      'min-width:56px;'+
+      'background:rgba(20,20,20,0.85);'+
+      'border:1px solid rgba(0,217,255,0.5);'+
+      'border-radius:4px;'+
+      'padding:3px 6px;'+
+      'margin-bottom:4px;'+
+      'color:var(--cyan,#00d9ff);'+
+      'font-family:IBM Plex Mono,monospace;'+
+      'font-size:11px;'+
+      'font-weight:700;'+
+      'letter-spacing:0.5px;'+
+      'line-height:1.2;'+
+      'text-align:center;'+
+      'white-space:nowrap;'+
+      'pointer-events:none;'+
+      'box-sizing:border-box;'+
+      'flex-shrink:0;';
+    // Prepend so it sits above the slider columns inside the wrap.
+    wrap.appendChild(_sizeReadout);
+    function _updateSizeReadout(){
+      var pct = parseFloat(sl.value);
+      // Re-derive the same numbers renderBank computes, so the readout
+      // matches what's actually drawn on the tiles. Best-effort —
+      // bank may not exist yet, in which case skip the font size line.
+      var tilePx = '—';
+      var fontPx = '—';
+      try{
+        if(typeof TILE_SCALE === 'number' && typeof PZ !== 'undefined' && PZ){
+          var bankCount = PZ.bank.length;
+          var baseSize = bankCount>25 ? 32 : bankCount>15 ? 38 : 44;
+          var baseFont = bankCount>25 ? 13 : bankCount>15 ? 15 : 18;
+          tilePx = Math.round(baseSize * TILE_SCALE) + 'px';
+          fontPx = Math.round(baseFont * TILE_SCALE) + 'px';
+        }
+      }catch(_){}
+      _sizeReadout.innerHTML =
+        Math.round(pct) + '%<br>'+
+        '<span style="color:rgba(255,255,255,0.7);font-size:9px;font-weight:400;letter-spacing:0;">'+tilePx+' / '+fontPx+'</span>';
+    }
+    // Initial render — populate immediately so it's not blank on load.
+    _updateSizeReadout();
+    // [v2.53/v2.56] Globally exposed so applyPctH (and the canvasWrap
+    // touch handlers) can refresh the readout. The earlier sl.input
+    // listener never actually fires during a touch drag because the
+    // canvasWrap touchmove handler sets sl.value directly (programmatic
+    // value changes don't fire input events). Putting the refresh hook
+    // on window means EVERY pathway that changes the size triggers it.
+    window._equilUpdateSizeReadout = _updateSizeReadout;
+    // Show/hide hooks kept for backward compat with older callers but
+    // are now no-ops since the readout is always visible.
+    window._equilShowSizeReadout = function(){};
+    window._equilHideSizeReadout = function(){};
     sl.addEventListener('touchstart',function(){ _lockScroll(); },{passive:true});
     sl.addEventListener('touchend',function(){ _unlockScroll(); },{passive:true});
     sl.addEventListener('touchcancel',function(){ _unlockScroll(); },{passive:true});
@@ -9658,8 +10541,17 @@ if(document.readyState==='loading'){
       } else {
         // Puzzle mode: drive TILE_SCALE directly
         if(window.applyPctH) window.applyPctH(pct);
+        // [v2.63] Save user-driven slider position under the current
+        // display mode, so switching modes restores it later.
+        if(typeof window._tuningSaveSliderPos === 'function'
+           && typeof window._tuningPersistMode === 'function'){
+          try{ window._tuningSaveSliderPos(window._tuningPersistMode(), pct); }catch(_){}
+        }
       }
       _drawVertPair(cv,hcv,pct/100);
+      // [v2.51] Refresh the floating size readout if it's currently
+      // visible (i.e. user is mid-slide).
+      if(_sizeReadout.style.display !== 'none') _updateSizeReadout();
     });
     canvasWrap.appendChild(sl);
     wrap.appendChild(canvasWrap);
@@ -9778,21 +10670,22 @@ if(document.readyState==='loading'){
       // TILE_GAP_MULT, and the renderBank in sync. _drawVertPair updates
       // the canvas track + handle position to match.
       if(turningOn){
-        // Max size, zero gap. Don't trigger the slider's input handler
-        // (which would call applyPctH inside its SEQ-mode branch);
-        // instead drive the apply helpers directly.
-        sl.value = 39;
+        // [v2.62] Default to slider 50% (was 39%) — 50 lands on the
+        // "Default" anchor in the new tuning system, which is where
+        // the user's dialed-in default values for the active mode
+        // get applied.
+        sl.value = 50;
         slGap.value = 25;
-        if(window.applyPctH) window.applyPctH(39);
+        if(window.applyPctH) window.applyPctH(50);
         if(window.applyGapPct) window.applyGapPct(25);
-        _drawVertPair(cv, hcv, 0.39);
+        _drawVertPair(cv, hcv, 0.50);
         _drawVertPair(cvGap, hcvGap, 0.25);
       } else {
         // Restore prior slider state. Fall back to defaults if no
         // snapshot was captured (e.g. user enabled condense via
         // localStorage on a fresh load).
         var snap = window._condenseSliderSnapshot;
-        var sizePct = snap ? snap.size : 39;
+        var sizePct = snap ? snap.size : 50;
         var gapPct  = snap ? snap.gap  : 25;
         sl.value = sizePct;
         slGap.value = gapPct;
@@ -9896,15 +10789,16 @@ if(document.readyState==='loading'){
       if(window._btnFx) window._btnFx(turningOn ? 'tool_on' : 'tool_off');
       // Apply slider changes (same logic as xN toggle).
       if(turningOn){
-        sl.value = 39;
+        // [v2.62] Default to 50 — see xN toggle above for rationale.
+        sl.value = 50;
         slGap.value = 25;
-        if(window.applyPctH) window.applyPctH(39);
+        if(window.applyPctH) window.applyPctH(50);
         if(window.applyGapPct) window.applyGapPct(25);
-        _drawVertPair(cv, hcv, 0.39);
+        _drawVertPair(cv, hcv, 0.50);
         _drawVertPair(cvGap, hcvGap, 0.25);
       } else {
         var snap2 = window._condenseSliderSnapshot;
-        var sizePct2 = snap2 ? snap2.size : 39;
+        var sizePct2 = snap2 ? snap2.size : 50;
         var gapPct2  = snap2 ? snap2.gap  : 25;
         sl.value = sizePct2;
         slGap.value = gapPct2;
@@ -10006,10 +10900,15 @@ if(document.readyState==='loading'){
       _paintCyanBtn();
       if(window._btnFx) window._btnFx(turningOn ? 'tool_on' : 'tool_off');
       if(turningOn){
-        sl.value = 39;
+        // [v2.62] Default to 50 to match new tuning anchor system.
+        sl.value = 50;
         slGap.value = 25;
-        TILE_SCALE = 1.11;       // matches applyPctH(39) on v2.41 formula: 0.3 + 0.39*2.1 ≈ 1.119
-        TILE_GAP_MULT = 0.75;    // matches applyGapPct(25): 25/33.33
+        // Note: cyan mode doesn't have anchor data yet (per user),
+        // so the legacy direct TILE_SCALE assignment is preserved
+        // for cyan specifically. _tuningApplyAll will fall through
+        // to the off-mode anchors which approximate the old visual.
+        if(window.applyPctH) window.applyPctH(50);
+        if(window.applyGapPct) window.applyGapPct(25);
         var sizePct1 = parseFloat(sl.value) || 0;
         var gapPct1 = parseFloat(slGap.value) || 0;
         _drawVertPair(cv, hcv, sizePct1/100);
@@ -10069,6 +10968,11 @@ if(document.readyState==='loading'){
       e.preventDefault();
       _drag=true; _sy=e.touches[0].clientY; _sp=parseFloat(sl.value);
       _lockScroll();
+      // [v2.53] Show the size readout overlay during canvas drag.
+      // The slider's own touchstart handler already does this, but
+      // touches on the canvas don't propagate to the input element,
+      // so we duplicate the call here.
+      if(window._equilShowSizeReadout) window._equilShowSizeReadout();
     },{passive:false});
     canvasWrap.addEventListener('touchmove',function(e){
       if(!_drag) return;
@@ -10085,11 +10989,29 @@ if(document.readyState==='loading'){
         if(window._syncPadAdjSize) window._syncPadAdjSize(newPct);
       } else {
         if(window.applyPctH) window.applyPctH(newPct);
+        // [v2.63] Save user-driven slider position under the current
+        // display mode (puzzle mode only — SEQ mode has its own
+        // independent state).
+        if(typeof window._tuningSaveSliderPos === 'function'
+           && typeof window._tuningPersistMode === 'function'){
+          try{ window._tuningSaveSliderPos(window._tuningPersistMode(), newPct); }catch(_){}
+        }
       }
       _drawVertPair(cv,hcv,newPct/100);
+      // [v2.53] Refresh the readout. applyPctH already calls this
+      // hook (so SEQ-mode also works since renderBank is called),
+      // but we call it explicitly here in case the early-return
+      // paths skip applyPctH.
+      if(window._equilUpdateSizeReadout) window._equilUpdateSizeReadout();
     },{passive:false});
-    canvasWrap.addEventListener('touchend',function(){ _drag=false; _unlockScroll(); },{passive:true});
-    canvasWrap.addEventListener('touchcancel',function(){ _drag=false; _unlockScroll(); },{passive:true});
+    canvasWrap.addEventListener('touchend',function(){
+      _drag=false; _unlockScroll();
+      if(window._equilHideSizeReadout) window._equilHideSizeReadout();
+    },{passive:true});
+    canvasWrap.addEventListener('touchcancel',function(){
+      _drag=false; _unlockScroll();
+      if(window._equilHideSizeReadout) window._equilHideSizeReadout();
+    },{passive:true});
 
     // Touch drag — GAP
     var _gDrag=false, _gSy=0, _gSp=33;
@@ -10227,6 +11149,33 @@ if(document.readyState==='loading'){
         }
         _refreshModeBtnStates();
         setTimeout(_refreshModeBtnStates, 50);
+        // [v2.59] If the modal is open, rebuild the spacing-slider
+        // set so it reflects the newly-active display mode (xN, mini,
+        // or cyan/none).
+        if(typeof window._equilRebuildXnSpacingSliders === 'function'){
+          try{ window._equilRebuildXnSpacingSliders(); }catch(_){}
+        }
+        // [v2.62/v2.63] Re-apply the tuning system at the new mode's
+        // remembered slider position. The toggle handler set the
+        // slider to 50% (the default anchor), but if the user has
+        // previously set the slider to a different position in this
+        // mode, we want to restore THAT position instead.
+        // Falls back to whatever the slider currently is if no
+        // remembered position exists for this mode.
+        try{
+          var sl = document.querySelector('#sizeCanvasInner input[type=range]');
+          if(sl && typeof window.applyPctH === 'function'){
+            var newPct;
+            if(typeof window._tuningLoadSliderPos === 'function'
+               && typeof window._tuningPersistMode === 'function'){
+              var saved = window._tuningLoadSliderPos(window._tuningPersistMode());
+              newPct = (typeof saved === 'number') ? saved : parseFloat(sl.value);
+            } else {
+              newPct = parseFloat(sl.value);
+            }
+            if(!isNaN(newPct)) window.applyPctH(newPct);
+          }
+        }catch(_){}
       });
     }
     _relay(modeXn,   '_equilToggleCondense');
@@ -10249,6 +11198,231 @@ if(document.readyState==='loading'){
     setInterval(_refreshModeBtnStates, 500);
 
     // ── ADJUST modal ──
+    // [v2.52] Build the xN tile spacing sliders into the modal once,
+    // here during wiring. Two horizontal sliders: White top offset
+    // and Number gap. Both percentages of tile size, applied via the
+    // same _applyTuning + _saveOpts code path as the OPTIONS panel.
+    // The xN spacing settings only visibly affect xN-mode tiles, but
+    // we always show the sliders so the user can find them — they
+    // just have no visual effect when xN mode isn't active.
+    var xnSpacingBox = document.getElementById('tileAdjustModalXnSpacing');
+    if(xnSpacingBox){
+      // Defaults — must match the DEF block in the OPTIONS-panel IIFE.
+      var XN_TOP_DEFAULT = 4;
+      var XN_GAP_DEFAULT = 0;
+      var XN_WMULT_DEFAULT = 1.0;
+      var XN_CMULT_DEFAULT = 1.0;
+      // [v2.57] Mini-mode defaults — parallel to xN.
+      var MINI_TOP_DEFAULT     = 6;
+      var MINI_GAP_DEFAULT     = 0;
+      var MINI_ROWGAP_DEFAULT  = 0.5;
+      var MINI_COLGAP_DEFAULT  = 0.5;
+      var MINI_WMULT_DEFAULT   = 1.0;
+      var MINI_CMULT_DEFAULT   = 1.0;
+
+      // [v2.62] Slider registry — every _buildXnSlider call pushes
+      // (input, val, getter, suffix) so the size slider's tuning
+      // system can refresh knob positions when it interpolates new
+      // values. Cleared at the start of each _rebuildXnSpacingSliders.
+      var _advancedSliderRegistry = [];
+
+      function _buildXnSlider(label, getter, setter, min, max, step, suffix){
+        suffix = suffix || ' %';
+        var row = document.createElement('div');
+        row.style.cssText =
+          'display:flex;flex-direction:column;gap:2px;'+
+          'padding:4px 6px;background:rgba(0,0,0,0.25);'+
+          'border-radius:4px;';
+        var hdr = document.createElement('div');
+        hdr.style.cssText =
+          'display:flex;justify-content:space-between;align-items:baseline;'+
+          'font-family:IBM Plex Mono,monospace;font-size:9.5px;'+
+          'color:rgba(255,255,255,0.7);letter-spacing:0.5px;';
+        var lbl = document.createElement('span');
+        lbl.textContent = label;
+        var val = document.createElement('span');
+        val.style.cssText = 'color:#a855f7;font-weight:700;';
+        val.textContent = getter().toFixed(2) + suffix;
+        hdr.appendChild(lbl);
+        hdr.appendChild(val);
+        var input = document.createElement('input');
+        input.type = 'range';
+        input.min = min; input.max = max; input.step = step;
+        input.value = getter();
+        input.style.cssText =
+          'width:100%;accent-color:#a855f7;';
+        input.addEventListener('input', function(){
+          var v = parseFloat(input.value);
+          setter(v);
+          val.textContent = v.toFixed(2) + suffix;
+          // Apply (re-render bank) + persist to localStorage.
+          if(typeof window._equilApplyTuning === 'function') window._equilApplyTuning();
+          if(typeof window._equilSaveOpts === 'function') window._equilSaveOpts();
+        });
+        row.appendChild(hdr);
+        row.appendChild(input);
+        // Register for size-slider-driven refresh.
+        _advancedSliderRegistry.push({input: input, val: val, getter: getter, suffix: suffix});
+        return row;
+      }
+
+      // [v2.62] Expose the registry-refresh function on window so the
+      // tuning system can pull slider knobs to interpolated values
+      // when the size slider moves.
+      window._equilRefreshAdvancedKnobs = function(){
+        for(var i = 0; i < _advancedSliderRegistry.length; i++){
+          var s = _advancedSliderRegistry[i];
+          try{
+            var v = s.getter();
+            if(typeof v === 'number' && !isNaN(v)){
+              s.input.value = v;
+              s.val.textContent = v.toFixed(2) + s.suffix;
+            }
+          }catch(_){}
+        }
+      };
+
+      // [v2.57] Build the appropriate slider set based on which display
+      // mode is currently active. xN and mini have parallel concepts
+      // but separately persisted values (so they can be tuned
+      // independently). Called from _openModal so the user always
+      // sees the relevant set when they open ADJUST.
+      function _rebuildXnSpacingSliders(){
+        xnSpacingBox.innerHTML = '';
+        // [v2.62] Clear the slider registry; new slider set's
+        // refresh hooks will be re-registered as _buildXnSlider runs.
+        _advancedSliderRegistry.length = 0;
+        var isMini = !!window._miniPuzzleTiles && !window._allCyanPuzzleTiles;
+        var isXn   = !!window._condensePuzzleTiles && !window._miniPuzzleTiles && !window._allCyanPuzzleTiles;
+        // [v2.59] Hide the ADVANCED toggle entirely in cyan or
+        // no-mode states — those modes don't have any tunable
+        // spacing/font sliders. The toggle reappears when the user
+        // switches to xN or mini.
+        var advBtn = document.getElementById('tileAdjustModalAdvancedToggle');
+        if(advBtn){
+          if(isMini || isXn){
+            advBtn.style.display = '';
+          } else {
+            advBtn.style.display = 'none';
+            // Also collapse any open-state if the user switches to
+            // a no-advanced mode while it was expanded.
+            xnSpacingBox.classList.remove('expanded');
+          }
+        }
+        if(!isMini && !isXn){
+          // Cyan / none — nothing to show in the advanced area.
+          return;
+        }
+        // Header label so the user knows which mode they're tuning.
+        var modeLabel = document.createElement('div');
+        modeLabel.style.cssText =
+          'font-family:IBM Plex Mono,monospace;font-size:9px;font-weight:700;'+
+          'color:rgba(168,85,247,0.7);letter-spacing:1.5px;text-align:center;'+
+          'padding:2px 0;';
+        if(isMini){
+          modeLabel.textContent = '#### MODE TUNING';
+        } else {
+          modeLabel.textContent = 'xN MODE TUNING';
+        }
+        xnSpacingBox.appendChild(modeLabel);
+
+        if(isMini){
+          // ── Mini-mode sliders ──
+          xnSpacingBox.appendChild(_buildXnSlider(
+            'WHITE TOP OFFSET',
+            function(){ return (typeof window._optMiniTopPct==='number') ? window._optMiniTopPct : MINI_TOP_DEFAULT; },
+            function(v){ window._optMiniTopPct = v; },
+            -20, 20, 0.5
+          ));
+          xnSpacingBox.appendChild(_buildXnSlider(
+            'NUMBER GAP',
+            function(){ return (typeof window._optMiniGapPct==='number') ? window._optMiniGapPct : MINI_GAP_DEFAULT; },
+            function(v){ window._optMiniGapPct = v; },
+            -30, 30, 0.5
+          ));
+          xnSpacingBox.appendChild(_buildXnSlider(
+            'ROW SPACING',
+            function(){ return (typeof window._optMiniRowGapPct==='number') ? window._optMiniRowGapPct : MINI_ROWGAP_DEFAULT; },
+            function(v){ window._optMiniRowGapPct = v; },
+            // [v2.58] Range -10 to +5. Negative pulls cyan rows
+            // closer / overlapping (via per-item negative margin
+            // since CSS gap clamps negatives to 0). User typically
+            // tunes around 0 to small positive values; negative is
+            // for tightening dense grids.
+            -10, 5, 0.25
+          ));
+          xnSpacingBox.appendChild(_buildXnSlider(
+            'COLUMN SPACING',
+            function(){ return (typeof window._optMiniColGapPct==='number') ? window._optMiniColGapPct : MINI_COLGAP_DEFAULT; },
+            function(v){ window._optMiniColGapPct = v; },
+            -10, 5, 0.25
+          ));
+          xnSpacingBox.appendChild(_buildXnSlider(
+            'WHITE FONT SIZE',
+            function(){ return (typeof window._optMiniWhiteMult==='number') ? window._optMiniWhiteMult : MINI_WMULT_DEFAULT; },
+            function(v){ window._optMiniWhiteMult = v; },
+            // [v2.61] Max bumped from 2.0 to 3.0 for mini mode —
+            // the white digit is the only visible text in
+            // single-instance tiles and benefits from being more
+            // prominent. Cyan max stays at 2.0 since the cyan grid
+            // doesn't need to go that big.
+            0.3, 3.0, 0.05, ' ×'
+          ));
+          xnSpacingBox.appendChild(_buildXnSlider(
+            'CYAN FONT SIZE',
+            function(){ return (typeof window._optMiniCyanMult==='number') ? window._optMiniCyanMult : MINI_CMULT_DEFAULT; },
+            function(v){ window._optMiniCyanMult = v; },
+            0.3, 2.0, 0.05, ' ×'
+          ));
+        } else {
+          // ── xN-mode sliders ──
+          xnSpacingBox.appendChild(_buildXnSlider(
+            'WHITE TOP OFFSET',
+            function(){ return (typeof window._optXnTopPct==='number') ? window._optXnTopPct : XN_TOP_DEFAULT; },
+            function(v){ window._optXnTopPct = v; },
+            -20, 20, 0.5
+          ));
+          xnSpacingBox.appendChild(_buildXnSlider(
+            'NUMBER GAP',
+            function(){ return (typeof window._optXnGapPct==='number') ? window._optXnGapPct : XN_GAP_DEFAULT; },
+            function(v){ window._optXnGapPct = v; },
+            -30, 30, 0.5
+          ));
+          xnSpacingBox.appendChild(_buildXnSlider(
+            'WHITE FONT SIZE',
+            function(){ return (typeof window._optXnWhiteMult==='number') ? window._optXnWhiteMult : XN_WMULT_DEFAULT; },
+            function(v){ window._optXnWhiteMult = v; },
+            0.3, 2.0, 0.05, ' ×'
+          ));
+          xnSpacingBox.appendChild(_buildXnSlider(
+            'CYAN FONT SIZE',
+            function(){ return (typeof window._optXnCyanMult==='number') ? window._optXnCyanMult : XN_CMULT_DEFAULT; },
+            function(v){ window._optXnCyanMult = v; },
+            0.3, 2.0, 0.05, ' ×'
+          ));
+        }
+        // [v2.65] Append a drag-handle area at the bottom of the
+        // panel — same horizontal-line pattern as the bottom drag
+        // strips flanking DONE. Both modes get the same compact
+        // area now (panel no longer stretches to match main box
+        // height, so xN's previously-large empty space is gone).
+        var advDragArea = document.createElement('div');
+        advDragArea.className = 'tileAdjustAdvancedDragArea';
+        xnSpacingBox.appendChild(advDragArea);
+        // Wire drag if the helper has been exposed yet. If not
+        // (this is the initial build called before modal wiring
+        // runs), the modal wiring will pick it up via the same
+        // hook on its first execution.
+        if(typeof window._equilWireAdvancedDragArea === 'function'){
+          window._equilWireAdvancedDragArea(advDragArea);
+        }
+      }
+      // Initial build (for first-open before mode toggles).
+      _rebuildXnSpacingSliders();
+      // Expose so _openModal can rebuild based on current mode.
+      window._equilRebuildXnSpacingSliders = _rebuildXnSpacingSliders;
+    }
+
     var _origParent = null; // remember where #sizeCanvasWrap was
     var _origNextSibling = null;
     function _openModal(){
@@ -10257,6 +11431,13 @@ if(document.readyState==='loading'){
         _origParent = wrap.parentNode;
         _origNextSibling = wrap.nextSibling;
         modalSliders.appendChild(wrap);
+      }
+      // [v2.57] Rebuild the spacing sliders to match the active
+      // display mode. xN and mini have parallel concepts but
+      // separately persisted values; the rebuild swaps which
+      // slider set is shown.
+      if(typeof window._equilRebuildXnSpacingSliders === 'function'){
+        try{ window._equilRebuildXnSpacingSliders(); }catch(_){}
       }
       modal.classList.add('open');
       // [v2.16] Mark the button active so it picks up the purple
@@ -10288,6 +11469,215 @@ if(document.readyState==='loading'){
     modal.addEventListener('click', function(e){
       if(e.target === modal) _closeModal();
     });
+
+    // ── [v2.59/v2.60] DRAG SUPPORT FOR MODAL ──
+    // The modal can be dragged anywhere on screen via the two
+    // drag handles flanking the DONE button. Position persists in
+    // localStorage across sessions. Wind sound (same one the
+    // floating pill uses) plays during drag past the threshold.
+    // [v2.60] Position is set on the OUTER wrapper (which contains
+    // both the main box AND the side-extending advanced panel as
+    // flex siblings), so dragging moves both pieces together.
+    // Clamping uses the main box's dimensions, not the wrapper's,
+    // so the user-visible "modal" stays on screen even if the
+    // advanced panel extends off the right edge.
+    var outer = document.getElementById('tileAdjustModalOuter');
+    var box   = document.getElementById('tileAdjustModalBox');
+    var dragHandles = document.querySelectorAll('.tileAdjustDragHandle');
+    var POS_KEY = 'equilTileAdjustModalPos';
+    var DRAG_THRESH = 6;
+    var _modalLastLeft = null;
+    var _modalLastTop  = null;
+    function _loadModalPos(){
+      try{
+        var raw = localStorage.getItem(POS_KEY);
+        if(!raw) return;
+        var p = JSON.parse(raw);
+        if(typeof p.left === 'number' && typeof p.top === 'number'){
+          _modalLastLeft = p.left;
+          _modalLastTop  = p.top;
+        }
+      }catch(_){}
+    }
+    function _saveModalPos(){
+      try{
+        if(_modalLastLeft === null || _modalLastTop === null) return;
+        localStorage.setItem(POS_KEY, JSON.stringify({
+          left: _modalLastLeft, top: _modalLastTop
+        }));
+      }catch(_){}
+    }
+    function _clampPos(x, y){
+      // [v2.60] Clamp using MAIN BOX dimensions, not the outer
+      // wrapper. The advanced panel can extend off the right edge
+      // (that's the whole point of the side-extending design — it
+      // covers the puzzle area which the user said they don't care
+      // about). Keep at least 60px of the main box visible from
+      // each side of the screen, top stays at 0+, and 40px stays
+      // visible from the bottom.
+      var bw = box.offsetWidth  || 240;
+      var bh = box.offsetHeight || 200;
+      var minX = -(bw - 60);
+      var maxX = window.innerWidth - 60;
+      var minY = 0;
+      var maxY = window.innerHeight - 40;
+      return {
+        x: Math.max(minX, Math.min(maxX, x)),
+        y: Math.max(minY, Math.min(maxY, y))
+      };
+    }
+    function _applyModalPos(){
+      if(_modalLastLeft === null || _modalLastTop === null) return;
+      var p = _clampPos(_modalLastLeft, _modalLastTop);
+      outer.style.left = p.x + 'px';
+      outer.style.top  = p.y + 'px';
+    }
+    function _setDefaultModalPos(){
+      // Default placement: horizontally centered, near top of screen.
+      // Wait for the box to have layout dimensions before computing
+      // — defer to next frame if not yet measurable.
+      var bw = box.offsetWidth;
+      var bh = box.offsetHeight;
+      if(bw < 10 || bh < 10){
+        requestAnimationFrame(_setDefaultModalPos);
+        return;
+      }
+      _modalLastLeft = Math.round((window.innerWidth - bw) / 2);
+      _modalLastTop  = 16;
+      _applyModalPos();
+    }
+    _loadModalPos();
+
+    // Patch _openModal to apply remembered position (or default).
+    var _origOpenModal = _openModal;
+    _openModal = function(){
+      _origOpenModal();
+      // Position must be set after the modal is shown so offsetWidth
+      // is non-zero.
+      requestAnimationFrame(function(){
+        if(_modalLastLeft === null || _modalLastTop === null){
+          _setDefaultModalPos();
+        } else {
+          _applyModalPos();
+        }
+      });
+    };
+    // Re-bind the open handler so the new patched function is the
+    // one called by the ADJUST button (the addEventListener call
+    // above captured the old reference).
+    // [v2.64] The button now TOGGLES the modal — open if closed,
+    // close if open. Lets the user dismiss with the same button
+    // they opened it with, for fewer round trips when iterating
+    // on tile look settings. The DONE button still works for
+    // close as well.
+    adjustBtn.removeEventListener('click', _origOpenModal);
+    function _toggleModal(){
+      if(modal.classList.contains('open')){
+        _closeModal();
+      } else {
+        _openModal();
+      }
+    }
+    adjustBtn.addEventListener('click', _toggleModal);
+
+    // ── Drag handler wiring on each drag handle ──
+    function _attachDrag(handle){
+      var dragging = false;
+      var moved = false;
+      var grabDx = 0, grabDy = 0;
+      var startX = 0, startY = 0;
+      handle.addEventListener('touchstart', function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        var t = e.touches[0];
+        // [v2.60] Read position from the OUTER wrapper since that's
+        // the element that's positioned. The main box's getBoundingClientRect
+        // would give the same left/top (since it's the first flex child)
+        // but the wrapper's is more semantically correct.
+        var r = outer.getBoundingClientRect();
+        grabDx = t.clientX - r.left;
+        grabDy = t.clientY - r.top;
+        startX = r.left; startY = r.top;
+        dragging = true; moved = false;
+      }, {passive:false});
+      handle.addEventListener('touchmove', function(e){
+        if(!dragging) return;
+        e.preventDefault();
+        var t = e.touches[0];
+        if(!moved){
+          if(Math.abs(t.clientX - grabDx - startX) > DRAG_THRESH
+             || Math.abs(t.clientY - grabDy - startY) > DRAG_THRESH){
+            moved = true;
+            // Wind sound — same as the floating pill drag.
+            var w = (window._dragWind || null); if(w) w.start();
+          }
+        }
+        var nx = t.clientX - grabDx;
+        var ny = t.clientY - grabDy;
+        var p = _clampPos(nx, ny);
+        outer.style.left = p.x + 'px';
+        outer.style.top  = p.y + 'px';
+        _modalLastLeft = p.x;
+        _modalLastTop  = p.y;
+      }, {passive:false});
+      function _endDrag(){
+        if(dragging && moved){
+          var w = (window._dragWind || null); if(w) w.stop();
+          _saveModalPos();
+        }
+        dragging = false;
+        moved = false;
+      }
+      handle.addEventListener('touchend',    _endDrag, {passive:true});
+      handle.addEventListener('touchcancel', _endDrag, {passive:true});
+    }
+    dragHandles.forEach(_attachDrag);
+    // [v2.64] Also attach drag to the title bar — it's a much larger
+    // grab target than the slim handles flanking the DONE button,
+    // and now that the ADVANCED panel slides out to the SIDE (not
+    // down), the modal stays short enough that the title is always
+    // a comfortable thumb reach near the top edge of the modal.
+    var titleEl = document.getElementById('tileAdjustModalTitle');
+    if(titleEl) _attachDrag(titleEl);
+    // [v2.65] Expose the drag attach so the advanced-panel rebuild
+    // can wire its own bottom drag area each time the panel rebuilds.
+    window._equilWireAdvancedDragArea = _attachDrag;
+    // Wire any drag area created during the initial build (which
+    // happened before _attachDrag was exposed).
+    var existingAdvDrag = document.querySelector('.tileAdjustAdvancedDragArea');
+    if(existingAdvDrag) _attachDrag(existingAdvDrag);
+
+    // ── ADVANCED toggle wiring ──
+    // Toggles a CSS class on #tileAdjustModalXnSpacing that triggers
+    // the slide-down animation. Arrow rotates ▶ → ▼ on expand. State
+    // persisted so the user's preference sticks across sessions.
+    var advBtn  = document.getElementById('tileAdjustModalAdvancedToggle');
+    var advBox  = xnSpacingBox; // the spacing-sliders container
+    var advArrowSpan = advBtn ? advBtn.querySelector('.arrow') : null;
+    var ADV_KEY = 'equilTileAdjustAdvancedExpanded';
+    function _setAdvancedState(expanded){
+      if(!advBox) return;
+      if(expanded){
+        advBox.classList.add('expanded');
+        if(advArrowSpan) advArrowSpan.textContent = '▼';
+      } else {
+        advBox.classList.remove('expanded');
+        if(advArrowSpan) advArrowSpan.textContent = '▶';
+      }
+      try{ localStorage.setItem(ADV_KEY, expanded ? '1' : '0'); }catch(_){}
+    }
+    // Restore previous state.
+    try{
+      var savedAdv = localStorage.getItem(ADV_KEY);
+      if(savedAdv === '1') _setAdvancedState(true);
+    }catch(_){}
+    if(advBtn){
+      advBtn.addEventListener('click', function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        _setAdvancedState(!advBox.classList.contains('expanded'));
+      });
+    }
   }
   if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', _wireWhenReady);
@@ -12130,7 +13520,43 @@ if(shareBtn){
     //   start a drag.
     dragTiles:      false,
     bankPadWidth:   40,         // px, when dragTiles is ON
-    bankPadSide:    'both'      // 'both' | 'left' | 'right'
+    bankPadSide:    'both',     // 'both' | 'left' | 'right'
+    // [v2.51] xN-mode spacing tunables. Both expressed as percentages
+    // of tileSize so they scale proportionally as the tile grows or
+    // shrinks via the size slider.
+    //   xnTopPct: distance from tile's top border to the white digit.
+    //     Default 4% matches the legacy padTop calculation.
+    //   xnGapPct: distance between the white digit's bottom and the
+    //     cyan ×N's top. Default 0% lets the cyan sit immediately
+    //     under the white. Whatever space remains below the cyan is
+    //     visual breathing room before the bottom border.
+    xnTopPct:       4,
+    xnGapPct:       0,
+    // [v2.54] Font size multipliers, applied on top of the existing
+    // automatic per-tile-size font calculations. xnWhiteMult of 1.0
+    // means "use the current formula unchanged" (whiteFont =
+    // tileFontSize * 1.6). xnCyanMult of 1.0 means cyan stays at
+    // 0.6× of the white font. Adjust to dial in proportions per
+    // display mode without touching tile size.
+    xnWhiteMult:    1.0,
+    xnCyanMult:     1.0,
+    // [v2.57] Mini-mode (####) tuning settings — parallel to the xN
+    // settings but separately persisted so each display mode can be
+    // dialed in independently. Mini mode has a grid of cyan numbers
+    // below the white digit, so it ALSO has row/column spacing
+    // controls that xN doesn't need.
+    //   miniTopPct: white digit's distance from top border (% of tileSize)
+    //   miniGapPct: gap from white digit's bottom to first cyan row
+    //   miniRowGapPct: vertical gap between cyan rows (% of tileSize)
+    //   miniColGapPct: horizontal gap between cyan columns
+    //   miniWhiteMult: multiplier on the white font (default = tileFontSize)
+    //   miniCyanMult:  multiplier on the cyan grid font
+    miniTopPct:     6,
+    miniGapPct:     0,
+    miniRowGapPct:  0.5,
+    miniColGapPct:  0.5,
+    miniWhiteMult:  1.0,
+    miniCyanMult:   1.0
   };
 
   // ── Load saved options (apply to globals) ──
@@ -12153,6 +13579,21 @@ if(shareBtn){
     window._dragTilesEnabled = (typeof window._optDragTiles==='boolean') ? window._optDragTiles : DEF.dragTiles;
     window._bankPadWidth     = (typeof window._optBankPadWidth==='number') ? window._optBankPadWidth : DEF.bankPadWidth;
     window._bankPadSide      = (typeof window._optBankPadSide==='string') ? window._optBankPadSide : DEF.bankPadSide;
+    // [v2.51] xN spacing tunables — used inside renderBank's xN block
+    // to position the white digit and cyan ×N badge.
+    window._xnTopPct = (typeof window._optXnTopPct==='number') ? window._optXnTopPct : DEF.xnTopPct;
+    window._xnGapPct = (typeof window._optXnGapPct==='number') ? window._optXnGapPct : DEF.xnGapPct;
+    // [v2.54] Font multipliers — read by renderBank when computing
+    // _whiteFont and the cyan mulSize.
+    window._xnWhiteMult = (typeof window._optXnWhiteMult==='number') ? window._optXnWhiteMult : DEF.xnWhiteMult;
+    window._xnCyanMult  = (typeof window._optXnCyanMult ==='number') ? window._optXnCyanMult  : DEF.xnCyanMult;
+    // [v2.57] Mini-mode settings.
+    window._miniTopPct    = (typeof window._optMiniTopPct   ==='number') ? window._optMiniTopPct    : DEF.miniTopPct;
+    window._miniGapPct    = (typeof window._optMiniGapPct   ==='number') ? window._optMiniGapPct    : DEF.miniGapPct;
+    window._miniRowGapPct = (typeof window._optMiniRowGapPct==='number') ? window._optMiniRowGapPct : DEF.miniRowGapPct;
+    window._miniColGapPct = (typeof window._optMiniColGapPct==='number') ? window._optMiniColGapPct : DEF.miniColGapPct;
+    window._miniWhiteMult = (typeof window._optMiniWhiteMult==='number') ? window._optMiniWhiteMult : DEF.miniWhiteMult;
+    window._miniCyanMult  = (typeof window._optMiniCyanMult ==='number') ? window._optMiniCyanMult  : DEF.miniCyanMult;
     // Re-render the bank if the puzzle is loaded so the padding
     // change takes effect right away.
     try{ if(typeof renderBank === 'function' && typeof PZ !== 'undefined' && PZ) renderBank(); }catch(_){}
@@ -12177,6 +13618,19 @@ if(shareBtn){
       if(typeof o.dragTiles    ==='boolean') window._optDragTiles      = o.dragTiles;
       if(typeof o.bankPadWidth ==='number')  window._optBankPadWidth   = o.bankPadWidth;
       if(typeof o.bankPadSide  ==='string')  window._optBankPadSide    = o.bankPadSide;
+      // [v2.51] xN spacing
+      if(typeof o.xnTopPct     ==='number')  window._optXnTopPct       = o.xnTopPct;
+      if(typeof o.xnGapPct     ==='number')  window._optXnGapPct       = o.xnGapPct;
+      // [v2.54] xN font multipliers
+      if(typeof o.xnWhiteMult  ==='number')  window._optXnWhiteMult    = o.xnWhiteMult;
+      if(typeof o.xnCyanMult   ==='number')  window._optXnCyanMult     = o.xnCyanMult;
+      // [v2.57] mini-mode settings
+      if(typeof o.miniTopPct    ==='number') window._optMiniTopPct     = o.miniTopPct;
+      if(typeof o.miniGapPct    ==='number') window._optMiniGapPct     = o.miniGapPct;
+      if(typeof o.miniRowGapPct ==='number') window._optMiniRowGapPct  = o.miniRowGapPct;
+      if(typeof o.miniColGapPct ==='number') window._optMiniColGapPct  = o.miniColGapPct;
+      if(typeof o.miniWhiteMult ==='number') window._optMiniWhiteMult  = o.miniWhiteMult;
+      if(typeof o.miniCyanMult  ==='number') window._optMiniCyanMult   = o.miniCyanMult;
     }catch(e){}
     _applyTuning();
   }
@@ -12196,7 +13650,20 @@ if(shareBtn){
         // [v2.44] drag-tiles + bank padding
         dragTiles:      (typeof window._optDragTiles    ==='boolean') ? window._optDragTiles    : DEF.dragTiles,
         bankPadWidth:   (typeof window._optBankPadWidth ==='number')  ? window._optBankPadWidth : DEF.bankPadWidth,
-        bankPadSide:    (typeof window._optBankPadSide  ==='string')  ? window._optBankPadSide  : DEF.bankPadSide
+        bankPadSide:    (typeof window._optBankPadSide  ==='string')  ? window._optBankPadSide  : DEF.bankPadSide,
+        // [v2.51] xN spacing
+        xnTopPct:       (typeof window._optXnTopPct     ==='number')  ? window._optXnTopPct     : DEF.xnTopPct,
+        xnGapPct:       (typeof window._optXnGapPct     ==='number')  ? window._optXnGapPct     : DEF.xnGapPct,
+        // [v2.54] xN font multipliers
+        xnWhiteMult:    (typeof window._optXnWhiteMult  ==='number')  ? window._optXnWhiteMult  : DEF.xnWhiteMult,
+        xnCyanMult:     (typeof window._optXnCyanMult   ==='number')  ? window._optXnCyanMult   : DEF.xnCyanMult,
+        // [v2.57] mini-mode settings
+        miniTopPct:     (typeof window._optMiniTopPct   ==='number')  ? window._optMiniTopPct    : DEF.miniTopPct,
+        miniGapPct:     (typeof window._optMiniGapPct   ==='number')  ? window._optMiniGapPct    : DEF.miniGapPct,
+        miniRowGapPct:  (typeof window._optMiniRowGapPct==='number')  ? window._optMiniRowGapPct : DEF.miniRowGapPct,
+        miniColGapPct:  (typeof window._optMiniColGapPct==='number')  ? window._optMiniColGapPct : DEF.miniColGapPct,
+        miniWhiteMult:  (typeof window._optMiniWhiteMult==='number')  ? window._optMiniWhiteMult : DEF.miniWhiteMult,
+        miniCyanMult:   (typeof window._optMiniCyanMult ==='number')  ? window._optMiniCyanMult  : DEF.miniCyanMult
       }));
     }catch(e){}
     _applyTuning();
@@ -12551,6 +14018,11 @@ if(shareBtn){
       ]
     ));
 
+    // [v2.52] xN tile spacing sliders moved to the TILE ADJUST modal
+    // — they belong with the size/gap sliders since they're all about
+    // tile appearance tuning, and the user is more likely to find
+    // them there when they're already adjusting how tiles look.
+
     // [v2.26] Debug section — snap velocity tuning sliders. The
     // velocity-gated magnet (v2.25) needs in-the-field tuning,
     // and the user is on mobile without console access. Sliders
@@ -12648,6 +14120,19 @@ if(shareBtn){
       window._optDragTiles    = DEF.dragTiles;
       window._optBankPadWidth = DEF.bankPadWidth;
       window._optBankPadSide  = DEF.bankPadSide;
+      // [v2.51] xN spacing reset
+      window._optXnTopPct     = DEF.xnTopPct;
+      window._optXnGapPct     = DEF.xnGapPct;
+      // [v2.54] xN font multipliers reset
+      window._optXnWhiteMult  = DEF.xnWhiteMult;
+      window._optXnCyanMult   = DEF.xnCyanMult;
+      // [v2.57] mini-mode reset
+      window._optMiniTopPct    = DEF.miniTopPct;
+      window._optMiniGapPct    = DEF.miniGapPct;
+      window._optMiniRowGapPct = DEF.miniRowGapPct;
+      window._optMiniColGapPct = DEF.miniColGapPct;
+      window._optMiniWhiteMult = DEF.miniWhiteMult;
+      window._optMiniCyanMult  = DEF.miniCyanMult;
       _applyTuning();
       _saveOpts();
       // Rebuild panel to reflect reset state
@@ -12686,6 +14171,13 @@ if(shareBtn){
 
   var optBtn = document.getElementById('optBtn');
   if(optBtn) optBtn.addEventListener('click', _openPanel);
+
+  // [v2.52] Expose tuning + save helpers so other parts of the app
+  // (e.g. the TILE ADJUST modal's xN spacing sliders) can update
+  // settings and have them applied + persisted via the same code
+  // path the OPTIONS panel uses.
+  window._equilApplyTuning = _applyTuning;
+  window._equilSaveOpts = _saveOpts;
 })();
 
 // [Equil 1.05] Removed: SEQUENCE BANK PANEL WIRING IIFE — A/B/C bank switching, slot grid, etc.
