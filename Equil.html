@@ -1,4 +1,710 @@
-<!-- Equil v2.65 | Built: 2026-05-04 CT | github.com/Spamboni
+<!-- Equil v2.98 | Built: 2026-05-04 CT | github.com/Spamboni
+     v2.98: Hid the four diagonal corner accents on .gscroll for
+     all puzzle sizes EXCEPT Jumbo (xl2-mode). The diagonals were
+     pixel-sized to land exactly on .grid-clip's outer outline
+     corners in the Jumbo layout (gscroll padding + grid-clip
+     offset positioning), where they "point at" the puzzle from
+     the panel corners. In Small / Medium / Large sizes the panel
+     is narrower than gscroll's max-width and the diagonals don't
+     align with anything — they read as decorative cruft.
+
+     Implementation: added display:none to the .gscroll::before
+     base rule, then re-enabled it under body.xl2-mode with a
+     more-specific selector. The SVG backgrounds and positioning
+     are otherwise unchanged so reverting is just removing the
+     two new lines.
+
+     v2.97: Removed the WIN! debug button from the masthead (added
+     in v2.84). Win sequence is dialed in — wave timing, particle
+     bursts, fanfare rhythm, win card emergence — so the on-screen
+     tester no longer earns its real estate. Both the button HTML
+     and its click-handler IIFE are gone.
+
+     Kept in place across the codebase:
+       - The {skipRecord:true} flag on _showWinCard (added v2.84)
+         — costs nothing, easy revival hook.
+       - All the underlying win-wave machinery
+         (_winWaveSequence, _winBurstTile,
+          _winSpawnParticlesFromTile, .bursting CSS) — fires on
+         actual solves now and stays untouched.
+
+     Visible difference: masthead right side is back to just
+     [New] [⚙] with no magenta WIN! between them.
+
+     v2.96: Two follow-ups to the v2.94/v2.95 stats overlay work.
+
+     1. Toast pill (#toast — used for "Stats cleared" and other
+        ephemeral messages) rounded from 4px to 999px, padding
+        nudged 18px → 22px so the rounded ends sit balanced. Now
+        consistent with the rest of the app's pill styling.
+
+     2. RESET button charging visual rewritten. The v2.94 fill
+        bar (left → right red wash, gain visibility under finger)
+        was mostly invisible during a real press because the
+        user's finger covers the button. Replaced with an outward
+        RED GLOW that grows from the button's border outward
+        — visible AROUND the finger so the charge progress reads
+        clearly without lifting up. Implemented as an inline
+        box-shadow transition driven from JS. Two-layer shadow:
+          - Inner halo: 0 0 18px 4px rgba(255,107,107,0.95)
+          - Outer bloom: 0 0 42px 12px rgba(255,107,107,0.55)
+        Border-color also brightens to full red during the
+        charge for added punch. Cancel reverses smoothly in
+        180ms, commit holds peak 80ms then fades in 240ms. Fill
+        bar div + label-wrapping span are gone; the glow needs
+        no extra DOM.
+
+     v2.95: Stats overlay rounded to match the rest of the app's
+     pill aesthetic.
+       - Panel border-radius : 0 → 18px (matches the win card)
+       - RESET button radius : 3px → 999px (full pill)
+       - CLOSE button radius : 3px → 999px (full pill)
+     Button horizontal padding nudged a couple of px wider so the
+     pill shape sits balanced (full-radius pills with tight
+     padding can look squished).
+
+     Note on RESET: the v2.94 long-press fill bar is an absolute-
+     positioned child with parent overflow:hidden. The 999px
+     border-radius means the fill now clips against the rounded
+     edge of the button, which is exactly what we want — a
+     rounded fill following the button's pill shape.
+
+     v2.94: Two more sound + interaction tweaks.
+
+     1. ADVANCED toggle (in TILE ADJUST modal) gets a fwoosh
+        sound — short filtered noise burst (~280ms) with a
+        lowpass sweep. Direction matches the gesture: opening
+        sweeps cutoff 500→2800 Hz (air rushing IN), closing
+        sweeps 2800→500 Hz (air rushing OUT). Custom-built
+        rather than reusing _dragWind because that module is
+        velocity-driven (designed for continuous drag input)
+        and we want a one-shot transition burst. Peak gain 0.08
+        — a touch quieter than the modal chirps because noise
+        has more spectral density than a sine and over-loud
+        noise reads as harsh.
+
+     2. RESET button (in Stats overlay) — replaced the old
+        two-tap-confirm pattern with a long-press-to-confirm.
+        Why: two-tap requires an awkward "TAP AGAIN" affordance
+        state, and feels like two separate decisions instead of
+        one sustained commitment. Long-press is gesturally
+        clearer — the fill bar shows exactly when the action
+        will commit. New behavior:
+          • Press and hold 650ms to commit.
+          • A red fill bar animates left → right across the
+            button during the hold.
+          • A rising sawtooth tone (130 Hz → 440 Hz, bandpass-
+            filtered for smoothness) plays during the charge.
+          • At 650ms: a square-wave "pop" (440 → 110 Hz, 100ms),
+            stats clear, "Stats cleared" toast, fill snaps back.
+          • Release before 650ms: timer clears, charge tone
+            fades, fill rewinds in 180ms (no sound — visual is
+            enough). No commit.
+        Wired for both touch (touchstart/touchend/touchcancel)
+        and mouse (mousedown/mouseup/mouseleave) so it works on
+        phones and desktops alike. preventDefault on touchstart
+        blocks the synthetic mouse events the OS dispatches so
+        the press isn't double-armed.
+
+     v2.93: Stats button joins the chirp family. The 📊 Stats
+     button on the menu screen now plays the open chirp on tap;
+     the Close button inside the stats overlay plays the close
+     chirp on dismiss. Replaced the older playUIClick on the
+     open path so the open/close pair is directional.
+
+     Note: the stats overlay has only ONE close path (the Close
+     button) — no backdrop tap-to-dismiss is wired, so unlike the
+     settings panel from v2.91, there's no second close site to
+     instrument. The "RESET" / two-tap-clear flow inside the
+     overlay was deliberately left alone since it's a destructive
+     action mid-flow, not a navigation event — chirping there
+     would muddle the gestural meaning.
+
+     v2.92: New button sound shipped from the v2.91 audition page —
+     user picked the "Air puff" candidate. Filtered noise burst
+     ~90ms with a lowpass sweep 2400→900 Hz, gain peak 0.10. Pure
+     texture, no melodic content — reads as a quick tactile
+     "phft" exhale. Replaces the old 220ms sine sweep 260→520 Hz
+     (playSA_NewGame, original sound).
+
+     Audio palette now reads:
+       - Place (gameplay)    : double-tick (sine octaves, musical)
+       - Modal/menu chirps   : sine sweeps (tonal, directional)
+       - New button          : filtered noise (textural)
+     Each event has a distinct sonic identity so the user can
+     recognize what just happened from the sound alone, while
+     still being family-related (all gentle, all short, all in
+     the same gain register).
+
+     Other sound styles (B–E playSB_NewGame etc.) untouched —
+     only Style A (Classic, the default) was replaced.
+
+     v2.91: Extended the modal chirp family to three more
+     navigation buttons. Now they all sing in the same key:
+
+     1. Settings ⚙ button (gear icon in masthead) — open chirp
+        on click, close chirp on every dismiss path: the Close
+        button inside the panel AND backdrop tap-to-dismiss.
+        Replaced the old playUIClick (generic UI click) on the
+        open path so the open/close pair has consistent
+        directionality.
+
+     2. Masthead Menu button (← Menu in the top-left) — close
+        chirp before navigating back to the puzzle-size selector.
+        Wrapped showMenu in a small closure rather than passing
+        it directly to addEventListener so we can fire the
+        chirp first.
+
+     3. Win-card Menu button — close chirp before tearing down
+        the win overlay and going to the menu screen. Fits the
+        same "leaving this screen" gestural family.
+
+     The "Reset" button in the settings panel was deliberately
+     NOT chirped: it removes-and-reopens the panel as a refresh,
+     not a true close, so adding chirps there would make a
+     trivial redraw sound like a substantive navigation.
+
+     v2.90: Found why the v2.88/v2.89 chirp wiring "didn't change"
+     the display-mode button sounds. The chirps WERE playing —
+     but the toggle functions (_toggleCondense / Mini / Cyan)
+     internally call window._btnFx('tool_on'|'tool_off') which
+     plays a fully-baked WOODBLOCK SFX (noise transient + body
+     resonance + bright overtone) at much higher gain than our
+     80ms sine chirp. The user heard the woodblock and assumed
+     no chirp was playing. Both were firing.
+
+     Fix: a one-shot suppression flag. When _relay handles a
+     click on a display-mode button, it sets
+     window._btnFxSuppressOnce = true BEFORE calling the toggle.
+     window._btnFx checks this flag at the top — if set, it
+     consumes the flag (resets to false) and returns early
+     without playing the woodblock. The flag also gets cleared
+     defensively after the toggle returns in case something
+     skipped consuming it.
+
+     Why this rather than removing _btnFx from the toggle
+     functions: the toggles also still get called by the
+     original dynamically-created condBtn/miniBtn/cyanBtn
+     elsewhere in the code, and those paths probably want the
+     woodblock retained. The flag-based approach surgically
+     suppresses _btnFx ONLY for relay-driven clicks, leaving
+     other call sites untouched.
+
+     v2.89: Display-mode button chirp follow-up after the user
+     reported v2.88 didn't seem to actually do anything.
+
+     Theory of why v2.88 might have missed: the chirps WERE
+     wiring (verified in source) and TILE ADJUST chirps work
+     fine, so the same code path should have run for the mode
+     buttons. Most likely the chirps were firing but at peak
+     gain 0.10 and only ~80ms long, they were too quiet to
+     stand out from a tap on a phone speaker. Two changes:
+
+     1. Chirp peak gain bumped 0.10 → 0.16 on both
+        _modalOpenChirp and _modalCloseChirp. Affects the TILE
+        ADJUST modal too, but the modal already worked fine at
+        0.10, and the louder version still reads as a quick
+        UI cue, not a beep.
+
+     2. Switched the _relay click handler to call the chirp
+        functions DIRECTLY (via closure) rather than through
+        window._modalOpenChirp / window._modalCloseChirp. Both
+        live in the same IIFE and JS function declarations are
+        hoisted, so the closure binding is safe. If the closure
+        call throws for any reason, falls back to the window-
+        exposed copies via try/catch. This eliminates the
+        global accessor as a possible failure point — if v2.88
+        was failing because something in the global namespace
+        was clobbering window._modalOpenChirp between the
+        assignment and the click, the closure path is immune.
+
+     v2.88: Display-mode buttons (xN / #### / cyan) reuse the
+     v2.87 modal chirps. Same C5↔A5 sine sweep family. The button
+     you tap drives the direction:
+       inactive → tap → open chirp (you're turning this mode on)
+       active   → tap → close chirp (you're turning it off)
+     Modes are mutually exclusive, so tapping xN while mini is
+     active turns mini off as a side effect — but only the
+     directly-tapped button chirps, since that's the one the
+     user associates the sound with. Implementation: hoisted
+     _modalOpenChirp / _modalCloseChirp from the modal IIFE onto
+     window so the _relay function (which wires the three mode
+     buttons) can call them. Reads the button's .active state
+     BEFORE invoking the toggle function so we know which way
+     the gesture is going.
+
+     v2.87: Tile Adjust modal — sounds + bigger drag target.
+
+     1. Open and close chirps for the modal. Both are short sine
+        sweeps (~80ms): C5 → A5 on open, A5 → C5 on close. Live
+        outside the SOUND_STYLE dispatch (like the wind sound)
+        because navigation cues are style-independent. Wired
+        directly into _openModal / _closeModal so they fire
+        regardless of how the open/close was initiated (TILE
+        ADJUST button, DONE button, future shortcuts).
+
+     2. The whole modal box (#tileAdjustModalBox) is now a drag
+        target — not just the side handles flanking DONE and the
+        title bar. The user pointed out there are empty padding
+        areas around the sliders and toggle that were just
+        sitting there unused.
+
+        Implementation: _attachDrag now accepts an optional
+        `interactiveSel` selector. When a touch starts on an
+        element matching the selector (or a descendant of one),
+        the drag bails so the element's own click/touch handler
+        runs normally. The box gets attached with a filter that
+        excludes inputs, buttons, labels, the slider container,
+        the advanced-spacing container, and the existing drag
+        handles. Net effect: tapping a slider thumb still moves
+        the slider; tapping anywhere else on the modal initiates
+        a drag with the existing wind sound.
+
+        Also fixed a minor pre-existing bug: dragHandles.forEach
+        was passing the loop INDEX as the second arg to
+        _attachDrag. Harmless before (the function only took one
+        param), but with the new optional second parameter it
+        would have been treated as the interactiveSel and broken
+        the side handles. Wrapped the forEach in an arrow-style
+        explicit single-arg call.
+
+     v2.86: Tile-controls-row buttons (TILE ADJUST + xN / #### /
+     cyan display-mode buttons) brought into the app-wide pill
+     style. Was: 4px radius, dim 40%-opacity cyan border, muted
+     text-secondary color — the row felt like a separate visual
+     family from the rest of the rounded-and-glowing UI. Now:
+       border-radius : 4px → 999px (full pill ends)
+       border        : rgba(0,217,255,0.4) → var(--cyan)
+       color         : --text-secondary → var(--cyan)
+       box-shadow    : added 0 0 8px rgba(0,217,255,0.3) glow
+     to match the menu Play pill, masthead Menu/New/⚙, and win
+     card buttons. Active state (.active class flipping to purple
+     #a855f7 to mark the currently-selected display mode) is
+     UNCHANGED — that purple-on-active is a meaningful semantic
+     ("this mode is on") and worth keeping distinct from the
+     cyan-default. Net result: row reads as "four live buttons,
+     one is selected" instead of "four dim buttons, one is bright".
+
+     v2.85: Win sequence polish — card emergence + fanfare rhythm.
+
+     1. Win card now emerges from the puzzle grid's center instead
+        of the viewport's center. Was: .wov flex-centered the card
+        across the whole overlay (display:flex with justify+align
+        center), which read as "low" because the user's eye is
+        anchored on the grid (which sits in the upper portion of
+        the layout). Now: .wov is just position:fixed, the .wcard
+        is absolutely positioned with its left/top set to the
+        grid's center via JS at show-time. Width is also clamped
+        to roughly the grid's width (with sane min/max of
+        280px-460px so tiny grids on phones don't squash the card
+        and big grids don't make it absurdly wide). The pp scale-up
+        keyframe was updated to compose with the centering
+        translate(-50%,-50%) so scale-up still emanates from the
+        anchor point rather than the card's top-left.
+
+        New helper: _positionWinCardOverGrid (called from
+        _showWinCard right before the .show class is added). Reads
+        #gridClip's bounding rect and writes inline left/top/
+        max-width onto the card. Falls back to viewport center if
+        the grid isn't found (early call before render, etc.).
+
+     2. Fanfare rhythm: the four ascending notes now accelerate
+        instead of being perfectly evenly-spaced.
+          Was: offsets [0.00, 0.12, 0.24, 0.36] sec — even 120ms
+          Now: offsets [0.00, 0.18, 0.31, 0.40] sec — 180/130/90ms
+        First interval is slightly longer (anticipatory pause),
+        each subsequent gap shrinks. The sustained climax chord
+        follows 80ms after the last attack so it reads as its own
+        moment rather than another beat in the run-up. Total
+        fanfare time is similar to before (~480ms attack run);
+        only the contour changes. Other styles (B-E) untouched.
+
+     v2.84: Win-sequence test rig + a fix for why nothing was
+     showing up.
+
+     1. Root cause for "I heard something but didn't see anything":
+        PARTICLES_ON defaults to false in this build (line 7460),
+        and the v2.83 wave honored that toggle. So the pops fired
+        and the .bursting CSS animation ran, but no particle
+        debris emitted. Fixed: the win wave now ALWAYS spawns
+        particles regardless of the PARTICLES_ON toggle. The
+        rationale: the toggle exists for users who find the
+        per-tap burst distracting (it fires hundreds of times
+        per puzzle), but the win wave is once per puzzle — a
+        celebration moment, not an ergonomic concern. Tap-burst
+        behavior is unchanged; only the win wave is unconditional.
+
+     2. Pop sound peak gain bumped 0.09 → 0.13 so it's
+        unambiguously audible against the fanfare-incoming
+        anticipation. Easy to dial back if it feels too loud.
+
+     3. New magenta WIN! debug button in the masthead's right-
+        side group, between New and ⚙. Clicking it re-runs the
+        full win sequence (wave → fanfare → pause → win card)
+        on the current bank without solving. The button:
+          - Clears any leftover .bursting state from a prior
+            test fire so the animation re-triggers.
+          - Hides any leftover win card (so we see the full
+            card-show animation again).
+          - Calls _showWinCard with a new {skipRecord:true} flag
+            so test fires don't write fake solves into the
+            localStorage stats. Old call sites without the opts
+            argument (production solve flow) still record
+            normally because the flag defaults to falsy.
+        Magenta accent so it reads as obviously distinct from
+        production buttons. Easy to remove or hide behind a
+        ?debug=1 URL flag once the wave is dialed in.
+
+     v2.83: Win-screen cosmetics + the bank-tile burst wave.
+
+     1. Win card border-radius bumped from 0 to 18px so the card's
+        corners match the rest of the app's pill aesthetic. 18px
+        is a soft-rectangle (not full pill) since the card is too
+        big to look right with 999px radius.
+
+     2. New victory wave: when the puzzle is solved, every bank
+        tile bursts in sequence — top-left to bottom-right (DOM
+        order, which renderBank already builds row-major) —
+        before the fanfare and win card show up. Each burst is
+        three things firing together:
+          a) A small particle burst from the tile (~22 particles
+             radiating outward with gravity, drag, and color
+             matching the tile)
+          b) A short sine "pop" sound, frequency rising linearly
+             across the wave from C5 (523 Hz) to C6 (1047 Hz) so
+             the cascade feels like building tension into the
+             fanfare climax
+          c) A CSS .bursting class that scales/spins/fades the
+             tile out (350ms keyframe animation)
+
+        Auto-paced: total wave budget ~1600ms, per-tile delay
+        scales with tile count between 35ms (big banks) and 180ms
+        (small banks). User asked for "around 2 seconds, maybe
+        too long" so we err under that to keep the climax tight.
+
+        After the last tile finishes its animation, the fanfare
+        plays, then a 450ms pause, then the win card. Old flow
+        was fanfare-immediate + win-card 600ms later; new flow
+        is wave (~1.6s) → fanfare → pause → card.
+
+        Implementation note: the existing renderBank
+        spawnParticles is closure-scoped and can't be called from
+        the win sequence, so v2.83 ships a self-contained
+        _winSpawnParticlesFromTile that pushes into the SAME
+        global particle pool (window._particlePool) and runs the
+        SAME RAF animation loop. Sharing the pool means the 800-
+        particle hard cap upstream still applies, and an existing
+        loop won't double-start. Particle generation honors the
+        PARTICLES_ON options toggle — if off, the wave still
+        runs visually + audibly, just no debris.
+
+        Future work the user mentioned: tile shards (break each
+        tile into geometric pieces that fly apart instead of just
+        scaling/fading). Skipped for v2.83 to ship the rough
+        version first; the .bursting class is the hook to extend
+        when we revisit.
+
+     v2.82: Win card cleanup.
+     1. Both buttons (.wnxt) rounded from border-radius:3px to
+        999px, padding nudged 11px×24px → 12px×26px so the pill
+        ends read correctly. Now visually consistent with the
+        menu screen Play/Stats pills, the masthead Menu/New/⚙
+        buttons, and the size/difficulty segmented rows. The win
+        card was the last screen still using the old square-ish
+        button shape.
+     2. Replaced the Share button with a Menu button. Share was
+        a "copy results to clipboard" action — useful for daily
+        puzzles or leaderboards, but with neither shipped right
+        now (daily was removed in v2.70) it was a feature
+        looking for a use case. Menu here mirrors the masthead
+        Menu button — quick exit from the win card back to the
+        puzzle-size selector after solving. Old share handler
+        is removed; underlying buildShareText() and copyText()
+        functions are KEPT on the _mc113 export (lines 7165 and
+        7221) since they're cheap to keep and would be the bulk
+        of the work to recreate if we revive sharing later.
+
+     v2.81: Two more sounds shipped from the v2.80 sound-auditions-2
+     page, both chosen to match the minimalist family established
+     by the v2.80 double-tick place sound.
+
+     1. SelEmpty (tap a blank cell to select for placement) is now
+        the "High pip" candidate — single E6 sine (1318.51 Hz),
+        25ms, gain 0.07. Same pitch as the upper octave of the
+        place sound, almost subliminal. Replaces the v2.80 sine
+        drop 440→380 Hz at gain 0.45 which felt heavy compared to
+        the new minimalist anchor. SelEmpty fires before EVERY
+        placement so quietness matters.
+
+     2. Return (tap a placed tile to send it back to the bank) is
+        now the "Muffled tap" candidate — single F3 sine (175 Hz),
+        60ms, gain 0.14, with a slower 8ms attack for a soft
+        "press" feel rather than a click. Replaces the v2.79
+        descending tritone (B4 → F4) which read as a busy two-
+        note phrase next to the minimalist place/select sounds.
+        Note: muffled tap was originally designed as a candidate
+        for the SelFilled (filled-cell tap) sound, but the user
+        wanted to try it for return instead — the soft-press feel
+        does fit the "putting something back" gesture nicely.
+
+     Note discovered while wiring this: playSelFilled is currently
+     DEAD CODE. Its only callsite (selCell line 7434) is wrapped
+     in `else if(cell.isBlank)` after an early-return path that
+     handles all blank+has-value cells. Net: blank+empty hits
+     SelEmpty, blank+has-value returns the tile (and plays the
+     return sound) before reaching that else-if. So SelFilled
+     never plays. Function definitions left in place across all
+     5 sound styles since they're harmless and easy to re-wire if
+     a "tap a placed tile to highlight without returning" gesture
+     ever comes back. User confirmed they don't currently want
+     that gesture.
+
+     v2.80: Place-tile sound shipped from the v2.79 audition page —
+     user picked the "double tick" candidate after rapid-tapping
+     each option. E5 (659 Hz) + E6 (1319 Hz) sines stacked an
+     octave apart, both very short (~45ms / 35ms), played
+     simultaneously. The lower octave carries the body, the upper
+     octave adds sparkle at lower gain so it doesn't dominate.
+     Replaces the old triangle-wave upward chirp (420→820 Hz at
+     gain 0.22, 70ms). Big win on repeat tolerance: pure sines
+     have no upper harmonics to fatigue the ear over hundreds of
+     placements per puzzle, and the brevity means even fast-paced
+     solving doesn't pile sounds on top of each other. Other
+     sound styles (B-E) unchanged.
+
+     v2.79: Reverted tap-to-return sound back to the v2.77 descending
+     tritone (B4 → F4). The v2.78 attempt to mirror the new minor-
+     2nd error with a descending minor 2nd worked logically but
+     evidently sat too close to the error cue in practice. The
+     wider tritone interval gives return a more distinct character
+     and a clearer "tumbling back down" feel without competing
+     with the close-interval family the error now occupies. So:
+     error = simultaneous E5+F5 cluster (minor 2nd), return =
+     staggered B4→F4 (tritone). Different families, both gentle
+     sines.
+
+     v2.78: Error sound shipped from the v2.77 audition page —
+     user picked the "tense minor 2nd" candidate. E5 + F5 played
+     simultaneously as pure sines, gain 0.07/note, ~180ms. The
+     close interval reads as immediately wrong, tighter than the
+     v2.76 tritone but still smooth (no harsh harmonics).
+
+     Return sound updated to mirror the new error. The minor 2nd
+     plays its two notes simultaneously so there's no temporal
+     direction to literally reverse — instead, the return version
+     staggers F5 → E5 with a 60ms gap (descending half-step). Same
+     close-interval family, same sine timbre, same gain — but the
+     stagger gives it a "tumbling back down" motion that preserves
+     the directional symmetry we built in v2.77 (error rises,
+     return falls). Other sound styles (B-E) unchanged.
+
+     v2.77: Tap-to-return sound is now a reversed (descending) version
+     of the v2.76 error sound. Same two-note tritone interval, same
+     gentle sine waves, same gain, just B4 first then F4 instead of
+     F4 → B4. This gives the error / return pair a directional
+     symmetry that reads naturally: error rises (uh-oh), return
+     falls (ok, taking it back). Replaces the v2.74 single sine
+     blip. Old code is preserved in the comment block at the top
+     of playSA_Return for reference. Other sound styles (B-E)
+     unchanged.
+
+     Also shipped alongside this: a standalone error-sound
+     audition page (error-sounds-test.html) — 8 candidate
+     "wrong placement" sounds the user can A/B before deciding
+     which (if any) to swap in for v2.76. Includes the current
+     v2.76 sound, a thunk, an "uh-oh", a glassy ping, a typewriter
+     noise burst, a wood block, a minor 2nd cluster, and the
+     original pre-v2.76 sawtooth rumble for direct reference.
+
+     v2.76: Two small polish items.
+     1. Settings ⚙ button diameter dropped 32→28px to match the
+        New button's computed height (11px font + ~13px line-
+        height + 6px×2 padding + 1.5px×2 border = ~28px). Was
+        sitting visibly taller than its row-mates. Glyph font-
+        size dropped 14→12 so the gear isn't crammed in the
+        smaller circle.
+     2. Style A (Classic — default) error sound rewritten. Old
+        version was a sawtooth dropping 160→70 Hz at gain 0.18 —
+        sounded like a buzzy flatulent rumble on phone speakers
+        because sawtooth waves have a lot of harsh upper
+        harmonics and low frequencies on tiny speakers tend
+        toward distortion. New version: two short sine tones a
+        tritone apart (F4 351 Hz then B4 494 Hz, 60ms offset),
+        gain 0.10, fast fade. Tritone interval = the classic
+        "something's wrong" musical signal (used in horror
+        scores, alert tones), but rendered with smooth sine
+        waves instead of distorted ones so it reads as polished
+        rather than aggressive. User wants to A/B with the old
+        sound — old code is preserved in the comment block at
+        the top of the function for easy revert.
+
+     v2.75: Game-screen masthead restructure to match the rounded /
+     centered aesthetic of the menu screen.
+     1. EQUIL title geometrically centered. Was using flex
+        space-between with 3-or-4 children, which placed the title
+        approximately-but-not-truly center and depended on the
+        widths of the side buttons. New layout: three equal-flex
+        slots (.mast-side left / .mast-center / .mast-side right),
+        title sits in the center slot.
+     2. Difficulty/size text (HARD · JUMBO) moved out of the row
+        and now sits directly UNDER the EQUIL title inside the
+        center slot. Same muted styling, same letter-spacing,
+        just a few px below the title with line-height:1 on both
+        for a tight stack.
+     3. New button now matches the Menu button in size, shape, and
+        styling — both use .mast-back. The old inline font-size:8px
+        and padding:4px 7px overrides are gone. New keeps its cyan
+        accent color via inline override.
+     4. New + ⚙ grouped on the right side of the row (Menu stays
+        on the left).
+     5. All three masthead buttons rounded with border-radius:999px
+        — pill ends regardless of computed height. ⚙ also got a
+        fixed 32×32 width/height so it reads as a full circle
+        rather than a long pill (single icon, square footprint).
+
+     v2.74: Two small puzzle-interaction tweaks.
+     1. Softened the tap-to-return chirp on Style A (Classic — the
+        default). Was a triangle wave dropping 820→420 Hz at gain
+        0.18, which read as harsh/piercing on phone speakers
+        because triangle harmonics in the 700-2000 Hz range are
+        pretty bright. Switched to a sine wave, dropped start
+        frequency 820→700, dropped gain 0.18→0.11. Net effect: a
+        softer "blip" that still reads as the same direction
+        (downward chirp = giving back) but doesn't poke at the
+        ear. Other styles' return sounds (B-E) left alone.
+     2. Reversed the v2.31 "clear selection on tap-return"
+        decision. Tapping a placed tile to return it to bank now
+        leaves the cell SELECTED again. User changed their mind —
+        they're more often replacing the returned number than
+        undoing it, and pre-selecting the cell saves the
+        otherwise-needed re-tap. The whole code change is one
+        line in selCell() (SEL=null → SEL=k) but I kept both old
+        comments in place so the reversal history is visible.
+
+     v2.73: Killed the startup greeting sound. Original design was a
+     friendly 4-note "hello" jingle (G-C-E-G ascending sines) that
+     played on page load — but browser audio policies block sound
+     before user gesture, so it was deferred to the first
+     touchstart/click anywhere on the page. Result: every player's
+     very first interaction with Equil was a random four-tone
+     bloop, regardless of whether they tapped PLAY, a size button,
+     or just scrolled by accident. Felt like a wrong-place jingle.
+     Removed the touchstart/click listeners and the _greetOnce
+     handler. The playGreeting() synth function and the
+     _greetingPlayed flag are intentionally left in place upstream
+     (lines 6617 and 5447) so we can revive the greeting later as
+     an opt-in setting or wire it to a specific moment if we want.
+     AudioContext still unlocks correctly on first interaction —
+     every existing audio call already wraps resumeAC() and the
+     PLAY button calls it directly.
+
+     v2.72: Mom-readability pass on the menu screen. The size and
+     difficulty buttons were tiny (11px main / 8px sub) — fine
+     for me-up-close but unreadable at arm's length. Bumped:
+       .sel-label  : 9px → 13px (PUZZLE SIZE / DIFFICULTY headers)
+       .sel-btn    : 11px → 16px main text
+       .sel-btn small : 8px → 13px sub text (the "~9×9", "+ and −"
+                       descriptions under each button)
+       .sel-btn padding: 12px → 16px so the bigger text has room
+     Not literally 2× — that hits 22px, which wraps "Medium" and
+     blows out the row to ~80px tall. 16px is the largest size that
+     still fits all four labels on one line on a typical phone.
+     Also bumped the outer-corner border-radius from 24px to 30px
+     so the near-semicircle ends still look right at the new
+     ~58px button height.
+
+     v2.71: Two small menu tweaks.
+     1. Centered the "PUZZLE SIZE" and "DIFFICULTY" section labels
+        (added text-align:center to .sel-label). They were
+        defaulting left while the buttons below them sit in a
+        full-width flex row — looked off-center against the now-
+        centered Play / Stats pills.
+     2. Tagline → "A math crossword puzzle for humans" (added
+        the leading article). User noted they're second-guessing
+        the change; ship it and revisit after living with it.
+
+     v2.70: Menu screen pass.
+     1. Removed the "★ DAILY PUZZLE" button from the menu. Without
+        an established player community there's no social loop
+        around a shared daily puzzle, so the slot was eating
+        prime above-the-fold real estate without paying for it.
+        Underlying daily-mode code (showGame({daily:true}), the
+        _mc113 daily seed/tracking, the daily-streak stats) is
+        all left intact; only the entry-point button is gone.
+        The click handler at the bottom of the file is guarded by
+        `if(dailyBtn)` so it just no-ops on missing element.
+     2. Pill-rounded the Size and Difficulty segmented rows.
+        Outer corners (.sel-btn:first-child / :last-child) bumped
+        from radius 4px to 24px — at the rows' ~46px computed
+        height that's half the height, so the ends read as
+        near-full semi-circles. Inner shared edges stay flat so
+        the segmented look still reads as one connected pill.
+     3. Play and Stats buttons reshaped to centered auto-width
+        pills instead of full-column slabs. Both got new flex
+        wrapper rows (.sel-cta-row) for centering, generous
+        horizontal padding for the "around the text" feel the
+        user wanted, and big border-radius (28px on Play, 18px
+        on Stats) so their rounded ends are also near
+        semi-circular at their respective heights.
+
+     v2.69: Size button labeling cleanup. XL2 → "Jumbo", and all
+     four size buttons now use round-number dimensions for
+     consistency: Small ~9×9, Medium ~10×10, Large ~15×15,
+     Jumbo ~30×25. (Earlier mix of "wide organic" / "4-num
+     rows" / fake-precise dims like "~11×11" was inconsistent.)
+     Underlying internal SIZE keys ('small'/'medium'/'large'/
+     'xl2') are unchanged so existing localStorage stats keep
+     working — only the human-facing labels changed. New
+     sizeLabel() helper centralizes the key→label map and is
+     used by the masthead pill (e.g. "HARD · JUMBO"), the
+     Wordle-style share text ("Equil JUMBO HARD — 4:21"), and
+     the per-record headers in the stats screen. The actual
+     puzzle dimensions vary across templates within each pool
+     (Medium ranges 9×7 to 9×13, Large 17×11 to 17×17, etc.) —
+     fixing that variance is a separate item the user wants to
+     tackle later.
+
+     v2.68: Mistake tracking. New counter that increments every time
+     an equation in the current puzzle transitions from a non-bad
+     state (inc/ok) into 'bad' as a result of a placement. The
+     counter is forward-only — undoing a bad placement does NOT
+     decrement (a mistake was made), but undoing DOES re-sync the
+     internal badEqs map so a re-made bad row will count again.
+     Equations that go bad → ok → bad on a later move count twice.
+     This counts whole-equation failures rather than red cells, so
+     the "two reds for one wrong placement" issue (per user — when
+     a wrong number completes a row, both blanks in that row turn
+     red even though only one was actually misplaced) doesn't
+     double-count. Display points: (a) masthead pip next to moves,
+     hidden at zero so clean runs stay visually quiet; (b) win card
+     gets a red ✕ count if non-zero, plus a CLEAN SOLVE / PERSONAL
+     BEST · CLEAN label upgrade for zero-mistake wins; (c) share
+     text appends "· clean ✓" or "· N ✕"; (d) stats screen now
+     shows fewest moves, fewest mistakes, and a clean-run tally
+     per size/difficulty record. Stats schema gained two new
+     fields (bestMistakes, cleanRuns) — old records lacking them
+     render an em dash and pick up the values on next solve.
+     Implementation lives in window._mc113 (noteEval) and is wired
+     into place() and undo() in features-module.
+
+     v2.67: Removed the XL puzzle size button from the menu.
+     XL has been a dead branch — its template pool (TMPL_XL)
+     never seemed to branch from midpoints in practice, and
+     XL2 has been the only XL-class size getting tested.
+     Underlying XL code (templates, isXL checks in buildPuzzle,
+     xl branch in fallback chain at line 5193-5194) all kept
+     intact in case we revisit. Stats-screen size list also
+     keeps 'xl' in it so any historical XL stats still render —
+     they just won't accumulate new entries. Other size labels
+     (Small/Medium/Large) left as-is for now; user wants to
+     fix the underlying template-pool variance first before
+     re-labeling.
+
+     v2.66: Menu tagline cleanup. Replaced
+     "Math crossword · No coins · No hints · No BS" with
+     "Math crossword puzzle for humans" — less defensive,
+     less try-hard, just says what it is.
+
      v2.65: Three modal/menu cleanup tweaks.
      1. The tile-controls-row (TILE ADJUST + xN/####/cyan buttons)
         was always visible at the bottom of the screen, including
@@ -1931,22 +2637,67 @@ body{font-family:'IBM Plex Mono',monospace;background:var(--bg);color:var(--text
 .sel-mast h1 span{color:var(--cyan);}
 .sel-mast p{font-size:8px;letter-spacing:3px;text-transform:uppercase;color:var(--text-muted);margin-top:3px;}
 .sel-section{width:100%;margin-bottom:24px;}
-.sel-label{font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--cyan);margin-bottom:10px;}
+/* [v2.72] Bumped from 9px → 13px so the "PUZZLE SIZE" /
+   "DIFFICULTY" headers don't read as fine print at the top of
+   each segmented row. Letter-spacing kept at 3px so the all-caps
+   header still feels distinct from button labels. */
+.sel-label{font-size:13px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--cyan);margin-bottom:10px;text-align:center;}
 .sel-row{display:flex;gap:0;width:100%;}
-.sel-btn{flex:1;padding:12px 0;background:none;border:1.5px solid var(--br);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;transition:all .15s;line-height:1.3;}
-.sel-btn:first-child{border-radius:4px 0 0 4px;}.sel-btn:last-child{border-radius:0 4px 4px 0;}.sel-btn+.sel-btn{border-left:none;}
+/* [v2.72] Main button text bumped 11px → 16px and padding 12px →
+   16px so the size/difficulty labels are readable at arm's length
+   (mom test). True 2× would be 22px which wraps "Medium" and
+   blows out the row height, so 16px is the comfortable ceiling. */
+.sel-btn{flex:1;padding:16px 0;background:none;border:1.5px solid var(--br);font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;transition:all .15s;line-height:1.3;}
+/* [v2.70] Pill-style outer rounding for the size/diff segmented rows.
+   Each button is ~46px tall once content + padding is computed; a
+   24px radius gets the outer corners essentially semi-circular while
+   keeping the inner shared edges flat. Inner buttons stay square so
+   the segmented look reads as a single connected pill.
+   [v2.72] Bumped 24px → 30px to match the taller buttons after the
+   font-size + padding bump (computed height ~58px now). */
+.sel-btn:first-child{border-radius:30px 0 0 30px;}.sel-btn:last-child{border-radius:0 30px 30px 0;}.sel-btn+.sel-btn{border-left:none;}
 .sel-btn.on{background:rgba(0,217,255,0.15);color:var(--cyan);border-color:var(--cyan);box-shadow:0 0 10px rgba(0,217,255,0.4);}
-.sel-btn small{display:block;font-size:8px;font-weight:400;letter-spacing:1px;opacity:.7;margin-top:2px;}
-.sel-play{width:100%;margin-top:8px;padding:16px;background:transparent;border:2px solid var(--cyan);border-radius:4px;font-family:'Abril Fatface',serif;font-size:20px;letter-spacing:2px;color:var(--cyan);cursor:pointer;transition:all .15s;box-shadow:0 0 16px rgba(0,217,255,0.4);}
+/* [v2.72] Sub-text (the "~9×9" / "+ and −" descriptions) bumped
+   8px → 13px. Roughly tracks the main label bump in proportion. */
+.sel-btn small{display:block;font-size:13px;font-weight:400;letter-spacing:1px;opacity:.7;margin-top:2px;}
+/* [v2.70] Play button reshaped to a centered pill — auto-width
+   (sized to its text + horizontal padding) instead of full-row
+   width, with a 28px radius that gets the rounded ends to nearly
+   full semi-circles at the current ~52px tall computed height.
+   Centering is achieved by wrapping in a flex row (#playRow). */
+.sel-play{margin-top:8px;padding:16px 36px;background:transparent;border:2px solid var(--cyan);border-radius:28px;font-family:'Abril Fatface',serif;font-size:20px;letter-spacing:2px;color:var(--cyan);cursor:pointer;transition:all .15s;box-shadow:0 0 16px rgba(0,217,255,0.4);}
 .sel-play:active{opacity:.85;background:rgba(0,217,255,0.1);}
+/* Centered row wrapper so the auto-width Play / Stats buttons sit
+   in the middle of the column instead of left-aligned. */
+.sel-cta-row{display:flex;justify-content:center;width:100%;}
 
 /* ── Game screen ── */
 .game-screen{width:100%;max-width:520px;display:none;flex-direction:column;align-items:center;background:var(--bg);}
-.mast{width:100%;max-width:520px;padding:9px 14px 6px;border-bottom:2px solid var(--cyan);text-align:center;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;background:var(--bg-tertiary);box-shadow:0 2px 12px rgba(0,217,255,0.2);}
-.mast-title{font-family:'Abril Fatface',serif;font-size:20px;letter-spacing:2px;color:var(--text-primary);}
+/* [v2.75] Masthead restructured. Old layout was 3-or-4 flex items
+   spaced via justify-content:space-between, which placed the title
+   roughly-but-not-truly centered and put the difficulty/size pill
+   in a 4th-item slot that drifted depending on screen width. New
+   layout: three equal-flex slots so the title's slot is geometrically
+   centered. .mast-side wraps each button group; the title slot keeps
+   text-align:center. Difficulty/size text moves into a small line
+   under the title, kept inside the same masthead block. */
+.mast{width:100%;max-width:520px;padding:9px 14px 6px;border-bottom:2px solid var(--cyan);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg-tertiary);box-shadow:0 2px 12px rgba(0,217,255,0.2);}
+.mast-side{display:flex;align-items:center;gap:6px;flex:1 1 0;min-width:0;}
+.mast-side.right{justify-content:flex-end;}
+.mast-center{flex:1 1 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;}
+.mast-title{font-family:'Abril Fatface',serif;font-size:20px;letter-spacing:2px;color:var(--text-primary);line-height:1;}
 .mast-title span{color:var(--cyan);}
-.mast-back{background:none;border:1.5px solid var(--br);border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--cyan);padding:5px 9px;cursor:pointer;}
-.mast-info{font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);}
+/* [v2.75] mast-info was a sibling of the title; now lives directly
+   under it inside .mast-center. Same muted color, same letter-
+   spacing, just smaller margin + tighter typography. */
+.mast-info{font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);line-height:1;}
+/* [v2.75] All three masthead buttons (Menu, New, ⚙) share a
+   pill-rounded style with a 999px radius so the ends fully round
+   off regardless of computed height. Sizes match across the three:
+   same font-size, same vertical padding. The ⚙ icon button gets
+   a square aspect via min-width=height so it reads as a circle
+   not a long pill. */
+.mast-back{background:none;border:1.5px solid var(--br);border-radius:999px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--cyan);padding:6px 14px;cursor:pointer;}
 .gscroll{width:100%;max-width:520px;padding:16px 24px;display:flex;justify-content:center;flex-shrink:0;overflow:hidden;touch-action:pan-y;position:relative;background:var(--bg);border:2px solid rgba(0,217,255,0.5);box-shadow:0 0 4px rgba(0,217,255,0.12), inset 0 0 3px rgba(0,217,255,0.04);}
 /* [v1.56] Diagonal corner accents on the .gscroll outer container.
    Switched from one stretched 100×100 SVG to four small per-corner
@@ -1958,13 +2709,22 @@ body{font-family:'IBM Plex Mono',monospace;background:var(--bg);color:var(--text
    with a per-line linear-gradient fading from full opacity at the
    outer-corner end to 0.22 at the inner end. Pixel sizing means the
    diagonals hit grid-clip's outer corners exactly, regardless of
-   how the gscroll's overall aspect ratio shifts with viewport. */
+   how the gscroll's overall aspect ratio shifts with viewport.
+   [v2.98] Hidden by default. The diagonals were sized for the
+   xl2-mode (Jumbo) layout, where gscroll's padding lines up with
+   .grid-clip's outer outline corners — they "point at" the grid
+   from the panel corners. In other puzzle sizes the panel is
+   narrower and the diagonals don't land on anything meaningful,
+   so they read as decorative cruft. Now displayed only when
+   body.xl2-mode is set; other sizes keep the gscroll border
+   without the diagonal accents. */
 .gscroll::before{
   content:'';
   position:absolute;
   inset:0;
   pointer-events:none;
   z-index:2;
+  display:none;
   background-image:
     url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10.3 11.3"><defs><linearGradient id="g" x1="0" y1="0" x2="10.3" y2="11.3" gradientUnits="userSpaceOnUse"><stop offset="0%25" stop-color="%2300d9ff" stop-opacity="0.5"/><stop offset="100%25" stop-color="%2300d9ff" stop-opacity="0.22"/></linearGradient></defs><line x1="0" y1="0" x2="10.3" y2="11.3" stroke="url(%23g)" stroke-width="1"/></svg>'),
     url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10.3 11.3"><defs><linearGradient id="g" x1="10.3" y1="0" x2="0" y2="11.3" gradientUnits="userSpaceOnUse"><stop offset="0%25" stop-color="%2300d9ff" stop-opacity="0.5"/><stop offset="100%25" stop-color="%2300d9ff" stop-opacity="0.22"/></linearGradient></defs><line x1="10.3" y1="0" x2="0" y2="11.3" stroke="url(%23g)" stroke-width="1"/></svg>'),
@@ -1974,6 +2734,10 @@ body{font-family:'IBM Plex Mono',monospace;background:var(--bg);color:var(--text
   background-size: 10.3px 11.3px;
   background-repeat: no-repeat;
 }
+/* [v2.98] Re-enable the diagonals only in xl2-mode (Jumbo). Higher
+   specificity than `.gscroll::before` so it wins despite source
+   order. */
+body.xl2-mode .gscroll::before{ display:block; }
 .xl2-mode .gscroll,.xl2-mode .mast,.xl2-mode .bank-outer,.xl2-mode .bot,.xl2-mode .bsound-row,.xl2-mode .info-bar{max-width:100%;}
 .grid{display:inline-grid;border:1px solid rgba(0,217,255,0.12);background:transparent;flex-shrink:0;position:relative;z-index:1;}
 /* [v1.52] Cyan grid backdrop. Soft cyan tint along the four edges
@@ -2316,10 +3080,21 @@ body.menu-active .tile-controls-row{ display:none!important; }
   font-family:'IBM Plex Mono',monospace;
   font-size:10px;font-weight:700;letter-spacing:1px;
   padding:8px 6px;
-  border-radius:4px;
-  border:1.5px solid rgba(0,217,255,0.4);
+  /* [v2.86] Pill-rounded outer corners (999px) so these buttons
+     match the app-wide pill aesthetic. Border + color bumped to
+     full var(--cyan) (was rgba(0,217,255,0.4) — visibly dim) and
+     box-shadow added for the same subtle cyan glow used on the
+     menu Play button, masthead Menu/New/⚙, and win card pills.
+     Text color also lifted to full cyan so the inactive state
+     reads as "live, but not selected" rather than "deactivated".
+     The .active state below still flips them to purple to mark
+     the currently-selected display mode — that semantic was
+     deliberate (purple = "this mode is on") and is preserved. */
+  border-radius:999px;
+  border:1.5px solid var(--cyan);
   background:transparent;
-  color:var(--text-secondary);
+  color:var(--cyan);
+  box-shadow:0 0 8px rgba(0,217,255,0.3);
   cursor:pointer;touch-action:manipulation;
   transition:all .15s;
 }
@@ -2538,13 +3313,60 @@ body.menu-active .tile-controls-row{ display:none!important; }
 .bsnd:hover{border-color:var(--cyan);color:var(--cyan);}
 .bsnd.active{background:rgba(0,217,255,0.15);border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 10px rgba(0,217,255,0.5);}
 .bsnd-label{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.5px;color:var(--text-muted);opacity:.8;text-align:center;padding-bottom:2px;width:100%;max-width:520px;padding-left:12px;}
-.wov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.87);z-index:300;align-items:center;justify-content:center;}
-.wov.show{display:flex;animation:fi .3s ease;}@keyframes fi{from{opacity:0}to{opacity:1}}
-.wcard{background:var(--bg-secondary);border:2px solid var(--cyan);padding:28px 36px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px;animation:pp .4s cubic-bezier(.36,2,.6,1) .1s both;box-shadow:0 0 30px rgba(0,217,255,0.4);}
-@keyframes pp{from{transform:scale(.6)}to{transform:scale(1)}}
+/* [v2.85] Win card emergence anchored to the puzzle grid.
+   Was: flex-centered in the .wov overlay, animated scale .6→1
+   from the card's own center. Visually felt like the card was
+   slightly low because the .wov spans the full viewport but the
+   user's eye is anchored on the grid (which is biased upward in
+   the layout). Now: the card is positioned absolutely with its
+   center on the grid's center via JS (see _positionWinCardOverGrid
+   in features-module). The CSS keyframe also has a transform-
+   origin at center so the scale-up reads as "expanding from where
+   the puzzle is" rather than "popping in from somewhere generic".
+   Width is capped at the grid's width (with sensible min/max so
+   tiny grids on phones don't squash the card unreadably). */
+.wov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.87);z-index:300;}
+.wov.show{display:block;animation:fi .3s ease;}@keyframes fi{from{opacity:0}to{opacity:1}}
+/* [v2.83] Win card rounded — was sharp 90° corners which felt out
+   of step with the rest of the app's pill aesthetic now that
+   buttons everywhere are 999px. 18px is a tasteful soft-rectangle
+   radius (not full pill — the card is too big for that to look
+   right) that matches the other rounded panels in the app. */
+.wcard{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(1);transform-origin:center center;background:var(--bg-secondary);border:2px solid var(--cyan);border-radius:18px;padding:28px 36px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px;animation:pp .4s cubic-bezier(.36,2,.6,1) .1s both;box-shadow:0 0 30px rgba(0,217,255,0.4);box-sizing:border-box;}
+/* [v2.83] Bank-tile victory-burst class. Applied to each .bt in
+   sequence during the win wave (see _winWaveSequence). Quick
+   scale-up + spin + fade so the tile reads as "exploding outward"
+   while the particle system throws debris from its edges. After
+   the animation finishes the tile keeps opacity:0 (forwards) so
+   it doesn't pop back into view while the wave is still in
+   progress on later tiles. Animation duration is short (350ms)
+   so even at the fastest per-tile cadence (~35ms for big banks)
+   the visual feels punchy, not soupy. */
+@keyframes btBurst {
+  0%   { transform: scale(1)    rotate(0deg);   opacity: 1; filter: brightness(1); }
+  35%  { transform: scale(1.25) rotate(20deg);  opacity: 1; filter: brightness(1.6); }
+  100% { transform: scale(0.4)  rotate(180deg); opacity: 0; filter: brightness(2.2); }
+}
+.bt.bursting {
+  animation: btBurst 0.35s cubic-bezier(0.45, 0, 0.55, 1) forwards;
+  pointer-events: none;
+}
+/* [v2.85] Updated to compose with the centering translate from the
+   .wcard rule (translate(-50%,-50%) is what positions the card on
+   its target point). Keeping the translate in both keyframes
+   means the scale-up happens FROM the anchor point, not from the
+   top-left of the card. Without the translate here, the card
+   would jump to the top-left corner of its bounding box during
+   animation. */
+@keyframes pp{from{transform:translate(-50%,-50%) scale(.6)}to{transform:translate(-50%,-50%) scale(1)}}
 .wico{font-size:48px;}.wt{font-family:'Abril Fatface',serif;font-size:30px;color:var(--cyan);}
 .ws{font-size:8px;letter-spacing:3px;text-transform:uppercase;color:var(--text-muted);}
-.wnxt{margin-top:4px;background:transparent;color:var(--cyan);border:1.5px solid var(--cyan);border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:11px 24px;cursor:pointer;box-shadow:0 0 12px rgba(0,217,255,0.4);}
+/* [v2.82] Win-card action buttons rounded from 3px to 999px so
+   their pill ends match the menu screen's Play/Stats buttons,
+   the masthead's Menu/New buttons, and the size/difficulty
+   segmented rows. Padding nudged from 11px 24px to 12px 26px
+   so the wider radius reads correctly at the new pill shape. */
+.wnxt{margin-top:4px;background:transparent;color:var(--cyan);border:1.5px solid var(--cyan);border-radius:999px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:12px 26px;cursor:pointer;box-shadow:0 0 12px rgba(0,217,255,0.4);}
 @keyframes winFlashAnim{0%{opacity:0}15%{opacity:1}100%{opacity:0}}
 #winFlash.active{display:block;animation:winFlashAnim 0.7s ease-out forwards;}
 @keyframes toastAnim{0%{opacity:0;transform:translate(-50%,10px)}15%{opacity:1;transform:translate(-50%,0)}85%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-6px)}}
@@ -2938,19 +3760,24 @@ window.onerror=function(msg,src,line,col,err){
 <div class="sel-screen" id="selScreen" style="visibility:hidden;">
   <div class="sel-mast">
     <h1><span>E</span>QUIL</h1>
-    <p>Math crossword · No coins · No hints · No BS</p>
+    <p>A math crossword puzzle for humans</p>
   </div>
 
-  <button class="sel-play" id="dailyBtn" style="margin-bottom:16px;background:rgba(196,0,255,0.08);border-color:var(--magenta);color:var(--magenta);box-shadow:0 0 16px rgba(196,0,255,0.4);">★ DAILY PUZZLE</button>
+  <!-- [v2.70] Daily Puzzle button removed for now. Reason: with no
+       established player community there's no social loop around a
+       shared daily — the slot was competing with PLAY for attention
+       without paying its way. The handler at the bottom of the file
+       (~line 13628) is guarded by `if(dailyBtn)` so it just no-ops
+       when the element isn't present; underlying daily-mode code in
+       _mc113 / showGame is left intact in case we revive this. -->
 
   <div class="sel-section">
     <div class="sel-label">Puzzle Size</div>
     <div class="sel-row">
       <button class="sel-btn" data-size="small">Small<small>~9×9</small></button>
-      <button class="sel-btn" data-size="medium">Medium<small>~11×11</small></button>
-      <button class="sel-btn" data-size="large">Large<small>~20×20</small></button>
-      <button class="sel-btn" data-size="xl">XL<small>4-num rows</small></button>
-      <button class="sel-btn on" data-size="xl2">XL2<small>wide organic</small></button>
+      <button class="sel-btn" data-size="medium">Medium<small>~10×10</small></button>
+      <button class="sel-btn" data-size="large">Large<small>~15×15</small></button>
+      <button class="sel-btn on" data-size="xl2">Jumbo<small>~30×25</small></button>
     </div>
   </div>
 
@@ -2963,26 +3790,66 @@ window.onerror=function(msg,src,line,col,err){
     </div>
   </div>
 
-  <button class="sel-play" id="playBtn">▶ PLAY</button>
-  <button id="statsBtn" style="margin-top:10px;width:100%;padding:10px;background:transparent;border:1.5px solid rgba(0,217,255,0.4);border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;font-weight:700;">📊 Stats</button>
-  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v2.65</div>
+  <!-- [v2.70] Play and Stats buttons each wrapped in a flex-centered
+       row so they sit centered as auto-width pills instead of being
+       full-column-width slabs. Stats inline styles overridden:
+       width:auto, generous horizontal padding, and an 18px radius
+       which is half the ~36px computed button height — so its ends
+       go nearly fully semi-circular like Play does. -->
+  <div class="sel-cta-row"><button class="sel-play" id="playBtn">▶ PLAY</button></div>
+  <div class="sel-cta-row"><button id="statsBtn" style="margin-top:10px;width:auto;padding:10px 28px;background:transparent;border:1.5px solid rgba(0,217,255,0.4);border-radius:18px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;font-weight:700;">📊 Stats</button></div>
+  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v2.98</div>
 </div>
 
 <!-- GAME SCREEN -->
 <div class="game-screen" id="gameScreen">
+  <!-- [v2.75] Masthead restructured into 3 equal-flex slots so the
+       EQUIL title is geometrically centered (was approximate before).
+       Difficulty/size info moved from a sibling element to a small
+       line directly under the title inside .mast-center. New + ⚙
+       grouped on the right; Menu stays on the left. All three
+       buttons share matching pill-rounded styling via .mast-back
+       (Menu/New) and an inline-styled circular ⚙. -->
   <div class="mast">
-    <button class="mast-back" id="backBtn">← Menu</button>
-    <div class="mast-title" id="mastTitle"><span>E</span>QUIL</div>
-    <div style="display:flex;gap:4px;align-items:center;flex-shrink:0;">
-      <button class="bbtn bnew" id="newp" style="font-size:8px;padding:4px 7px;">New</button>
-      <button class="bbtn" id="optBtn" style="font-size:10px;padding:4px 7px;background:transparent;border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 8px rgba(0,217,255,0.3);" title="Options">⚙</button>
+    <div class="mast-side left">
+      <button class="mast-back" id="backBtn">← Menu</button>
     </div>
-    <div class="mast-info" id="mastInfo">HARD · XL2</div>
+    <div class="mast-center">
+      <div class="mast-title" id="mastTitle"><span>E</span>QUIL</div>
+      <div class="mast-info" id="mastInfo">HARD · JUMBO</div>
+    </div>
+    <div class="mast-side right">
+      <!-- [v2.75] "New" button now uses .mast-back styling for a
+           1:1 size+shape match with the Menu button on the left.
+           Removed the older inline font-size:8px / padding:4px 7px.
+           Cyan accent color overridden inline to keep the action-
+           feeling glow it had before. -->
+      <button class="mast-back" id="newp" style="color:var(--cyan);border-color:var(--cyan);box-shadow:0 0 8px rgba(0,217,255,0.3);">New</button>
+      <!-- [v2.97] WIN! debug button removed. Was the magenta tester
+           that fired the full win sequence on demand (wave →
+           fanfare → win card) for tuning. Win sequence is now
+           dialed in, so the button no longer earns its masthead
+           real estate. The handler IIFE that wired its click is
+           also removed below. The _showWinCard {skipRecord:true}
+           flag added in v2.84 is left in place — harmless, and
+           handy if we ever revive the test rig. -->
+      <button id="optBtn" style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;width:28px;height:28px;padding:0;border-radius:999px;border:1.5px solid var(--cyan);background:transparent;color:var(--cyan);box-shadow:0 0 8px rgba(0,217,255,0.3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;" title="Options">⚙</button>
+    </div>
   </div>
   <div id="mastStats" style="width:100%;max-width:520px;padding:5px 14px 3px;display:flex;gap:14px;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;letter-spacing:2px;color:var(--cyan);background:var(--bg-tertiary);border-bottom:1px solid rgba(0,217,255,0.2);flex-shrink:0;">
     <span>⏱ <span id="mastTimer">0:00</span></span>
     <span style="opacity:0.4;">·</span>
     <span><span id="mastMoves">0</span> moves</span>
+    <!-- [v2.68] Mistakes pip — hidden until first mistake. Red ✕ glyph
+         to read clearly against the cyan masthead palette without
+         needing extra ink at zero-state. Mirrors the timer/moves
+         separator-dot pattern (decorative · between fields). The
+         dot AND the count live inside one wrapper so flipping
+         display:none on the wrapper hides both at once. -->
+    <span id="mastMistakesWrap" style="display:none;align-items:center;gap:14px;color:#ff6b6b;">
+      <span style="opacity:0.4;color:var(--cyan);">·</span>
+      <span><span id="mastMistakes">0</span> ✕</span>
+    </span>
   </div>
   <div class="info-bar"><span class="blbl">Tap a square · then a number · tap placed to return · tap thumb circle to zoom · double-tap to zoom out</span></div>
   <div class="gscroll"><div class="grid-clip" id="gridClip"><div class="grid" id="grid"></div></div>
@@ -3272,11 +4139,18 @@ window.onerror=function(msg,src,line,col,err){
   <div class="wcard">
     <div class="wico">🏆</div><div class="wt">Solved!</div>
     <div id="winStats" style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--text-primary);letter-spacing:2px;font-weight:700;margin-top:4px;">
-      <span id="winTimer">0:00</span> · <span id="winMoves">0</span> moves
+      <span id="winTimer">0:00</span> · <span id="winMoves">0</span> moves<span id="winMistakesWrap" style="display:none;color:#ff6b6b;"> · <span id="winMistakes">0</span> ✕</span>
     </div>
     <div id="winLabel" class="ws" style="margin-top:2px;">PERSONAL BEST</div>
     <div style="display:flex;gap:8px;margin-top:8px;">
-      <button class="wnxt" id="shareBtn" style="padding:11px 18px;">Share</button>
+      <!-- [v2.82] Replaced the Share button with a Menu button.
+           Share has no audience yet (no daily, no leaderboards) so
+           "Copy to clipboard" was a feature looking for a use case.
+           Menu here mirrors the masthead Menu button — quick exit
+           from the win card back to the puzzle-size selector.
+           Inline padding override removed since both buttons now
+           use the same .wnxt sizing for visual symmetry. -->
+      <button class="wnxt" id="winMenuBtn">Menu</button>
       <button class="wnxt" id="nxt">Next Puzzle</button>
     </div>
   </div>
@@ -3286,12 +4160,16 @@ window.onerror=function(msg,src,line,col,err){
 
 <!-- Stats overlay -->
 <div id="statsOverlay" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.87);align-items:center;justify-content:center;">
-  <div style="background:var(--bg-secondary);border:2px solid var(--cyan);padding:24px 28px;text-align:center;box-shadow:0 0 30px rgba(0,217,255,0.4);max-width:380px;width:90vw;font-family:'IBM Plex Mono',monospace;">
+  <!-- [v2.95] Panel border-radius bumped 0 → 18px to match the win
+       card and other rounded panels in the app. Buttons rounded
+       3px → 999px for full pill ends matching the menu screen,
+       masthead, and tile-controls-row buttons. -->
+  <div style="background:var(--bg-secondary);border:2px solid var(--cyan);border-radius:18px;padding:24px 28px;text-align:center;box-shadow:0 0 30px rgba(0,217,255,0.4);max-width:380px;width:90vw;font-family:'IBM Plex Mono',monospace;">
     <div style="font-family:'Abril Fatface',serif;font-size:24px;color:var(--cyan);margin-bottom:14px;">Stats</div>
     <div id="statsBody" style="color:var(--text-secondary);font-size:11px;letter-spacing:1px;line-height:1.7;text-align:left;"></div>
     <div style="display:flex;gap:8px;margin-top:18px;justify-content:center;">
-      <button id="statsClearBtn" style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:8px 14px;border:1.5px solid rgba(255,107,107,0.5);border-radius:3px;background:transparent;color:#ff6b6b;cursor:pointer;letter-spacing:1px;font-weight:700;">RESET</button>
-      <button id="statsCloseBtn" style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:8px 18px;border:1.5px solid var(--cyan);border-radius:3px;background:rgba(0,217,255,0.15);color:var(--cyan);cursor:pointer;letter-spacing:1px;font-weight:700;">CLOSE</button>
+      <button id="statsClearBtn" style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:8px 18px;border:1.5px solid rgba(255,107,107,0.5);border-radius:999px;background:transparent;color:#ff6b6b;cursor:pointer;letter-spacing:1px;font-weight:700;">RESET</button>
+      <button id="statsCloseBtn" style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:8px 22px;border:1.5px solid var(--cyan);border-radius:999px;background:rgba(0,217,255,0.15);color:var(--cyan);cursor:pointer;letter-spacing:1px;font-weight:700;">CLOSE</button>
     </div>
   </div>
 </div>
@@ -3300,7 +4178,12 @@ window.onerror=function(msg,src,line,col,err){
 <div id="winFlash" style="display:none;position:fixed;inset:0;z-index:250;background:radial-gradient(ellipse at center, rgba(0,217,255,0.45) 0%, rgba(0,217,255,0.15) 40%, rgba(0,0,0,0) 75%);pointer-events:none;"></div>
 
 <!-- Toast (for share copy confirmation) -->
-<div id="toast" style="display:none;position:fixed;bottom:30px;left:50%;transform:translateX(-50%);z-index:600;background:var(--bg-secondary);border:1.5px solid var(--cyan);padding:10px 18px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1.5px;color:var(--cyan);font-weight:700;box-shadow:0 0 14px rgba(0,217,255,0.5);"></div>
+<!-- [v2.96] Toast border-radius bumped 4px → 999px so the pill
+     ends fully round, matching the rest of the app's button and
+     panel rounding. Used by the "Stats cleared" message after a
+     successful long-press reset, plus a few other places that
+     call window._mc113.showToast. -->
+<div id="toast" style="display:none;position:fixed;bottom:30px;left:50%;transform:translateX(-50%);z-index:600;background:var(--bg-secondary);border:1.5px solid var(--cyan);padding:10px 22px;border-radius:999px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1.5px;color:var(--cyan);font-weight:700;box-shadow:0 0 14px rgba(0,217,255,0.5);"></div>
 
 <script>
 // ═══════════════════════════════════════════════════════════
@@ -5046,6 +5929,27 @@ function selectBlanks(tmpl,CM,OPS,diff){
 }
 
 // ═══════════════════════════════════════════════════════════
+// [v2.69] Display name for size keys. Internal SIZE strings
+// ('small'/'medium'/'large'/'xl2') are kept as-is for
+// localStorage-stats compatibility and code throughout the
+// codebase. This helper just maps them to the human-facing
+// label shown in masthead, share text, and stats screen.
+// 'xl' is here for the same reason it's still in the stats
+// screen list — historical records may exist.
+// ═══════════════════════════════════════════════════════════
+function sizeLabel(s){
+  switch(s){
+    case 'small':  return 'SMALL';
+    case 'medium': return 'MEDIUM';
+    case 'large':  return 'LARGE';
+    case 'xl':     return 'XL';
+    case 'xl2':    return 'JUMBO';
+    default:       return (s||'').toUpperCase();
+  }
+}
+window.sizeLabel = sizeLabel;
+
+// ═══════════════════════════════════════════════════════════
 // BUILD PUZZLE
 // ═══════════════════════════════════════════════════════════
 function buildPuzzle(size,diff,_retry,_divRetry){
@@ -5358,6 +6262,15 @@ function _sfxDest(){ return window._sfxGain || (AC ? AC.destination : null); }
 window._btnFx = function(type){
   if(!AC) return; resumeAC();
   if(!window._sfxSettings.buttonFx) return;
+  // [v2.90] One-shot suppression flag set by the display-mode
+  // _relay click path so our new modal-style chirps aren't
+  // doubled up by the toggle functions' built-in woodblock SFX.
+  // Consumed (auto-reset) on first call so it can't accidentally
+  // swallow unrelated future calls.
+  if(window._btnFxSuppressOnce){
+    window._btnFxSuppressOnce = false;
+    return;
+  }
   var t = AC.currentTime;
   try{
     var dest = _sfxDest(); if(!dest) return;
@@ -5589,11 +6502,23 @@ window._setSoundStyle=setSoundStyle;
 
 function playSA_SelEmpty(){
   try{
+    // [v2.81] Replaced with the "High pip" candidate from the v2.80
+    // sound-auditions-2 page. Single sine at E6 (1318.51 Hz — same
+    // pitch as the upper octave of the v2.80 place sound), 25ms,
+    // gain 0.07. Almost subliminal — a barely-there confirmation
+    // that the tap registered, intentionally quiet because this
+    // sound fires before EVERY placement (most frequent UI sound
+    // in the game). Old version was a sine drop 440→380 Hz at
+    // gain 0.45 — felt heavy and old-school next to the new
+    // minimalist place sound.
+    var t0=AC.currentTime;
     var g=AC.createGain();g.connect(AC.destination);
-    g.gain.setValueAtTime(0.45,AC.currentTime);g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+0.06);
+    g.gain.setValueAtTime(0.0001,t0);
+    g.gain.exponentialRampToValueAtTime(0.07,t0+0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001,t0+0.025);
     var o=AC.createOscillator();o.type='sine';
-    o.frequency.setValueAtTime(440,AC.currentTime);o.frequency.exponentialRampToValueAtTime(380,AC.currentTime+0.05);
-    o.connect(g);o.start(AC.currentTime);o.stop(AC.currentTime+0.05);
+    o.frequency.setValueAtTime(1318.51,t0);
+    o.connect(g);o.start(t0);o.stop(t0+0.045);
   }catch(e){}
 }
 function playSA_SelFilled(){
@@ -5607,45 +6532,121 @@ function playSA_SelFilled(){
 }
 function playSA_Place(){
   try{
-    var g=AC.createGain();g.connect(AC.destination);
-    g.gain.setValueAtTime(0.22,AC.currentTime);g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+0.07);
-    var o=AC.createOscillator();o.type='triangle';
-    o.frequency.setValueAtTime(420,AC.currentTime);o.frequency.exponentialRampToValueAtTime(820,AC.currentTime+0.06);
-    o.connect(g);o.start(AC.currentTime);o.stop(AC.currentTime+0.07);
+    // [v2.80] Replaced the old triangle chirp (420→820 Hz at gain
+    // 0.22) with the "double tick" candidate from the v2.79 place-
+    // sound audition page. Two sines stacked an octave apart (E5
+    // 659 Hz + E6 1319 Hz), played simultaneously, very short
+    // (45ms / 35ms) — reads as a crisp "tick" with a sparkle of
+    // brightness from the upper octave. Critical property: it's
+    // short and uses pure sines, so it stays clean over hundreds
+    // of repetitions in a row (the make-or-break test for a place
+    // sound, which fires constantly during play). Lower gain on
+    // the upper octave (0.05) keeps it as a sparkle, not a peer.
+    var t0=AC.currentTime;
+    function note(freq,start,dur,peakGain){
+      var g=AC.createGain();g.connect(AC.destination);
+      g.gain.setValueAtTime(0.0001,start);
+      g.gain.exponentialRampToValueAtTime(peakGain,start+0.002);
+      g.gain.exponentialRampToValueAtTime(0.0001,start+dur);
+      var o=AC.createOscillator();o.type='sine';
+      o.frequency.setValueAtTime(freq,start);
+      o.connect(g);o.start(start);o.stop(start+dur+0.02);
+    }
+    note(659.25,  t0, 0.045, 0.13);  // E5 (fundamental)
+    note(1318.51, t0, 0.035, 0.05);  // E6 (sparkle octave above)
   }catch(e){}
 }
 function playSA_Return(){
   try{
+    // [v2.81] Replaced the v2.79 descending tritone (B4 → F4) with
+    // the "Muffled tap" candidate from the audition page. Single
+    // sine at F3 (175 Hz), 60ms, gain 0.14, with a slower attack
+    // (0.008s instead of the typical 0.002s) so it reads as a
+    // gentle press rather than a click. Originally designed as a
+    // FILLED-cell-tap candidate — the user wanted to try it for
+    // tile return instead, and they're right that the soft-press
+    // quality fits the "putting something back" gesture nicely.
+    // No melodic motion, no two-note phrase — much more in step
+    // with the minimalist double-tick place sound than the old
+    // tritone which felt busy by comparison.
+    var t0=AC.currentTime;
     var g=AC.createGain();g.connect(AC.destination);
-    g.gain.setValueAtTime(0.18,AC.currentTime);g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+0.09);
-    var o=AC.createOscillator();o.type='triangle';
-    o.frequency.setValueAtTime(820,AC.currentTime);o.frequency.exponentialRampToValueAtTime(420,AC.currentTime+0.08);
-    o.connect(g);o.start(AC.currentTime);o.stop(AC.currentTime+0.09);
+    g.gain.setValueAtTime(0.0001,t0);
+    g.gain.exponentialRampToValueAtTime(0.14,t0+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001,t0+0.060);
+    var o=AC.createOscillator();o.type='sine';
+    o.frequency.setValueAtTime(175,t0);
+    o.connect(g);o.start(t0);o.stop(t0+0.080);
   }catch(e){}
 }
 function playSA_Error(){
   try{
-    var g=AC.createGain();g.connect(AC.destination);
-    g.gain.setValueAtTime(0.18,AC.currentTime);g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+0.14);
-    var o=AC.createOscillator();o.type='sawtooth';
-    o.frequency.setValueAtTime(160,AC.currentTime);o.frequency.exponentialRampToValueAtTime(70,AC.currentTime+0.14);
-    o.connect(g);o.start(AC.currentTime);o.stop(AC.currentTime+0.14);
+    // [v2.78] Replaced the v2.76 tritone with a minor 2nd cluster.
+    // E5 + F5 played simultaneously (no offset) — the close interval
+    // creates an immediate, tighter dissonance than the tritone.
+    // Reads as "wrong" instantly without sounding harsh because both
+    // notes are pure sines. Lower per-note gain (0.07) since two
+    // tones playing at once sum louder than one. Single-event
+    // duration (~180ms) keeps the cue brief.
+    var t0=AC.currentTime;
+    function note(freq,start,dur,peakGain){
+      var g=AC.createGain();g.connect(AC.destination);
+      g.gain.setValueAtTime(0.0001,start);
+      g.gain.exponentialRampToValueAtTime(peakGain,start+0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001,start+dur);
+      var o=AC.createOscillator();o.type='sine';
+      o.frequency.setValueAtTime(freq,start);
+      o.connect(g);o.start(start);o.stop(start+dur+0.02);
+    }
+    note(659.25, t0, 0.18, 0.07);  // E5
+    note(698.46, t0, 0.18, 0.07);  // F5
   }catch(e){}
 }
 function playSA_NewGame(){
   try{
-    var g=AC.createGain();g.connect(AC.destination);
-    g.gain.setValueAtTime(0.12,AC.currentTime);g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+0.22);
-    var o=AC.createOscillator();o.type='sine';
-    o.frequency.setValueAtTime(260,AC.currentTime);o.frequency.exponentialRampToValueAtTime(520,AC.currentTime+0.22);
-    o.connect(g);o.start(AC.currentTime);o.stop(AC.currentTime+0.22);
+    // [v2.92] Replaced the old 220ms sine sweep 260→520 Hz with the
+    // "Air puff" candidate from the v2.91 audition page. A short
+    // filtered noise burst (~90ms) with a quick lowpass sweep
+    // 2400→900 Hz — reads as a tactile "phft" exhale, no melodic
+    // content. Fits the minimalist sine/noise family alongside
+    // the place sound's double-tick and the modal chirps.
+    // Different in character on purpose: place is musical (notes),
+    // chirps are tonal (sweeps), this is purely textural — keeps
+    // each navigation event distinguishable on identity.
+    var t0=AC.currentTime;
+    var dur=0.090;
+    var len=Math.max(1, Math.floor(AC.sampleRate*dur));
+    var buf=AC.createBuffer(1, len, AC.sampleRate);
+    var data=buf.getChannelData(0);
+    for(var i=0;i<len;i++) data[i] = (Math.random()*2-1);
+    var src=AC.createBufferSource(); src.buffer=buf;
+    var lp=AC.createBiquadFilter(); lp.type='lowpass';
+    lp.frequency.setValueAtTime(2400, t0);
+    lp.frequency.exponentialRampToValueAtTime(900, t0+dur);
+    lp.Q.value=0.9;
+    var g=AC.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.10, t0+0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    src.connect(lp); lp.connect(g); g.connect(AC.destination);
+    src.start(t0); src.stop(t0+dur+0.02);
   }catch(e){}
 }
 function playSA_Fanfare(){
   try{
+    // [v2.85] Accelerated rhythm. Was: 4 notes at exactly 120ms
+    // each (perfectly even). User wanted the last 3 to ramp up in
+    // tempo so the fanfare builds momentum into the sustained
+    // chord. New offsets in seconds: 0.00, 0.18, 0.31, 0.40 — the
+    // first interval is a touch longer than the original (anticipa-
+    // tory pause), then each subsequent gap shrinks: 180ms → 130ms
+    // → 90ms. Sustained chord lands on what used to be the 5th
+    // beat. Total fanfare time is similar (~480ms vs prior 480ms
+    // for the 4 attacks), it just has a more musical contour.
     var notes=[523,659,784,1047];
+    var offsets=[0.00, 0.18, 0.31, 0.40];
     for(var i=0;i<notes.length;i++){
-      var freq=notes[i],t=AC.currentTime+i*0.12;
+      var freq=notes[i],t=AC.currentTime+offsets[i];
       var g=AC.createGain();g.connect(AC.destination);
       g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.28,t+0.04);g.gain.exponentialRampToValueAtTime(0.001,t+0.35);
       var o=AC.createOscillator();o.type='triangle';o.frequency.setValueAtTime(freq,t);
@@ -5655,7 +6656,10 @@ function playSA_Fanfare(){
       var o2=AC.createOscillator();o2.type='sine';o2.frequency.setValueAtTime(freq*2,t);
       o2.connect(g2);o2.start(t);o2.stop(t+0.3);
     }
-    var ct=AC.currentTime+notes.length*0.12;
+    // Sustained chord follows the last attack with a small gap so
+    // the climax reads as its own moment, not just a 5th note in
+    // the run-up. 80ms gap matches the shrinking-interval contour.
+    var ct=AC.currentTime+offsets[offsets.length-1]+0.08;
     var chord=[523,659,784];
     for(var i=0;i<chord.length;i++){
       var g=AC.createGain();g.connect(AC.destination);
@@ -6488,6 +7492,16 @@ window._mc113 = (function(){
   var elapsedMs=0;         // frozen when puzzle is won
   var won=false;
   var moves=0;
+  var mistakes=0;          // [v2.68] forward-only count: each time an equation
+                           //   transitions from non-bad → bad, +1. Equations
+                           //   that go bad→ok→bad count again on the second
+                           //   bad. Persists across undo (a mistake was still
+                           //   made even if you take it back). Reset on
+                           //   reset() / new puzzle.
+  var badEqs={};           // [v2.68] set of equation IDs currently in 'bad'
+                           //   state. Diffed against the post-placement state
+                           //   to detect new transitions into bad. Cleared on
+                           //   reset.
   var dailyMode=false;     // true if current puzzle is daily
   var dailyDateStr=null;   // 'YYYY-MM-DD' tag for the current daily, if any
   var rafId=null;
@@ -6510,8 +7524,19 @@ window._mc113 = (function(){
   function _renderTimer(){
     var t=document.getElementById('mastTimer');
     var mv=document.getElementById('mastMoves');
+    var mk=document.getElementById('mastMistakes');
     if(t) t.textContent=fmtTime(_curMs());
     if(mv) mv.textContent=String(moves);
+    // [v2.68] Mistakes pip — only visible after first mistake. Hidden at
+    // 0 to keep the masthead uncluttered for clean runs.
+    if(mk){
+      mk.textContent=String(mistakes);
+      var pip=document.getElementById('mastMistakesWrap');
+      // Use inline-flex (not inline) so the inner gap:14px between the
+      // separator dot and the count value works the same way it does
+      // for the parent masthead row.
+      if(pip) pip.style.display=(mistakes>0?'inline-flex':'none');
+    }
   }
 
   function _tick(){
@@ -6525,6 +7550,8 @@ window._mc113 = (function(){
     // opts.dateStr = the day tag (YYYY-MM-DD) if daily.
     if(rafId){cancelAnimationFrame(rafId);rafId=null;}
     startTs=null; elapsedMs=0; won=false; moves=0;
+    // [v2.68] Reset mistake tracking on every new puzzle.
+    mistakes=0; badEqs={};
     dailyMode=!!(opts&&opts.daily);
     dailyDateStr=(opts&&opts.dateStr)||null;
     _renderTimer();
@@ -6537,6 +7564,39 @@ window._mc113 = (function(){
     moves++;
     _renderTimer();
   }
+
+  // [v2.68] Called from place() AFTER the placement has been applied
+  // (so valEq() sees the new state). Walks every equation in the
+  // puzzle, computes its current status, and compares to badEqs (the
+  // set of equations that were 'bad' before this placement). Any
+  // equation that just transitioned from non-bad → bad counts as one
+  // mistake. Equations that go bad → ok aren't penalized (you fixed
+  // it). An equation that goes bad → ok → bad on a later move counts
+  // again — that's correct: you broke the same row twice.
+  //
+  // Note we do NOT decrement on undo — a mistake was made, undoing it
+  // doesn't unmake the experience. (And tying the counter to undo
+  // would let players game it by always undoing wrong placements.)
+  function noteEval(pz){
+    if(won) return;
+    if(!pz||!pz.tmpl||!window.valEq) return;
+    var newBad={};
+    var newlyBad=0;
+    for(var i=0;i<pz.tmpl.length;i++){
+      var e=pz.tmpl[i];
+      var s=window.valEq(e,pz.CM,pz.OPS);
+      if(s==='bad'){
+        newBad[e.id]=true;
+        if(!badEqs[e.id]) newlyBad++;
+      }
+    }
+    badEqs=newBad;
+    if(newlyBad>0){
+      mistakes+=newlyBad;
+      _renderTimer();
+    }
+  }
+  function getMistakes(){return mistakes;}
 
   function markWon(){
     if(won) return;
@@ -6563,7 +7623,14 @@ window._mc113 = (function(){
   }
 
   // ── Stats persistence ──
-  // Schema: { 'small|easy': {solved, bestMs, totalMs, dailyStreak?}, ... }
+  // Schema: { 'small|easy': {solved, bestMs, totalMs, bestMoves,
+  //                          bestMistakes, cleanRuns}, ...,
+  //           daily: {solved, lastDate} }
+  // [v2.68] bestMistakes & cleanRuns added — old saved records that
+  // predate v2.68 will lack these fields and the recordWin path
+  // initialises them lazily on next solve. Old records are NOT
+  // migrated retroactively (we don't know the mistake counts of past
+  // runs).
   function _loadStats(){
     try{
       var raw=localStorage.getItem(STATS_KEY);
@@ -6576,15 +7643,22 @@ window._mc113 = (function(){
     try{localStorage.setItem(STATS_KEY,JSON.stringify(s));}catch(e){}
   }
 
-  function recordWin(size,diff,ms,movesCount,isDaily,dateStr){
+  function recordWin(size,diff,ms,movesCount,isDaily,dateStr,mistakesCount){
     var s=_loadStats();
     var key=size+'|'+diff;
-    var rec=s[key]||{solved:0,bestMs:null,totalMs:0,bestMoves:null};
+    var rec=s[key]||{solved:0,bestMs:null,totalMs:0,bestMoves:null,bestMistakes:null,cleanRuns:0};
     var isPB=(rec.bestMs==null||ms<rec.bestMs);
     rec.solved++;
     rec.totalMs+=ms;
     if(rec.bestMs==null||ms<rec.bestMs) rec.bestMs=ms;
     if(rec.bestMoves==null||movesCount<rec.bestMoves) rec.bestMoves=movesCount;
+    // [v2.68] Track mistakes per record. bestMistakes = lowest mistake
+    // count for any solved run at this size/diff. cleanRuns = count of
+    // solves with zero mistakes.
+    if(typeof mistakesCount==='number'){
+      if(rec.bestMistakes==null||mistakesCount<rec.bestMistakes) rec.bestMistakes=mistakesCount;
+      if(mistakesCount===0) rec.cleanRuns=(rec.cleanRuns||0)+1;
+    }
     s[key]=rec;
     // Daily tracking — store just the latest completed daily date and a
     // running solve count. No streaks shown to the user (per spec: honest
@@ -6597,7 +7671,7 @@ window._mc113 = (function(){
       }
     }
     _saveStats(s);
-    return {isPB:isPB, rec:rec};
+    return {isPB:isPB, rec:rec, clean:(typeof mistakesCount==='number' && mistakesCount===0)};
   }
 
   function getStats(){return _loadStats();}
@@ -6646,7 +7720,7 @@ window._mc113 = (function(){
   // The grid covers only the bounding box of cells that are part of the
   // puzzle (so an irregular xl2 layout doesn't get padded with huge
   // amounts of whitespace).
-  function buildShareText(pz,size,diff,ms,movesCount,isDaily,dateStr){
+  function buildShareText(pz,size,diff,ms,movesCount,isDaily,dateStr,mistakesCount){
     var minC=Infinity,maxC=-Infinity,minR=Infinity,maxR=-Infinity;
     for(var k in pz.CM){
       var c=pz.CM[k];
@@ -6684,9 +7758,18 @@ window._mc113 = (function(){
     if(isDaily){
       head='Equil Daily '+(dateStr||'')+' — '+fmtTime(ms);
     } else {
-      head='Equil '+(size.toUpperCase())+' '+(diff.toUpperCase())+' — '+fmtTime(ms);
+      // [v2.69] sizeLabel() so 'xl2' shows as 'JUMBO' in shared
+      // results. Falls back to upper-cased raw key for unknown sizes.
+      var sLbl=(window.sizeLabel?window.sizeLabel(size):size.toUpperCase());
+      head='Equil '+sLbl+' '+(diff.toUpperCase())+' — '+fmtTime(ms);
     }
-    var tail=movesCount+' moves · equil.app';
+    var tail=movesCount+' moves';
+    // [v2.68] Append mistake count to share line. A clean run gets a
+    // little badge for bragging rights; otherwise just the raw count.
+    if(typeof mistakesCount==='number'){
+      tail+=mistakesCount===0?' · clean ✓':' · '+mistakesCount+' ✕';
+    }
+    tail+=' · equil.app';
     return head+'\n'+lines.join('\n')+'\n'+tail;
   }
 
@@ -6730,15 +7813,31 @@ window._mc113 = (function(){
   }
 
   // ── Stats screen rendering ──
+  // [v2.68] Each row shows: solved count, best time, avg time, fewest
+  // moves, fewest mistakes, and clean-run tally. Older records that
+  // predate v2.68 may lack mistake fields — those just render an em
+  // dash for the missing stats.
   function _statsRowHtml(label,rec){
     if(!rec||!rec.solved) return '<div style="opacity:0.5;">'+label+': —</div>';
     var avg=rec.solved?Math.round(rec.totalMs/rec.solved):0;
-    return '<div><span style="color:var(--text-primary);">'+label+'</span> · solved '+rec.solved+
-      ' · best '+fmtTime(rec.bestMs)+
-      ' · avg '+fmtTime(avg)+'</div>';
+    var bestMv=(rec.bestMoves!=null)?rec.bestMoves:'—';
+    var bestMk=(rec.bestMistakes!=null)?rec.bestMistakes:'—';
+    var clean=rec.cleanRuns||0;
+    return '<div style="margin-bottom:8px;">'+
+      '<div style="color:var(--text-primary);">'+label+' · solved '+rec.solved+'</div>'+
+      '<div style="opacity:0.75;font-size:10px;padding-left:8px;">'+
+        'best '+fmtTime(rec.bestMs)+' · avg '+fmtTime(avg)+
+      '</div>'+
+      '<div style="opacity:0.75;font-size:10px;padding-left:8px;">'+
+        'fewest moves '+bestMv+' · fewest ✕ '+bestMk+
+        (clean>0?' · <span style="color:var(--cyan);">clean ×'+clean+'</span>':'')+
+      '</div>'+
+    '</div>';
   }
   function renderStatsScreen(){
     var s=_loadStats();
+    // Note: 'xl' kept in this list so any historical XL stats still
+    // render even though the XL button is gone from the menu (v2.67).
     var sizes=['small','medium','large','xl','xl2'];
     var diffs=['easy','medium','hard'];
     var html='';
@@ -6750,7 +7849,10 @@ window._mc113 = (function(){
       for(var j=0;j<diffs.length;j++){
         var key=sizes[i]+'|'+diffs[j];
         if(s[key] && s[key].solved){
-          html+=_statsRowHtml(sizes[i].toUpperCase()+' / '+diffs[j].toUpperCase(),s[key]);
+          // [v2.69] sizeLabel() routing — historical 'xl2' rows now
+          // render as 'JUMBO / DIFF' to match the menu and masthead.
+          var sLbl=(window.sizeLabel?window.sizeLabel(sizes[i]):sizes[i].toUpperCase());
+          html+=_statsRowHtml(sLbl+' / '+diffs[j].toUpperCase(),s[key]);
           anyRow=true;
         }
       }
@@ -6765,10 +7867,12 @@ window._mc113 = (function(){
   return {
     reset:reset,
     noteMove:noteMove,
+    noteEval:noteEval,
     markWon:markWon,
     fmtTime:fmtTime,
     curMs:_curMs,
     getMoves:function(){return moves;},
+    getMistakes:getMistakes,
     isWon:function(){return won;},
     isDaily:function(){return dailyMode;},
     dailyDateStr:function(){return dailyDateStr;},
@@ -6889,8 +7993,9 @@ function newPuzzle(){
   if(window._mc113) window._mc113.reset({daily:false});
   // Refresh mastInfo so the ★ DAILY prefix gets cleared after exiting
   // a daily puzzle via the "Next Puzzle" button.
+  // [v2.69] Use sizeLabel() so 'xl2' renders as 'JUMBO'.
   var mi=document.getElementById('mastInfo');
-  if(mi) mi.textContent=DIFF.toUpperCase()+' · '+SIZE.toUpperCase();
+  if(mi) mi.textContent=DIFF.toUpperCase()+' · '+sizeLabel(SIZE);
   document.getElementById('win').classList.remove('show');
   if(window._resetGridZoom)_resetGridZoom();render();
 }
@@ -6913,7 +8018,15 @@ function selCell(k){
         // when tapping to RETURN a number, they didn't want a fresh
         // selection because they were undoing, not starting a new
         // placement. Now the selection is cleared after a return.
-        SEL=null;
+        // [v2.74] Reversed again — user changed their mind. Tapping
+        // a placed tile to send it back now leaves the cell SELECTED,
+        // matching the older behavior. Rationale this time: most of
+        // the time when you tap-return, you're about to place a
+        // different number in that same cell. Pre-selecting saves
+        // a tap. Bank tiles still close any prior selection via the
+        // normal place() flow, so this only changes the post-return
+        // state, not subsequent interactions.
+        SEL=k;
         render();
         return;
       }
@@ -6974,12 +8087,26 @@ function place(idx){
   if(st==='bad')playError();else playPlace();
   // [Equil 1.13] Count the move (also starts the timer on first move).
   if(window._mc113) window._mc113.noteMove();
+  // [v2.68] After every placement, recompute equation states and count
+  // any inc→bad / ok→bad transitions as mistakes. Must run AFTER the
+  // mutation above so valEq() sees the new state.
+  if(window._mc113 && window._mc113.noteEval) window._mc113.noteEval(PZ);
   if(winCheck(PZ)){
     // [Equil 1.13] Mark won (freezes timer + triggers screen flash),
     // then record the result, then show the win card with the full stats.
     if(window._mc113) window._mc113.markWon();
-    playFanfare();
-    setTimeout(function(){_showWinCard();},600);
+    // [v2.83] Run the bank-tile burst wave BEFORE the fanfare and
+    // win card. The wave's onComplete callback chains: fanfare →
+    // (short pause) → win card. Old flow was: fanfare immediately,
+    // win card 600ms later. New flow lets the wave build into the
+    // climax of the fanfare. _winWaveSequence handles its own
+    // pacing based on tile count (~1.6s total budget).
+    _winWaveSequence(function(){
+      playFanfare();
+      // Small pause after the wave finishes so the fanfare reads as
+      // its own moment, not just another sound in the wave.
+      setTimeout(function(){_showWinCard();},450);
+    });
   }
   render();
   // v8.97 — animate mini-mode count changes after the re-render.
@@ -7009,6 +8136,12 @@ function undo(){
   var _animPvOld = _animPvVal !== null ? _countUnusedForValue(_animPvVal) : 0;
   PZ.bank[h.bi].used=false;if(h.pv!=null)PZ.bank[h.pv].used=true;
   PZ.CM[h.k].value=h.ov;SEL=null;render();
+  // [v2.68] Re-sync badEqs after undo. We do NOT decrement the mistake
+  // counter (a mistake was made — undoing doesn't unmake it). But we
+  // DO need to refresh the badEqs map so that if the user later re-
+  // creates a bad equation that's currently been reverted, it counts
+  // as a new mistake instead of being suppressed by the stale set.
+  if(window._mc113 && window._mc113.noteEval) window._mc113.noteEval(PZ);
   // v8.97 — animate mini-mode count changes after the re-render.
   if(window._animateMiniDelta){
     if(_animBiVal !== null){
@@ -9890,7 +11023,8 @@ function showGame(opts){
   if(window._mc113) window._mc113.reset({daily:!!opts.daily, dateStr:opts.daily?dateStr:null});
   document.getElementById('selScreen').style.display='none';
   document.getElementById('gameScreen').style.display='flex';
-  var infoText=DIFF.toUpperCase()+' · '+SIZE.toUpperCase();
+  // [v2.69] sizeLabel() routing — 'xl2' shows as 'JUMBO' here.
+  var infoText=DIFF.toUpperCase()+' · '+sizeLabel(SIZE);
   if(opts.daily) infoText='★ DAILY · '+infoText;
   document.getElementById('mastInfo').textContent=infoText;
   document.getElementById('win').classList.remove('show');
@@ -11143,10 +12277,58 @@ if(document.readyState==='loading'){
       srcBtn.addEventListener('click', function(e){
         e.preventDefault();
         e.stopPropagation();
+        // [v2.88] Display-mode buttons (xN / #### / cyan) get the
+        // same open/close chirps as the TILE ADJUST modal. Read
+        // the button's active state BEFORE calling the toggle: if
+        // it was inactive, the user is turning this mode ON →
+        // open chirp; if it was active, they're turning it off →
+        // close chirp. The toggle may incidentally turn OTHER
+        // mode flags off as a side effect (modes are mutually
+        // exclusive), but we don't chirp for those — only the
+        // button the user actually tapped, since that's the one
+        // they'll associate the sound with.
+        // [v2.89] Calling the chirp functions directly via closure
+        // rather than window.* — they're defined later in the same
+        // IIFE so closure resolution sees them by the time a click
+        // happens. Function declarations are hoisted, so this is
+        // safe even though the `function _modalOpenChirp(){}`
+        // appears textually below this point. Also doubled up with
+        // a console log so we can verify the click path is
+        // reached if a future regression breaks the wiring.
+        var wasActive = srcBtn.classList.contains('active');
+        try{
+          if(wasActive) _modalCloseChirp(); else _modalOpenChirp();
+        }catch(_chirpErr){
+          // Fall back to the window-exposed copies in case the
+          // closure binding failed for some reason.
+          try{
+            if(wasActive){
+              if(window._modalCloseChirp) window._modalCloseChirp();
+            } else {
+              if(window._modalOpenChirp) window._modalOpenChirp();
+            }
+          }catch(__){}
+        }
+        // [v2.90] The toggle functions (_toggleCondense / Mini /
+        // Cyan) internally call window._btnFx('tool_on'|'tool_off')
+        // which plays a woodblock SFX. That woodblock used to BE
+        // the only sound on these buttons — pre-v2.88 — and was
+        // overshadowing our new chirps. We don't want to remove
+        // the woodblock from the toggle functions outright because
+        // OTHER call sites still use those toggles (the original
+        // dynamically-created condBtn/miniBtn/cyanBtn elsewhere).
+        // Instead we set a transient flag that _btnFx checks and
+        // honors — suppress the very next call, then auto-reset.
+        window._btnFxSuppressOnce = true;
         var fn = window[fnName];
         if(typeof fn === 'function'){
           try{ fn(); } catch(err){}
         }
+        // Defensive cleanup — if the toggle path didn't actually
+        // consume the suppression flag (e.g., guarded out by an
+        // SFX setting), clear it so it doesn't silently swallow a
+        // future _btnFx call from somewhere unrelated.
+        window._btnFxSuppressOnce = false;
         _refreshModeBtnStates();
         setTimeout(_refreshModeBtnStates, 50);
         // [v2.59] If the modal is open, rebuild the spacing-slider
@@ -11425,6 +12607,52 @@ if(document.readyState==='loading'){
 
     var _origParent = null; // remember where #sizeCanvasWrap was
     var _origNextSibling = null;
+    // [v2.87] Modal open/close sound effects. Brief sine chirps —
+    // upward for open, downward for close. Short and gestural so
+    // they feel like UI feedback rather than music. Lives outside
+    // the SOUND_STYLE dispatch because this is a navigation cue,
+    // not gameplay (similar to how the wind sound is style-
+    // independent). Falls back silent if AC isn't ready.
+    // [v2.88] Hoisted onto window so the display-mode buttons (xN /
+    // #### / cyan) can reuse them — same chirp family for any
+    // modal-or-mode toggle, since they're the same kind of "open /
+    // close a thing" gesture from the user's perspective.
+    function _modalOpenChirp(){
+      try{
+        if(!AC) return; resumeAC();
+        var t0=AC.currentTime;
+        var g=AC.createGain();g.connect(AC.destination);
+        g.gain.setValueAtTime(0.0001,t0);
+        // [v2.89] Peak gain bumped 0.10 → 0.16. Modal-open chirps
+        // were arguably audible before but easy to miss when the
+        // user was already focused on the visual change. The
+        // display-mode buttons fire much more rapidly than the
+        // modal so even a clearly-audible chirp will feel light.
+        g.gain.exponentialRampToValueAtTime(0.16,t0+0.005);
+        g.gain.exponentialRampToValueAtTime(0.0001,t0+0.080);
+        var o=AC.createOscillator();o.type='sine';
+        o.frequency.setValueAtTime(523,t0);                       // C5
+        o.frequency.exponentialRampToValueAtTime(880,t0+0.07);    // up to A5
+        o.connect(g);o.start(t0);o.stop(t0+0.10);
+      }catch(_){}
+    }
+    function _modalCloseChirp(){
+      try{
+        if(!AC) return; resumeAC();
+        var t0=AC.currentTime;
+        var g=AC.createGain();g.connect(AC.destination);
+        g.gain.setValueAtTime(0.0001,t0);
+        // [v2.89] Same gain bump as _modalOpenChirp.
+        g.gain.exponentialRampToValueAtTime(0.16,t0+0.005);
+        g.gain.exponentialRampToValueAtTime(0.0001,t0+0.080);
+        var o=AC.createOscillator();o.type='sine';
+        o.frequency.setValueAtTime(880,t0);                       // A5
+        o.frequency.exponentialRampToValueAtTime(523,t0+0.07);    // down to C5
+        o.connect(g);o.start(t0);o.stop(t0+0.10);
+      }catch(_){}
+    }
+    window._modalOpenChirp  = _modalOpenChirp;
+    window._modalCloseChirp = _modalCloseChirp;
     function _openModal(){
       var wrap = document.getElementById('sizeCanvasWrap');
       if(wrap){
@@ -11444,6 +12672,8 @@ if(document.readyState==='loading'){
       // styling defined by .tile-controls-row > button.active —
       // matches the display-mode buttons' open/active state.
       adjustBtn.classList.add('active');
+      // [v2.87] Open chirp.
+      _modalOpenChirp();
     }
     function _closeModal(){
       var wrap = document.getElementById('sizeCanvasWrap');
@@ -11458,6 +12688,8 @@ if(document.readyState==='loading'){
       _origNextSibling = null;
       modal.classList.remove('open');
       adjustBtn.classList.remove('active');
+      // [v2.87] Close chirp (mirror of open chirp).
+      _modalCloseChirp();
     }
     adjustBtn.addEventListener('click', _openModal);
     modalClose.addEventListener('click', _closeModal);
@@ -11581,12 +12813,31 @@ if(document.readyState==='loading'){
     adjustBtn.addEventListener('click', _toggleModal);
 
     // ── Drag handler wiring on each drag handle ──
-    function _attachDrag(handle){
+    // [v2.87] _attachDrag now takes an optional `interactiveSel`
+    // selector. If a touch starts on an element that matches this
+    // selector (or is a descendant of one), the drag is skipped so
+    // the element's own click/touch handler still fires normally.
+    // Used to attach drag to the whole modal box without breaking
+    // the sliders, the ADVANCED toggle button, or the DONE button.
+    // The original side-handles + title don't need a filter (they
+    // contain no interactive children) so that callsite still
+    // passes nothing.
+    function _attachDrag(handle, interactiveSel){
       var dragging = false;
       var moved = false;
       var grabDx = 0, grabDy = 0;
       var startX = 0, startY = 0;
       handle.addEventListener('touchstart', function(e){
+        // [v2.87] If the touch began on an interactive descendant
+        // (slider thumb, toggle button, DONE button), abort —
+        // let the normal handler take over. Otherwise the modal
+        // would drag instead of the slider responding, etc.
+        if(interactiveSel){
+          var tgt = e.target;
+          if(tgt && tgt.closest && tgt.closest(interactiveSel)){
+            return;
+          }
+        }
         e.preventDefault();
         e.stopPropagation();
         var t = e.touches[0];
@@ -11631,7 +12882,7 @@ if(document.readyState==='loading'){
       handle.addEventListener('touchend',    _endDrag, {passive:true});
       handle.addEventListener('touchcancel', _endDrag, {passive:true});
     }
-    dragHandles.forEach(_attachDrag);
+    dragHandles.forEach(function(h){ _attachDrag(h); });
     // [v2.64] Also attach drag to the title bar — it's a much larger
     // grab target than the slim handles flanking the DONE button,
     // and now that the ADVANCED panel slides out to the SIDE (not
@@ -11639,6 +12890,19 @@ if(document.readyState==='loading'){
     // a comfortable thumb reach near the top edge of the modal.
     var titleEl = document.getElementById('tileAdjustModalTitle');
     if(titleEl) _attachDrag(titleEl);
+    // [v2.87] Make the entire modal BOX draggable, not just the
+    // narrow strips. Filter excludes the interactive children so
+    // sliders, toggles, and DONE still work normally — only the
+    // empty "padding" areas around them initiate a drag. This is
+    // the user's "side areas" feedback: the box has empty real
+    // estate around the controls that's now grab-targets too.
+    if(box){
+      _attachDrag(box,
+        'input, button, label, .arrow, ' +
+        '#tileAdjustModalSliders, #tileAdjustModalSliders *, ' +
+        '#tileAdjustModalXnSpacing, #tileAdjustModalXnSpacing *, ' +
+        '.tileAdjustAdvancedDragArea, .tileAdjustDragHandle');
+    }
     // [v2.65] Expose the drag attach so the advanced-panel rebuild
     // can wire its own bottom drag area each time the panel rebuilds.
     window._equilWireAdvancedDragArea = _attachDrag;
@@ -11655,6 +12919,46 @@ if(document.readyState==='loading'){
     var advBox  = xnSpacingBox; // the spacing-sliders container
     var advArrowSpan = advBtn ? advBtn.querySelector('.arrow') : null;
     var ADV_KEY = 'equilTileAdjustAdvancedExpanded';
+    // [v2.94] Fwoosh sound for the ADVANCED panel toggle. Designed
+    // to feel like a panel sliding open / closing — filtered noise
+    // burst with a swept lowpass and a quick gain envelope. Two
+    // variants: open sweeps the cutoff UPWARD (closed→open feels
+    // like air rushing in), close sweeps DOWNWARD (open→closed
+    // feels like air rushing out). Reuses the same noise-buffer
+    // approach as the air-puff "New" sound but longer (~280ms)
+    // so it reads as a transition rather than a tap.
+    function _advFwoosh(opening){
+      try{
+        if(!AC) return; resumeAC();
+        var t0=AC.currentTime;
+        var dur=0.28;
+        var len=Math.max(1, Math.floor(AC.sampleRate*dur));
+        var buf=AC.createBuffer(1, len, AC.sampleRate);
+        var data=buf.getChannelData(0);
+        for(var i=0;i<len;i++) data[i] = (Math.random()*2-1);
+        var src=AC.createBufferSource(); src.buffer=buf;
+        var lp=AC.createBiquadFilter(); lp.type='lowpass';
+        lp.Q.value=0.7;
+        if(opening){
+          // Air rushing IN — cutoff sweeps low → high.
+          lp.frequency.setValueAtTime(500, t0);
+          lp.frequency.exponentialRampToValueAtTime(2800, t0+dur);
+        } else {
+          // Air rushing OUT — cutoff sweeps high → low.
+          lp.frequency.setValueAtTime(2800, t0);
+          lp.frequency.exponentialRampToValueAtTime(500, t0+dur);
+        }
+        var g=AC.createGain();
+        // Gentle fade-in, longer fade-out so the sound has natural
+        // breath. Peak gain 0.08 — quieter than the chirps because
+        // noise has more spectral mass than a sine tone.
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.08, t0+0.04);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+        src.connect(lp); lp.connect(g); g.connect(AC.destination);
+        src.start(t0); src.stop(t0+dur+0.02);
+      }catch(_){}
+    }
     function _setAdvancedState(expanded){
       if(!advBox) return;
       if(expanded){
@@ -11675,7 +12979,11 @@ if(document.readyState==='loading'){
       advBtn.addEventListener('click', function(e){
         e.preventDefault();
         e.stopPropagation();
-        _setAdvancedState(!advBox.classList.contains('expanded'));
+        // [v2.94] Fwoosh on toggle — direction of the noise sweep
+        // matches the visual gesture (panel sliding out vs in).
+        var willOpen = !advBox.classList.contains('expanded');
+        _advFwoosh(willOpen);
+        _setAdvancedState(willOpen);
       });
     }
   }
@@ -13332,26 +14640,15 @@ if(document.readyState==='loading'){
 
 // [Equil 1.05] Removed: COLOR TAG MODE IIFE — sequencer pad color tagging.
 
-// [Equil 1.05] Removed: COPY MODE IIFE — sequencer pad copy.
-
-// [Equil 1.05] Removed: COLOR PRESETS section — sequencer pad colors. tileColors var preserved at top.
-// Greeting sound on first interaction
-// Play greeting on first touch or click — touchstart fires before click
-// so the sound starts as early as possible
-function _greetOnce(){
-  if(_greetingPlayed)return;
-  _greetingPlayed=true;
-  document.removeEventListener('touchstart',_greetOnce,true);
-  document.removeEventListener('click',_greetOnce,true);
-  // Remove tap overlay if present
-  var tap=document.getElementById('_tapOverlay');
-  if(tap&&tap.parentElement) tap.parentElement.removeChild(tap);
-  resumeAC();
-  setTimeout(playGreeting,50);
-}
-document.addEventListener('touchstart',_greetOnce,true);
-document.addEventListener('click',_greetOnce,true);
-
+// [v2.73] Greeting sound removed. The original intent was a friendly
+// 4-note "hello" jingle on page load, deferred to first interaction
+// because browser audio policies block sound before user gesture. In
+// practice it fired the moment a player tapped PLAY (or anywhere
+// else first), making it feel like a startup jingle that no one
+// asked for. Killed for public release — placement/error/win sounds
+// already give the game plenty of audio personality. Function
+// playGreeting() and the _greetingPlayed flag are kept harmless
+// upstream (see ~line 6617 / 5447) but no longer wired to anything.
 // v8.93: removed "tap anywhere to start" overlay — UI is self-explanatory.
 // The greeting still plays on first interaction via the touchstart/click
 // handlers above; no on-screen prompt is needed.
@@ -13366,37 +14663,287 @@ document.querySelectorAll('[data-diff]').forEach(function(b){
 document.getElementById('playBtn').addEventListener('click',function(){
   resumeAC();showGame();
 });
-document.getElementById('backBtn').addEventListener('click',showMenu);
+// [v2.91] Wrap showMenu with a close chirp so the masthead Menu
+// button (leaving the puzzle screen, going "back/down") matches
+// the modal/display-button audio language.
+document.getElementById('backBtn').addEventListener('click',function(){
+  if(window._modalCloseChirp) window._modalCloseChirp();
+  showMenu();
+});
 // [v2.33] Undo button removed from toolbar; guard the wire.
 (function(){ var u=document.getElementById('undo'); if(u) u.addEventListener('click',undo); })();
 document.getElementById('newp').addEventListener('click',newPuzzle);
 document.getElementById('nxt').addEventListener('click',newPuzzle);
 
+// [v2.97] WIN! debug button + handler removed (was v2.84). The
+// win sequence is dialed in, no need for the on-screen tester
+// occupying masthead space. The {skipRecord:true} flag on
+// _showWinCard is kept since it costs nothing and saves the
+// reimplementation work if we ever revive the test rig.
+
 // ═══════════════════════════════════════════════════════════
 // [Equil 1.13] DAILY · STATS · SHARE wiring
 // ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// [v2.83] WIN WAVE
+// ═══════════════════════════════════════════════════════════
+// When the puzzle is solved, before the fanfare and win card show,
+// each bank tile bursts in sequence (top-left → bottom-right, like
+// reading a book — DOM order is already row-major in renderBank).
+// Each tile gets:
+//   1. A small pop sound (frequency rises across the wave so the
+//      sequence feels like building tension into the fanfare)
+//   2. A particle burst (reuses the existing spawnParticles plumbing)
+//   3. A CSS .bursting class that scales/spins/fades the tile out
+//
+// Timing is auto-paced: total wave budget ~1.6s, per-tile delay
+// scales with tile count between 35ms (fast — for big banks) and
+// 180ms (slow — for tiny banks). User asked for "around 2 seconds,
+// but maybe too long" so we err slightly under that to keep the
+// climax tight; easy to adjust the budget constant if it feels off.
+// ═══════════════════════════════════════════════════════════
+
+// Quick "pop" sound — sine with very short envelope and a small
+// pitch microdrop. Frequency parameter lets the wave sweep up.
+function _winPop(baseFreq){
+  if(!AC) return;
+  try{
+    var t0=AC.currentTime;
+    var g=AC.createGain();g.connect(AC.destination);
+    g.gain.setValueAtTime(0.0001,t0);
+    g.gain.exponentialRampToValueAtTime(0.13,t0+0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001,t0+0.080);
+    var o=AC.createOscillator();o.type='sine';
+    // Slight downward chirp gives each pop a tiny "bloop"
+    // character that reads as "pop" rather than "beep".
+    o.frequency.setValueAtTime(baseFreq*1.15, t0);
+    o.frequency.exponentialRampToValueAtTime(baseFreq, t0+0.060);
+    o.connect(g);
+    o.start(t0);
+    o.stop(t0+0.10);
+  }catch(e){}
+}
+
+// Per-tile burst trigger. Spawns particles + plays pop + adds the
+// CSS class. Pulled out as a helper so the wave loop reads cleanly.
+function _winBurstTile(tileEl, freq){
+  // Particle burst — we can't call the closure-scoped renderBank
+  // spawnParticles() from out here, so we use a self-contained
+  // mini version that pushes into the SAME global particle pool
+  // (window._particlePool) and rides the SAME animation loop
+  // (window._particleRAF). That way we get free-for-free physics
+  // and rendering, without touching the existing tap-burst code.
+  //
+  // [v2.84] We deliberately DO NOT honor the PARTICLES_ON toggle
+  // here. That toggle controls the per-tap burst (which can fire
+  // hundreds of times per puzzle) — disabling it makes sense for
+  // people who find tap particles distracting. The win wave is a
+  // once-per-puzzle celebration moment. Hiding it because the
+  // user disabled tap particles would make the win underwhelming
+  // for no real ergonomic gain.
+  try{ _winSpawnParticlesFromTile(tileEl); }catch(e){}
+  _winPop(freq);
+  // CSS class triggers the scale/spin/fade. forwards keeps the
+  // tile invisible after the animation ends.
+  tileEl.classList.add('bursting');
+}
+
+// Self-contained particle spawn for the win wave. Mirrors enough of
+// renderBank's spawnParticles to push particles into the shared
+// pool, but skips all the tap-pressure / color-sampling
+// complexity. Particles inherit the bank canvas if it already
+// exists; if not, we create one (same id and styling as the tap
+// version so we don't conflict with it).
+function _winSpawnParticlesFromTile(tileEl){
+  var bankEl=document.getElementById('bank');
+  if(!bankEl) return;
+  var cv=document.getElementById('_particleCanvas');
+  if(!cv){
+    cv=document.createElement('canvas');
+    cv.id='_particleCanvas';
+    cv.style.cssText='position:fixed;pointer-events:none;z-index:9998;';
+    document.body.appendChild(cv);
+  }
+  var br=bankEl.getBoundingClientRect();
+  cv.width=Math.round(br.width);
+  cv.height=Math.round(br.height);
+  cv.style.left=br.left+'px';
+  cv.style.top=br.top+'px';
+  cv.style.width=br.width+'px';
+  cv.style.height=br.height+'px';
+
+  if(!window._particlePool) window._particlePool=[];
+  var particles=window._particlePool;
+
+  // Cull dead particles before adding (same hygiene as the tap path).
+  for(var ci=particles.length-1;ci>=0;ci--){
+    if(particles[ci].dead) particles.splice(ci,1);
+  }
+  if(particles.length>800) particles.splice(0,particles.length-800);
+
+  var tr=tileEl.getBoundingClientRect();
+  var tx=tr.left-br.left, ty=tr.top-br.top;
+  var tw=tr.width, th=tr.height;
+  var cx=tx+tw/2, cy=ty+th/2;
+
+  // Sample tile color so debris matches the tile's hue. Falls back
+  // to cyan if reading the computed style fails.
+  var tileColor='#00d9ff';
+  try{
+    var cs=getComputedStyle(tileEl);
+    if(cs && cs.color) tileColor=cs.color;
+  }catch(e){}
+  function parseRGB(c){
+    var m=/rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(c);
+    if(m) return [+m[1],+m[2],+m[3]];
+    return [0,217,255];
+  }
+  var rgb=parseRGB(tileColor);
+
+  // Number of particles per tile: enough to read as a burst, not
+  // so many that a 30-tile bank brings the device to its knees.
+  // 22 lets a Jumbo burst stay under 700 live particles total
+  // (well within the 800 hard cap upstream).
+  var COUNT=22;
+  for(var i=0;i<COUNT;i++){
+    // Random angle radiating outward from tile center.
+    var angle=Math.random()*Math.PI*2;
+    var speed=180+Math.random()*220;        // px/sec
+    // Mix tile color with occasional white sparkle for visibility.
+    var useWhite=(Math.random()<0.18);
+    var r=useWhite?255:rgb[0];
+    var g=useWhite?255:rgb[1];
+    var b=useWhite?255:rgb[2];
+    particles.push({
+      x:cx, y:cy,
+      vx:Math.cos(angle)*speed, vy:Math.sin(angle)*speed,
+      life:0.85+Math.random()*0.35,        // sec — overall fade time
+      age:0,
+      size:1.5+Math.random()*2.0,
+      r:r, g:g, b:b,
+      dead:false
+    });
+  }
+
+  // Kick the animation loop if it's not already running. The existing
+  // tap-path RAF loop reads the same window._particlePool so we just
+  // need to make sure SOMETHING is animating it.
+  if(!window._particleRAF){
+    var ctx=cv.getContext('2d');
+    var lastT=performance.now();
+    function frame(now){
+      var dt=Math.min(0.05,(now-lastT)/1000);
+      lastT=now;
+      ctx.clearRect(0,0,cv.width,cv.height);
+      var pool=window._particlePool||[];
+      var anyAlive=false;
+      for(var i=0;i<pool.length;i++){
+        var p=pool[i];
+        if(p.dead) continue;
+        p.age+=dt;
+        if(p.age>=p.life){ p.dead=true; continue; }
+        anyAlive=true;
+        p.vy+=420*dt;                        // gravity, px/sec²
+        p.vx*=0.985; p.vy*=0.985;            // drag
+        p.x+=p.vx*dt; p.y+=p.vy*dt;
+        var alpha=1-(p.age/p.life);
+        ctx.globalAlpha=Math.max(0,alpha);
+        ctx.fillStyle='rgb('+p.r+','+p.g+','+p.b+')';
+        ctx.beginPath();
+        ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+        ctx.fill();
+      }
+      ctx.globalAlpha=1;
+      if(anyAlive){
+        window._particleRAF=requestAnimationFrame(frame);
+      } else {
+        window._particleRAF=null;
+        ctx.clearRect(0,0,cv.width,cv.height);
+      }
+    }
+    window._particleRAF=requestAnimationFrame(frame);
+  }
+}
+
+// The wave itself. Iterates bank tiles in DOM order (which renderBank
+// builds row-major top-to-bottom-left-to-right), schedules each
+// burst on a setTimeout, and calls onComplete after the LAST tile's
+// animation finishes (not just after the LAST setTimeout fires).
+function _winWaveSequence(onComplete){
+  var bank=document.getElementById('bank');
+  if(!bank){ if(onComplete) onComplete(); return; }
+  var tiles=bank.querySelectorAll('.bt');
+  if(!tiles.length){ if(onComplete) onComplete(); return; }
+
+  // Auto-pace. Target total ~1600ms; clamp per-tile to a sane band.
+  var TARGET_BUDGET_MS=1600;
+  var rawDelay=TARGET_BUDGET_MS/tiles.length;
+  var perTileMs=Math.max(35, Math.min(180, rawDelay));
+
+  // Frequency sweep: start at C5 (~523 Hz), end at C6 (~1047 Hz).
+  // Linear interpolation across the wave so the pitch climb feels
+  // even regardless of tile count.
+  var FREQ_LO=523.25;
+  var FREQ_HI=1046.50;
+
+  // Animation duration must match the .bursting CSS keyframe duration.
+  var BURST_ANIM_MS=350;
+
+  for(var i=0;i<tiles.length;i++){
+    (function(tileEl, idx){
+      var t = (tiles.length===1) ? 0.5 : idx/(tiles.length-1);
+      var freq = FREQ_LO + (FREQ_HI-FREQ_LO)*t;
+      setTimeout(function(){
+        _winBurstTile(tileEl, freq);
+      }, idx*perTileMs);
+    })(tiles[i], i);
+  }
+
+  // Wait for the LAST tile's animation to finish before continuing.
+  var totalMs = (tiles.length-1)*perTileMs + BURST_ANIM_MS;
+  if(onComplete) setTimeout(onComplete, totalMs);
+}
+
+// ═══════════════════════════════════════════════════════════
+
 // _showWinCard fills in the win card with timer / move count / PB
 // label, then displays it. Called from place() when winCheck() passes
 // (replacing the simpler "All equations correct" overlay used in 1.12).
-function _showWinCard(){
+function _showWinCard(opts){
   var ms=window._mc113?window._mc113.curMs():0;
   var mvs=window._mc113?window._mc113.getMoves():0;
+  var mks=window._mc113&&window._mc113.getMistakes?window._mc113.getMistakes():0;
   var isDaily=window._mc113?window._mc113.isDaily():false;
   var dateStr=window._mc113?window._mc113.dailyDateStr():null;
   // Record the result and learn whether this was a personal best.
-  var result={isPB:false,rec:null};
-  if(window._mc113){
-    result=window._mc113.recordWin(SIZE,DIFF,ms,mvs,isDaily,dateStr);
+  // [v2.84] opts.skipRecord skips the localStorage write — used by
+  // the WIN! debug button so test fires don't pollute real stats
+  // with bogus solves. The stats screen would otherwise inflate
+  // your solved-count and falsely PB on every test press.
+  var result={isPB:false,rec:null,clean:false};
+  if(window._mc113 && !(opts && opts.skipRecord)){
+    result=window._mc113.recordWin(SIZE,DIFF,ms,mvs,isDaily,dateStr,mks);
   }
   var tEl=document.getElementById('winTimer');
   var mEl=document.getElementById('winMoves');
+  var kEl=document.getElementById('winMistakes');
+  var kWrap=document.getElementById('winMistakesWrap');
   var lEl=document.getElementById('winLabel');
   if(tEl) tEl.textContent=window._mc113?window._mc113.fmtTime(ms):'';
   if(mEl) mEl.textContent=String(mvs);
+  // [v2.68] Mistakes on the win card. Hide the wrapper if zero so a
+  // clean run reads as just "timer · moves" and the no-mistake state
+  // is implicit (and rewarded by the CLEAN label below).
+  if(kEl) kEl.textContent=String(mks);
+  if(kWrap) kWrap.style.display=(mks>0?'inline':'none');
   if(lEl){
     if(result.isPB){
-      lEl.textContent='★ PERSONAL BEST';
+      lEl.textContent=mks===0?'★ PERSONAL BEST · CLEAN':'★ PERSONAL BEST';
       lEl.style.color='var(--magenta)';
+    } else if(mks===0){
+      // Clean run that wasn't a PB still gets a quiet badge.
+      lEl.textContent='CLEAN SOLVE';
+      lEl.style.color='var(--cyan)';
     } else if(result.rec && result.rec.bestMs!=null){
       lEl.textContent='Best: '+window._mc113.fmtTime(result.rec.bestMs);
       lEl.style.color='var(--text-muted)';
@@ -13405,7 +14952,60 @@ function _showWinCard(){
       lEl.style.color='var(--text-muted)';
     }
   }
+  // [v2.85] Position the win card so its center sits on the grid's
+  // visual center. Without this, the card flex-centered in the
+  // viewport overlay, which read as "low" because the user's eye
+  // is anchored on the grid (which is biased upward in the
+  // layout). Width is also clamped to roughly the grid's width
+  // so the card visually feels like it's claiming the puzzle's
+  // footprint when it pops in.
+  _positionWinCardOverGrid();
   document.getElementById('win').classList.add('show');
+}
+
+// ═══════════════════════════════════════════════════════════
+// [v2.85] Win card positioning helper. Reads the current grid's
+// bounding rect and writes left/top + max-width onto the .wcard so
+// the card animates from (and lands at) the grid's center. Called
+// from _showWinCard right before the .show class is added so the
+// keyframe scale-up runs from the correct anchor.
+//
+// Width clamp logic: the card has variable content (timer, moves,
+// mistake count, label, two buttons) and a CSS min that reads well
+// on phones. We want the FINAL on-screen width to be close to the
+// grid's width without going below the natural minimum or above
+// some practical ceiling. So we set max-width to grid width clamped
+// to [280px, 460px]. The card's inherent flex layout decides actual
+// width within that range.
+//
+// Falls back gracefully if #gridClip isn't found (e.g., card is
+// shown before grid renders) — defaults to viewport center, which
+// is the v2.84 behavior.
+// ═══════════════════════════════════════════════════════════
+function _positionWinCardOverGrid(){
+  var card=document.querySelector('#win .wcard');
+  if(!card) return;
+  var grid=document.getElementById('gridClip');
+  if(!grid){
+    // Fallback: clear any prior inline positioning so the card
+    // lands on the .wov default center.
+    card.style.left=''; card.style.top=''; card.style.maxWidth='';
+    return;
+  }
+  var r=grid.getBoundingClientRect();
+  if(r.width<=0||r.height<=0){
+    card.style.left=''; card.style.top=''; card.style.maxWidth='';
+    return;
+  }
+  var cx=r.left+r.width/2;
+  var cy=r.top+r.height/2;
+  // Pixel positions (.wov is position:fixed inset:0, so the card's
+  // absolute coordinates are viewport coordinates).
+  card.style.left=cx+'px';
+  card.style.top=cy+'px';
+  // Width clamp — see header comment.
+  var clampW=Math.max(280, Math.min(460, r.width));
+  card.style.maxWidth=clampW+'px';
 }
 
 // Daily button — derives a deterministic seed from today's date so all
@@ -13426,7 +15026,11 @@ if(dailyBtn){
 var statsBtn=document.getElementById('statsBtn');
 if(statsBtn){
   statsBtn.addEventListener('click',function(){
-    if(window.playUIClick) try{playUIClick();}catch(e){}
+    // [v2.93] Open chirp — same family as the TILE ADJUST modal,
+    // settings panel, and display-mode buttons. Replaces the
+    // previous playUIClick (a generic UI click that didn't have
+    // open/close directionality).
+    if(window._modalOpenChirp) window._modalOpenChirp();
     if(window._mc113) window._mc113.renderStatsScreen();
     var ov=document.getElementById('statsOverlay');
     if(ov){ov.style.display='flex';}
@@ -13435,47 +15039,199 @@ if(statsBtn){
 var statsCloseBtn=document.getElementById('statsCloseBtn');
 if(statsCloseBtn){
   statsCloseBtn.addEventListener('click',function(){
+    // [v2.93] Close chirp — pairs with the open chirp above so
+    // the stats overlay's open/close gesture sounds like a
+    // matched set.
+    if(window._modalCloseChirp) window._modalCloseChirp();
     var ov=document.getElementById('statsOverlay');
     if(ov) ov.style.display='none';
   });
 }
 var statsClearBtn=document.getElementById('statsClearBtn');
 if(statsClearBtn){
-  statsClearBtn.addEventListener('click',function(){
-    // Two-tap confirm: first tap arms it, second tap within 3s clears.
-    if(statsClearBtn.dataset.armed==='1'){
-      if(window._mc113) window._mc113.clearStats();
-      if(window._mc113) window._mc113.renderStatsScreen();
-      statsClearBtn.dataset.armed='0';
-      statsClearBtn.textContent='RESET';
-      if(window._mc113) window._mc113.showToast('Stats cleared');
-    } else {
-      statsClearBtn.dataset.armed='1';
-      statsClearBtn.textContent='TAP AGAIN';
+  // [v2.94] Long-press confirm replaces the old two-tap pattern.
+  // [v2.96] Visual rewritten: instead of a left-to-right fill
+  // bar (mostly hidden under the user's finger during a press),
+  // the button now grows a RED GLOW that emanates outward from
+  // its border. Visible AROUND the finger so users can see the
+  // charge progressing without lifting up. Implemented as a
+  // CSS box-shadow transition driven inline from JS — no extra
+  // DOM, no overflow/clipping issues, plays nicely with the
+  // pill border-radius. The glow grows in radius and intensity
+  // simultaneously: at 0% it's invisible, at 100% (pop) it's
+  // a strong wide bloom. On cancel it fades back smoothly.
+  //
+  // Implementation note: box-shadow accepts comma-separated
+  // values; we layer two — a bright inner halo and a wider soft
+  // outer one — so the glow has body without being a flat blur.
+  // Border-color also brightens during charge for added punch.
+
+  // Stash the resting border / shadow so cancel can restore them
+  // exactly. Read once at wire time; the inline style holds.
+  var REST_BORDER = statsClearBtn.style.borderColor || 'rgba(255,107,107,0.5)';
+  var REST_SHADOW = '';
+  // Make the box-shadow transition nicely.
+  statsClearBtn.style.transition =
+    'box-shadow ' + 650 + 'ms ease-out, ' +
+    'border-color ' + 650 + 'ms ease-out';
+
+  var HOLD_MS = 650;
+  var _holdTimer = null;
+  var _pressing = false;
+
+  // Audio: a rising "charging" tone during the press, plus a
+  // sharp "pop" at completion. Cancel doesn't make a sound — the
+  // visual rewind is enough.
+  var _chargeNodes = null;
+  function _startCharge(){
+    try{
+      if(!AC) return; resumeAC();
+      var t0 = AC.currentTime;
+      var g = AC.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.06, t0 + 0.05);
+      g.connect(AC.destination);
+      var o = AC.createOscillator();
+      o.type = 'sawtooth';
+      // Sweep upward across the hold duration so the user hears
+      // the tension building. C3 → A4 over 650ms.
+      o.frequency.setValueAtTime(130, t0);
+      o.frequency.exponentialRampToValueAtTime(440, t0 + (HOLD_MS/1000));
+      // Tame the sawtooth's high harmonics with a bandpass.
+      var bp = AC.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 600;
+      bp.Q.value = 0.8;
+      o.connect(bp); bp.connect(g);
+      o.start(t0);
+      _chargeNodes = {o:o, g:g};
+    }catch(_){}
+  }
+  function _stopCharge(){
+    if(!_chargeNodes) return;
+    try{
+      var t = AC.currentTime;
+      var n = _chargeNodes; _chargeNodes = null;
+      n.g.gain.cancelScheduledValues(t);
+      n.g.gain.setValueAtTime(n.g.gain.value, t);
+      n.g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+      n.o.stop(t + 0.06);
+    }catch(_){}
+  }
+  function _resetPop(){
+    try{
+      if(!AC) return;
+      var t0 = AC.currentTime;
+      var g = AC.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.20, t0 + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12);
+      g.connect(AC.destination);
+      var o = AC.createOscillator();
+      o.type = 'square';
+      // Quick downward "thunk" — high → low over the pop's duration.
+      o.frequency.setValueAtTime(440, t0);
+      o.frequency.exponentialRampToValueAtTime(110, t0 + 0.10);
+      o.connect(g);
+      o.start(t0);
+      o.stop(t0 + 0.13);
+    }catch(_){}
+  }
+
+  // [v2.96] Glow targets. Layered shadow at peak: bright inner +
+  // wider outer. RGB stays the same red (255,107,107) used for
+  // the button's resting border; only spread/blur/alpha change.
+  var SHADOW_PEAK =
+    '0 0 18px 4px rgba(255,107,107,0.95), ' +
+    '0 0 42px 12px rgba(255,107,107,0.55)';
+  var BORDER_PEAK = 'rgba(255,107,107,1)';
+
+  function _beginPress(){
+    if(_pressing) return;
+    _pressing = true;
+    // Charge the glow over the full hold duration. The CSS
+    // transition (set on .style at wire time) drives the
+    // animation — we just set the target values.
+    statsClearBtn.style.transition =
+      'box-shadow ' + HOLD_MS + 'ms ease-out, ' +
+      'border-color ' + HOLD_MS + 'ms ease-out';
+    statsClearBtn.style.boxShadow = SHADOW_PEAK;
+    statsClearBtn.style.borderColor = BORDER_PEAK;
+    _startCharge();
+    _holdTimer = setTimeout(function(){
+      // Commit.
+      _holdTimer = null;
+      _pressing = false;
+      _stopCharge();
+      _resetPop();
+      if(window._mc113){
+        window._mc113.clearStats();
+        window._mc113.renderStatsScreen();
+        window._mc113.showToast('Stats cleared');
+      }
+      // Snap glow back to rest after a brief peak hold so the
+      // moment of completion is visually punctuated. Use a
+      // shorter fade than the cancel rewind because commit
+      // should feel decisive.
       setTimeout(function(){
-        if(statsClearBtn.dataset.armed==='1'){
-          statsClearBtn.dataset.armed='0';
-          statsClearBtn.textContent='RESET';
-        }
-      },3000);
-    }
-  });
+        statsClearBtn.style.transition =
+          'box-shadow 240ms ease-out, ' +
+          'border-color 240ms ease-out';
+        statsClearBtn.style.boxShadow = REST_SHADOW;
+        statsClearBtn.style.borderColor = REST_BORDER;
+      }, 80);
+    }, HOLD_MS);
+  }
+  function _cancelPress(){
+    if(!_pressing && !_holdTimer) return;
+    _pressing = false;
+    if(_holdTimer){ clearTimeout(_holdTimer); _holdTimer = null; }
+    _stopCharge();
+    // Glow rewinds — fast smooth fade so the user gets clear
+    // "release detected" feedback. Quicker than the charge so
+    // cancel feels light vs the deliberate buildup.
+    statsClearBtn.style.transition =
+      'box-shadow 180ms ease-out, ' +
+      'border-color 180ms ease-out';
+    statsClearBtn.style.boxShadow = REST_SHADOW;
+    statsClearBtn.style.borderColor = REST_BORDER;
+  }
+
+  // Wire pointer events. preventDefault on touchstart blocks the
+  // synthetic mouse events the OS would otherwise dispatch — we
+  // don't want a single tap to fire BOTH touchstart and mousedown
+  // and double-arm the press.
+  statsClearBtn.addEventListener('touchstart', function(e){
+    e.preventDefault();
+    _beginPress();
+  }, {passive:false});
+  statsClearBtn.addEventListener('touchend',    function(){ _cancelPress(); }, {passive:true});
+  statsClearBtn.addEventListener('touchcancel', function(){ _cancelPress(); }, {passive:true});
+  statsClearBtn.addEventListener('mousedown',   function(){ _beginPress(); });
+  statsClearBtn.addEventListener('mouseup',     function(){ _cancelPress(); });
+  statsClearBtn.addEventListener('mouseleave',  function(){ _cancelPress(); });
 }
 
 // Share button — generates a Wordle-style emoji grid and copies it to
 // the clipboard. Shows a toast confirmation on success.
-var shareBtn=document.getElementById('shareBtn');
-if(shareBtn){
-  shareBtn.addEventListener('click',function(){
-    if(!PZ || !window._mc113) return;
-    var ms=window._mc113.curMs();
-    var mvs=window._mc113.getMoves();
-    var isDaily=window._mc113.isDaily();
-    var dateStr=window._mc113.dailyDateStr();
-    var text=window._mc113.buildShareText(PZ,SIZE,DIFF,ms,mvs,isDaily,dateStr);
-    window._mc113.copyText(text).then(function(ok){
-      window._mc113.showToast(ok?'Copied to clipboard':'Copy failed');
-    });
+// [v2.82] Share button replaced with a Menu button that returns to
+// the puzzle-size selector. Old share handler is removed; the
+// underlying buildShareText() and copyText() functions are kept on
+// _mc113 (lines 7165, 7221) since they're cheap to keep and would
+// be the bulk of the work to write again if we revive sharing for
+// a daily puzzle / leaderboard feature later.
+var winMenuBtn=document.getElementById('winMenuBtn');
+if(winMenuBtn){
+  winMenuBtn.addEventListener('click',function(){
+    // [v2.91] Close chirp — leaving the win screen for the menu
+    // is the same gestural family as closing the TILE ADJUST
+    // modal or settings panel.
+    if(window._modalCloseChirp) window._modalCloseChirp();
+    // Hide the win overlay BEFORE showing the menu so the fade
+    // doesn't briefly stack the overlay over the selection screen.
+    var winEl=document.getElementById('win');
+    if(winEl) winEl.classList.remove('show');
+    showMenu();
   });
 }
 
@@ -14149,12 +15905,18 @@ if(shareBtn){
       'background:transparent;color:var(--cyan,#00d9ff);'+
       'border:1.5px solid var(--cyan,#00d9ff);border-radius:4px;cursor:pointer;';
     close.addEventListener('click', function(){
+      // [v2.91] Close chirp on the Close button — same family
+      // as the TILE ADJUST modal and display-mode buttons.
+      if(window._modalCloseChirp) window._modalCloseChirp();
       if(ov.parentNode) ov.parentNode.removeChild(ov);
     });
     box.appendChild(close);
 
     ov.addEventListener('click', function(e){
       if(e.target === ov){
+        // [v2.91] Close chirp on backdrop tap-to-dismiss too,
+        // so every close path sounds the same.
+        if(window._modalCloseChirp) window._modalCloseChirp();
         if(ov.parentNode) ov.parentNode.removeChild(ov);
       }
     });
@@ -14165,7 +15927,11 @@ if(shareBtn){
 
   function _openPanel(){
     if(document.getElementById('_optOv')) return;
-    if(typeof playUIClick === 'function') playUIClick();
+    // [v2.91] Open chirp — same family as the TILE ADJUST modal
+    // and display-mode buttons. Replaces the older playUIClick
+    // (a generic UI click that didn't have the open/close
+    // directionality of the chirp pair).
+    if(window._modalOpenChirp) window._modalOpenChirp();
     document.body.appendChild(_buildPanel());
   }
 
