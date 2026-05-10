@@ -1,5 +1,759 @@
-<!-- Equil v3.22 | Built: 2026-05-09 CT | github.com/Spamboni
-     v3.22: Cleanup + COUNTS UX improvements.
+<!-- Equil v3.48 | Built: 2026-05-09 CT | github.com/Spamboni
+     v3.48: Ready overlay simplified — single blur, GO over grid,
+            scroll lock, no more morph (timer just glows).
+
+     1. SINGLE BLUR PANE. Two-pane setup left a visible seam between
+        grid and bank where you could see numbers when scrolling.
+        Replaced with one continuous pane spanning .gscroll top
+        through bank-outer bottom, fixed at 4px blur + 0.05 tint.
+        No more peek-through gaps.
+
+     2. SCROLL LOCKED while overlay is up. body.style.overflow set
+        to hidden on showReady, restored on hideReady. Player can't
+        scroll the bank into view to count tiles before tapping GO.
+
+     3. GO BUTTON OVER GRID CENTER, not screen center. Reads as
+        "starting in the puzzle area" and centers visually within
+        the blurred zone. Position computed dynamically from the
+        grid's bounding rect. Resize handler keeps it positioned
+        correctly through orientation changes.
+
+     4. TIMER MORPH ABANDONED. Three pill-shapes lined up at the
+        masthead top read as cluttered. Removed the timer pill
+        outline entirely. Timer is now bare cyan numbers (font-size
+        18px, weight 700, letter-spacing 3px) with a soft cyan
+        text-shadow.
+
+     5. GLOW-BURST ON GAME START. The "draw attention to timer
+        starting" intent is preserved without the morph: when GO
+        is tapped, the timer's text-shadow flashes bright (14px +
+        28px layered cyan glow), then simmers down to its calm
+        steady-state (6px soft glow) over 500ms. Achieves the
+        attention-grab without the visual gymnastics.
+
+     6. ANIMATION SIMPLIFIED. GO fades out via CSS opacity (0.4s),
+        blur pane fades to 0 via rAF (500ms), timer fades in with
+        glow burst, scroll unlocks, overlay hides. Total ~550ms
+        instead of the previous ~1100ms. Feels snappier.
+
+     v3.47: two-pane blur + gray-rectangle fix.
+     v3.46: masthead cleanup + timer pill (now reverted).
+     v3.45: GO morph animation (now removed).
+     v3.42: READY overlay before timer starts.
+     v3.41: expanded per-solve data capture.
+     v3.33: trivial-equation crackdown.
+
+     v3.47: Two-pane blur, gray-rectangle bug fix, arrow centering.
+
+     1. TWO-PANE BLUR. Instead of one full-screen blur, the READY
+        overlay now uses two stacked blur panes: 2px over the grid
+        (.gscroll), 5px over the number bank (.bank-outer). The
+        masthead and stats row stay clear so the GO→timer animation
+        and the buttons render sharp through them. Pane positions
+        are computed dynamically via getBoundingClientRect on each
+        showReady so they track layout/zoom correctly.
+
+        Why different blurs: the grid is information-dense (numbers
+        in cells) but you'd want to see the layout to feel ready.
+        2px keeps the structure visible. The bank is tile-icons —
+        slightly heavier 5px softens the "let me start counting
+        which numbers I have" reflex.
+
+        A true gradient blend between the two values isn't possible
+        with backdrop-filter, but the gap between the grid and bank
+        is a natural visual seam so two distinct zones reads cleanly.
+
+     2. SLIDER REMOVED. Was useful for finding sweet-spot during
+        development; values now hardcoded.
+
+     3. GRAY RECTANGLE BUG FIXED. After the first puzzle's GO
+        animation, the cleanup did `removeAttribute('style')` to
+        reset the button. This stripped EVERY inline style — border,
+        background, glow, color, font — leaving the browser default
+        gray rectangle that animated up to the timer on the next
+        puzzle. Now the original style string is cached once at
+        IIFE init, and showReady reapplies it with setAttribute.
+        Clean restoration, no surprises.
+
+     4. BACK ARROW OPTICAL CENTERING. Previous fix used line-height:1
+        + flex centering, but the ← glyph's ink sits in the upper
+        half of its em-box, so flex centered the bounding box (which
+        looks low). Wrapped the arrow in a span with translateY(-2px)
+        for proper optical centering.
+
+     v3.46: masthead cleanup + timer pill.
+     v3.45: GO morph animation.
+     v3.42: READY overlay before timer starts.
+     v3.41: expanded per-solve data capture.
+     v3.33: trivial-equation crackdown.
+
+     v3.46: Masthead cleanup + timer pill + matching button heights.
+
+     1. GRAY HINTS REMOVED. The "Tap a square · then a number..."
+        hint line under the masthead is hidden. Will revisit as a
+        one-time startup overlay later if needed.
+
+     2. BUTTON HEIGHTS LOCKED. Back, Pause, New, and ⚙ all now sit
+        at 28px tall. Settings was already 28x28; the others were
+        slightly taller from .mast-back's default vertical padding.
+        Visual rhythm across all four masthead buttons.
+
+     3. BACK ARROW CENTERED. The previous line-height:0.5 trick
+        (necessary to keep the big ← from inflating the button)
+        floated the arrow upward off-center. Replaced with flex
+        centering + line-height:1 so the arrow sits dead center.
+        Font size dropped 32px → 24px to fit cleanly inside 28px
+        height.
+
+     4. STATS ROW REORDERED. Moves moved from RIGHT of timer to
+        LEFT — they were getting bunched up with mistakes on the
+        right side. Now: [moves]  [TIMER PILL]  [mistakes]. Clean
+        three-zone layout.
+
+     5. TIMER STYLED AS A PILL. The timer is now a cyan-outlined
+        pill with a soft glow, ~2x its previous visual footprint
+        (font-size 11px → 14px, plus border + padding + glow).
+        Matches the visual language of the other masthead buttons.
+        No ⏱ icon — just the numbers in cyan.
+
+     6. GO → TIMER ANIMATION UPDATED. The GO button still has its
+        original size and color on the READY overlay. On tap, it
+        now morphs to the timer pill's EXACT rect (width, height,
+        position, padding, glow, border-width all match) — so it
+        lands as a perfect pill, not just shrunken text. Result
+        reads as "the GO button stretched into the new timer pill".
+
+     v3.45: blur slider + GO morph animation.
+     v3.44: masthead button polish.
+     v3.42: READY overlay before timer starts.
+     v3.41: expanded per-solve data capture.
+     v3.33: trivial-equation crackdown.
+
+     v3.45: READY overlay — blur slider + GO-becomes-timer animation.
+
+     Three things landed:
+
+     1. BLUR SLIDER. A range slider sits below the GO button on the
+        ready overlay, 0-20px range with 0.5 step. Live updates the
+        backdrop-filter as you drag, displays "N.Npx" beside it.
+        Final value persists in localStorage so the sweet-spot
+        survives reloads. Default 4px (already a real improvement
+        from v3.42's 12px). Slider taps don't bubble up to the
+        overlay's tap-to-dismiss handler — only taps on background
+        or the GO button dismiss.
+
+     2. GO BUTTON ANIMATES INTO THE TIMER. On tap:
+        a. Button captures its current rect, then pins itself fixed
+           at that exact pixel position so the rest of the overlay
+           can fade away without dragging it along.
+        b. Slider fades out immediately.
+        c. Backdrop blur eases from current value down to 0 over
+           600ms (rAF loop since backdrop-filter doesn't transition
+           reliably across browsers); tint fades alongside.
+        d. Button transitions over 700ms to the timer's slot —
+           shrinks to match the timer's font-size, drops its filled
+           background and inner glow, keeps just an outline.
+        e. Mid-animation (350ms in) the button's label swaps from
+           "▶ GO" to the live timer reading. From here the button
+           IS the timer, visually and numerically.
+        f. After dock completes (720ms): real #mastTimerWrap fades
+           back in (it was hidden at opacity:0 during showReady),
+           button fades out in parallel. The actual timer element
+           takes over seamlessly.
+        g. Button styles reset for the next puzzle.
+
+        The actual mc113.startTimer() fires immediately on tap so
+        the live numbers are correct when they appear in the button
+        mid-animation. No "started but showed 0:00 for a beat" lag.
+
+     3. STATS ROW restructured. Was: [⏱ 0:00 · 0 moves] all centered
+        with a · between. Now 3-slot layout: empty left, timer
+        center, moves+mistakes right-aligned. The empty left slot
+        keeps the timer optically centered. The animated GO button
+        needs the timer in a predictable centered location to dock
+        into, and the new layout makes "moves to the right" trivial.
+
+     Per-solve data still includes mv (moves) and all the v3.41
+     metrics — the new animation doesn't change recorded data.
+
+     v3.44: masthead button polish.
+     v3.43: lighter ready overlay.
+     v3.42: READY overlay before timer starts.
+     v3.41: expanded per-solve data capture.
+     v3.33: trivial-equation crackdown.
+
+     v3.44: Masthead button polish + lighter ready overlay.
+
+     1. Back button restored to default size (matches New). Arrow
+        sized up ~5x via inline font-size:32px so it dominates the
+        button. line-height:0.5 keeps the button height normal —
+        without that override, the tall ← character pushed the
+        button vertically.
+
+     2. Pause button switched from the ⏸ emoji to two CSS-drawn
+        vertical cyan bars. The emoji rendered yellow on Android
+        Chrome/Brave despite the inline color:var(--cyan) — emoji
+        glyphs ignore CSS color. Bars are 3px×14px with a soft cyan
+        glow matching the rest of the masthead palette.
+
+     3. Both buttons share the same padding:8px 14px so they have
+        equal proportions next to each other.
+
+     4. Ready overlay further lightened: tint 0.15→0.05, blur 6px→4px.
+        Puzzle behind is now clearly visible with just enough soft-
+        ening to feel "not yet active". GO button stands out via
+        its glow rather than against a dark backdrop.
+
+     v3.43: ready overlay first lighten.
+     v3.42: READY overlay before timer starts.
+     v3.41: expanded per-solve data capture.
+     v3.33: trivial-equation crackdown.
+
+     v3.43: READY overlay — lighter tint, less blur.
+
+     Previous values (rgba(0,0,0,0.45) + blur(12px)) made the
+     puzzle behind look like a black smear. Lowered to rgba 0.15
+     and blur 6px so the puzzle shapes show through clearly while
+     still being too soft to actually solve. The GO button glow
+     still pops against the lighter tint.
+
+     v3.42: READY overlay before timer starts.
+     v3.41: expanded per-solve data capture.
+     v3.33: trivial-equation crackdown.
+
+     v3.42: READY overlay before timer starts.
+
+     After a puzzle builds (Play from menu, New from masthead,
+     Daily, etc), a full-screen blurred overlay with a single GO
+     button appears. The puzzle is visible behind through the
+     backdrop-filter blur — the player can see they're in the
+     game and ready to start, but everything's softened so they
+     can't actually start solving yet. Tapping GO (or anywhere on
+     the overlay) dismisses it and explicitly kicks off the timer
+     via the new mc113.startTimer() method.
+
+     Why: hard puzzles with only 3-4 given numbers can take 1-2
+     minutes of "where do I even start" thinking before the player
+     makes their first move. Previously the timer was started by
+     the first noteMove() call, so all that thinking time wasn't
+     counted. This polluted the calibration dataset (especially
+     for harder difficulties) and also wouldn't reflect what a
+     real timed mode would feel like — in production timer mode,
+     the clock should start when the player commits to playing.
+
+     Implementation:
+       - mc113 gains a startTimer() method that sets startTs
+         without incrementing moves. noteMove still works as
+         a fallback (so testing flows that skip the overlay
+         continue to function).
+       - readyOverlay z-index 320, uses backdrop-filter:blur(12px)
+         + rgba(0,0,0,0.45) tint for the blurred-frosted look.
+       - showMenu hides the overlay if user backs out before
+         tapping GO.
+       - Tap-anywhere-to-dismiss matches the pause overlay UX.
+
+     v3.41: expanded per-solve data capture.
+     v3.40: pause moved to left of menu.
+     v3.39: TIMES export/import.
+     v3.38: pause feature.
+     v3.33: trivial-equation crackdown.
+
+     v3.41: TIMES — expanded per-solve data capture.
+
+     Beyond v3.37's existing fields, each recorded solve now also
+     captures (short keys to keep storage compact):
+       col, row, cells   — grid dimensions and total cell count
+       xlEq, mainEq      — XL (4-cell) vs main (5-cell) eq split
+       maxA, minA, avgA  — answer-value distribution (max/min/avg
+                            of all answer values in the puzzle)
+       uVl, dup          — bank uniqueness: distinct values count
+                            and duplicate-instance count
+       mv                — total moves at win
+       dly               — 1 if daily puzzle, 0 if random
+       ddate             — daily date string (only present for
+                            daily puzzles)
+       t                 — timestamp at solve (ms since epoch)
+
+     The display still shows what it showed before (template, time,
+     mistakes, basic metrics) — these new fields are stored for
+     analysis later. Easy to extract: every entry is a flat JSON
+     object with all variables, ready to drop into a spreadsheet,
+     pandas DataFrame, or any other tool for filtering/regression/
+     pivoting.
+
+     Useful queries this enables:
+       - "avg ms per blank tile, segmented by div count"
+       - "do puzzles with maxA>50 take longer than maxA<20?"
+       - "moves-per-blank efficiency by template"
+       - "am I faster solving on Sunday morning vs Tuesday night?"
+       - "do bank-duplicate-heavy puzzles solve faster?"
+       - eventually: full multi-feature regression for timer formula
+
+     v3.40: pause moved to left of menu.
+     v3.39: TIMES export/import.
+     v3.38: pause feature.
+     v3.37: per-solve dataset.
+     v3.33: trivial-equation crackdown.
+
+     v3.40: Pause button repositioned to left of Menu.
+
+     Moved the ⏸ pause button from the right side (next to New) to
+     the left side (next to Menu). The right side was crowded —
+     two cyan-glow buttons risked overlapping the EQUIL title on
+     narrow viewports.
+
+     Menu button trimmed from "← Menu" to just "←" with tightened
+     padding (6px 14px → 6px 10px). The arrow alone reads as "back"
+     clearly enough in context, and the freed space lets the pause
+     button sit comfortably next to it without the layout shifting.
+
+     Pause button uses the same tight padding for visual symmetry.
+
+     v3.39: TIMES export/import.
+     v3.38: menu size-highlight + pause feature.
+     v3.33: trivial-equation crackdown (4.56 → 0.25 trivials).
+
+     v3.39: TIMES — EXPORT / IMPORT.
+
+     Added two buttons above RESET TIMES in the TIMES panel.
+       EXPORT: downloads all _dbgTimes data as
+               equil-times-YYYY-MM-DDTHH-MM-SS.json
+       IMPORT: opens a file picker; loads a previously-exported
+               JSON. Merges with current data (appends to each
+               size,diff bucket) — for a clean slate, hit RESET
+               TIMES first then IMPORT.
+
+     Why: the Claude in-app webview treats each HTML file as a
+     fresh ephemeral session, so localStorage doesn't persist
+     across versions opened in the app. Now Sam can export before
+     closing one version and import into the next to preserve the
+     calibration dataset across builds.
+
+     Format is wrapped with metadata for future-proofing:
+       { version:1, kind:'equil-times', exportedAt, data }
+     IMPORT also accepts a raw _dbgTimes object as a fallback so
+     hand-edited or older formats still work.
+
+     Visual feedback: button text shows SAVED ✓ / LOADED ✓ on
+     success or ERROR / BAD FILE / READ ERR on failure, then
+     reverts after 1.2-1.5s.
+
+     v3.38: menu size-highlight + Pause feature.
+     v3.37: full per-solve dataset + ANALYSIS tab.
+     v3.33: trivial-equation crackdown (4.56 → 0.25 trivials).
+
+     v3.38: Menu size-highlight persistence + Pause feature.
+
+     1. SIZE PERSISTENCE ON MENU RETURN
+        Returning to the menu via the Menu button left all size
+        buttons un-highlighted because the .on class only got toggled
+        by direct clicks. Now showMenu() re-applies .on to whichever
+        size matches the global SIZE so the user sees their last
+        selection without re-tapping. Also re-applies the xl2-mode
+        body class.
+
+        Side fix: the size-button click handler used a broad
+        querySelectorAll('[data-size]') which also swept the new
+        TIMES panel tabs. Scoped to '.sel-btn[data-size]' so the
+        two systems no longer cross-contaminate.
+
+     2. PAUSE BUTTON
+        New ⏸ button squeezed into the right side of the masthead,
+        left of the New button. Same .mast-back chassis as Menu/New
+        so it visually fits. Tapping it:
+          - Pauses the timer (mc113.pause() shifts startTs on resume
+            so no time leaks during the pause).
+          - Shows a full-screen overlay (#pauseOverlay) with "PAUSED"
+            heading, "tap to resume" hint, and a ▶ RESUME button.
+          - Tapping anywhere on the overlay (including the button)
+            calls mc113.resume() and dismisses.
+        The pause button is a no-op before the first move (timer
+        hasn't started) and after a win (puzzle is locked).
+        Position is temporary — better real estate may exist later.
+
+     v3.37: full per-solve dataset + ANALYSIS tab.
+     v3.36: per-time mistakes display.
+     v3.33: trivial-equation crackdown (4.56 → 0.25 trivials).
+     v3.21: Hard mode 3-blank bias.
+     v3.20c: Backtracking BFS-order solver.
+
+     v3.37: TIMES — full per-solve dataset + ANALYSIS tab.
+
+     Per-solve recording now captures:
+       - template name (TS, TQ, TS3, etc)
+       - total equations, blanks, givens (non-blank num cells)
+       - 1/2/3-blank equation counts
+       - +/-/×/÷ operator counts
+       - trivial-eq count
+     ...in addition to the existing time, mistakes.
+
+     List view now shows:
+       - line 1: template, time, ✕mistakes/✓clean, ★ best marker
+       - line 2 (muted): "21bk 5/9/0b 8+ 8- 4× 4÷ · 2tr"
+                          blanks · 1/2/3-blank eqs · op counts · trivials
+
+     New ANLZ tab next to the size tabs. Three sections:
+       1. BY (SIZE, DIFF) — n, avg time, avg mistakes per bucket
+       2. BY TEMPLATE — same but grouped by template name
+       3. SCALING (ms/unit) — for each feature (blank, given, eq,
+          op, trivial), shows avg count per puzzle and rough seconds-
+          per-unit. Useful for deriving timer-formula coefficients
+          like "each blank takes ~3s, each ÷ adds ~5s".
+
+     The scaling numbers are intentionally simple (avg time / avg
+     feature, not a real regression). Once we have enough samples
+     across diff sizes, can upgrade to least-squares.
+
+     Goal: empirical timer calibration. Play a sample of puzzles
+     across all (size, diff) combinations, then read off coefficients
+     from the ANLZ tab to derive a formula like:
+       target_seconds = base + 3*blanks + 2*ops + 5*divs - 4*trivials
+
+     Legacy entries (pre-v3.37) without metrics still display in the
+     list view (just no second-line metrics) and are excluded from
+     analysis aggregation.
+
+     v3.36: per-time mistakes display.
+     v3.35: separate TIMES panel.
+     v3.33: trivial-equation crackdown (4.56 → 0.25 trivials).
+     v3.21: Hard mode 3-blank bias.
+     v3.20c: Backtracking BFS-order solver.
+
+     v3.36: TIMES panel — mistakes tracking + solid default opacity.
+
+     Each recorded time now also stores the mistake count for that
+     run. Display additions:
+       - Each column's header now shows "avg ✕" (avg mistakes per
+         solve) under the existing best/avg time pills
+       - Each listed time shows its mistake count inline:
+           1:23 ✓     (clean run, zero mistakes)
+           1:45 ✕2    (2 mistakes)
+           1:12 ★     (best time, marker stays)
+           1:12 ✓ ★   (best time + clean — both shown)
+
+     Storage migrated from bare ms numbers to {ms, mk} objects.
+     Legacy entries (just numbers) still display correctly — they
+     just lack the mistake count badge. The avg ✕ calculation only
+     averages over entries that have a recorded mistake count, so
+     a column with mixed legacy and new entries shows a number
+     based on the new ones. If none have mistake data yet, displays
+     "—".
+
+     TIMES panel now defaults to ● solid (idx 2) instead of ◐ see-
+     through. It's a reference-lookup panel — being able to read
+     the times clearly matters more than seeing the puzzle behind.
+     User's saved choice still wins if they've cycled it before.
+
+     v3.35: separate TIMES panel.
+     v3.34: opacity toggle button.
+     v3.33: trivial-equation crackdown (4.56 → 0.25 trivials).
+     v3.21: Hard mode 3-blank bias.
+     v3.20c: Backtracking BFS-order solver.
+
+     v3.35: Second debug panel — TIMES.
+
+     New TIMES button next to COUNTS opens a separate panel for
+     tracking solve times. Same green styling, drag, opacity cycle
+     (◐/◑/●), close button, and two-tap reset as the COUNTS panel.
+
+     Layout:
+       - 4 size tabs at top: SMALL / MEDIUM / LARGE / JUMBO
+       - 3 columns under: EASY / MEDIUM / HARD
+       - Each column shows count, best time, avg time at top, then
+         every recorded time newest-first, scrollable
+       - Best time gets a ★ marker
+
+     Recording: hooks into mc113.recordWin so every solved puzzle
+     gets logged automatically. Independent storage from the user-
+     facing stats — RESET TIMES doesn't touch user records.
+
+     Active size tab persists in localStorage so it doesn't reset
+     between sessions.
+
+     Setup for upcoming timer mode: now we can play a few dozen
+     puzzles per (size, diff) and read off baseline solve times to
+     calibrate the timer budget.
+
+     v3.34: opacity toggle button.
+     v3.33: trivial-equation crackdown (4.56 → 0.25 trivials).
+     v3.32: PUZZLE AVERAGES section.
+     v3.21: Hard mode 3-blank bias.
+     v3.20c: Backtracking BFS-order solver.
+
+     v3.34: Debug panel — opacity toggle button.
+
+     New ◐/◑/● button next to the close ✕. Cycles three background
+     opacity states:
+       ◐  see-through (0.10 alpha) — puzzle visible behind panel
+       ◑  medium      (0.55 alpha) — values clear, puzzle hinted
+       ●  solid       (0.95 alpha) — values pop, puzzle hidden
+     Persists in localStorage so the choice survives reloads.
+
+     v3.33 trivial-eq fix shipped: 820-roll baseline avg of 4.56
+     trivials/puzzle dropped to 0.25 in fresh data (Large/Medium,
+     ~263 puzzles). 76% of puzzles now have 0 trivials, 22% have 1,
+     1% have 2. Op mix shifted slightly: + and − each rose by less
+     than 0.5 per puzzle (expected — the solver falls back to
+     additive ops when ×÷ would have been trivial). Net win.
+
+     v3.33: trivial-equation crackdown.
+     v3.32: PUZZLE AVERAGES + collapsible CURRENT.
+     v3.31: operator counts + trivial detection.
+     v3.21: Hard mode 3-blank bias.
+     v3.20c: Backtracking BFS-order solver.
+
+     v3.33: TRIVIAL EQUATION CRACKDOWN.
+
+     820-puzzle data (Large/Medium) showed avg 4.56 trivials per
+     puzzle. Trivials hist: 0t=11, 1t=45, 2t=398 (modal), 3t=130,
+     4t=166, 5t=128, 6t=96, 7+t=140. 30%+ of puzzles had 5 or more
+     trivial eqs. Two-pronged fix:
+
+     (1) Solver bias against 1s.
+       genNums BFS solver setCount=0 and setCount=1 branches now use
+       ri(2,N) instead of ri(1,N) for free-choice values. With 1s
+       not in the random pool, trivials seeded into setCount=0 (a=1
+       with op=x: 1xn=n) and setCount=1 (b=1 with op=/: n/1=n) drop
+       dramatically. setCount=2 (where crossings force values) still
+       allows 1s when the math demands it, but the op-rank sort puts
+       +/- before x/÷ when a 1 is locked, so 1*5=5 is avoided in
+       favor of 1+5=6 etc.
+     (2) Post-gen reject.
+       After buildPuzzle completes a candidate, count trivials. If
+       above 12% of total eqs (Large=2 max, Medium=1 max), retry up
+       to 30 times. With the solver bias already cutting trivials,
+       this catches the remaining cases where structure forces them.
+
+     Expected: avg trivials should drop from 4.56 to ~1-2.
+
+     v3.32: PUZZLE AVERAGES + collapsible CURRENT.
+     v3.31: operator counts + trivial detection.
+     v3.30: column alignment.
+     v3.21: Hard mode 3-blank bias.
+     v3.20c: Backtracking BFS-order solver.
+
+     v3.32: PUZZLE AVERAGES section + collapsible CURRENT PUZZLE.
+
+     Added a new collapsible section that tracks running stats across
+     every puzzle rolled in the session:
+       - puzzles recorded
+       - avg 1/2/3-blank eqs per puzzle
+       - avg + - × ÷ ops per puzzle
+       - avg trivials per puzzle
+       - histogram of trivial-count distribution (how many puzzles
+         had 0 trivials, how many had 1, etc.)
+
+     CURRENT PUZZLE section is now also collapsible (default open).
+
+     Recording happens after every successful puzzle build. State
+     persists in localStorage and resets with RESET COUNTS.
+
+     User reported seeing puzzles with 11 and 13 trivial equations
+     (out of 24 total!) — that's huge. The histogram will tell us
+     whether that's an outlier or a common mode. If avg trivials is
+     >3 we should probably gate generation to retry trivial-heavy
+     rolls. Will decide after seeing real distribution data.
+
+     Also fixed: the panel-refresh-after-build hooks were checking
+     display==='block' but the panel uses 'flex' since v3.27, so
+     auto-refresh on New tap was silently broken. Now corrected.
+
+     v3.31: operator counts + trivial detection.
+     v3.30: column alignment with CSS grid.
+     v3.21: Hard mode 3-blank bias.
+     v3.20c: Backtracking BFS-order solver fixed Large fallback bug.
+
+     v3.31: Debug panel — operator + trivial-eq stats.
+
+     Added to CURRENT PUZZLE section:
+       + ops: count of addition operators in the puzzle
+       - ops: subtraction
+       × ops: multiplication
+       ÷ ops: division
+       trivial eqs: count of equations that give the player no real
+         deduction work. A 5-cell equation is trivial when:
+           - both 1*1, 1+1, 1-1 etc (a=1 and b=1)
+           - any cell is 1 with op = × or ÷ (1×n=n or n÷1=n)
+           - both operands equal with op = ÷ (always 1)
+         Trivials are reported only — not yet stripped from generation.
+         This is groundwork for a future tweak: either reroll puzzles
+         with too many trivials, or add cost in the future timer-mode
+         calculation.
+
+     Use case: helps see at a glance whether a Hard puzzle is genuinely
+     hard or just busy with single-digit arithmetic. Also lets us spot
+     templates whose values-gen produces trivial-heavy puzzles.
+
+     Future work hinted at: timer mode where each (size, diff) gets a
+     calibrated time budget, possibly tweaked by op mix and trivial
+     count. Not implementing yet — needs baseline play data first.
+
+     v3.30: column alignment with CSS grid.
+     v3.29: live update + gray pills.
+     v3.28: half-size text.
+     v3.27: drag/scroll conflict fix.
+     v3.21: Hard mode 3-blank bias.
+     v3.20c: Backtracking BFS-order solver fixed Large fallback bug.
+
+     v3.30: Debug panel column alignment.
+
+     - Switched the three sections from inline text+br layout to CSS
+       grid. Every value now lines up vertically with the values in
+       its peer rows.
+       - CURRENT PUZZLE: 2 columns (label, value).
+       - TEMPLATE COUNTS: 3 columns (name, pick=N, final=N).
+       - FAIL REASONS: 2 columns (label, value).
+     - Columns auto-size to max-content, so the value pills sit
+       directly after the longest label rather than being shoved to
+       the panel's right edge.
+     - Removed the side margin on the pill span (was creating tiny
+       offset that broke perfect alignment).
+
+     v3.29: live update + gray pills.
+     v3.28: half-size text, no blur.
+     v3.21: Hard mode 3-blank bias.
+     v3.20c: Backtracking BFS-order solver fixed Large fallback bug.
+
+     v3.29: Debug panel polish.
+
+     - Body text 4px (was 6px). Headers stay at 6px so the hierarchy
+       reads at a glance.
+     - Number values get a subtle gray pill behind them (60% gray
+       background, slight padding, rounded corners) so they pop out
+       from the surrounding label text. Applied to puzzle stats,
+       template counts, and fail reasons.
+     - Live update: panel re-renders every time _dbgBumpPick,
+       _dbgBumpFinal, or _dbgBumpFail fires. Throttled via
+       requestAnimationFrame so rapid retries (1000+ mismatch bumps
+       per genNums attempt) coalesce into one DOM update per frame.
+
+     v3.28: half-size text, blur removed.
+     v3.27: drag/scroll conflict fixed.
+     v3.21: Hard mode 3-blank bias.
+     v3.20c: Backtracking BFS-order solver fixed Large fallback bug.
+
+     v3.28: Debug panel — half text size, no backdrop blur.
+
+     - Font size 12px to 6px (everywhere: body text, headers, buttons,
+       arrow icons). All padding, gaps, border radii halved to match.
+     - Max-width halved 440 to 220 since content is now tighter.
+     - Removed backdrop-filter:blur(2px). The blur was deliberately
+       softening the puzzle behind the panel for readability, but the
+       puzzle should stay sharp. The 10% alpha background gives a
+       subtle dimming only.
+
+     v3.27: Drag/scroll conflict fixed.
+     v3.26: Background opacity layer change.
+     v3.21: Hard mode 3-blank bias.
+     v3.20c: Backtracking BFS-order solver fixed Large fallback bug.
+
+     v3.27: Drag/scroll conflict fixed.
+
+     - Drag handle is now the header bar only (the row with ⋮⋮ DEBUG
+       and the ✕). Header label updated to "⋮⋮ DEBUG (drag here)" so
+       it's discoverable.
+     - The middle scrollable section uses touch-action:pan-y, allowing
+       finger scroll without competing with drag gestures.
+     - Background opacity dropped from 30% to 10% per request.
+     - Panel uses max-width again (was 'width' fixed at 440px which
+       made it always max-wide regardless of content) so it shrinks
+       to its content.
+
+     v3.26: Background opacity layer change, scroll fix attempt 1,
+            two-tap reset confirm.
+     v3.25: green palette.
+     v3.24c: comment-leak fix.
+     v3.21: Hard mode 3-blank bias.
+     v3.20c: Backtracking BFS-order solver fixed Large fallback bug.
+
+     v3.26: Debug panel readability and reset fix.
+
+     - Background switched from CSS opacity 0.5 (which dimmed everything
+       inside, including text) to rgba alpha 0.30 on the background only.
+       Text and accents now render at full opacity; window-behind shows
+       through 70% only on the background layer. Much clearer reading.
+     - Width fixed (was max-width); panel grows downward only, never
+       sideways. Combined with overflow-x:hidden so long content lines
+       no longer push the layout wider than the panel.
+     - Panel max-height tightened to 75vh and box-sizing:border-box so
+       padding stays inside the height limit. Combined with overflow-y:
+       auto, the panel always scrolls when content exceeds the limit.
+       The RESET COUNTS button at the bottom is reachable on every
+       device once you scroll within the panel.
+     - Reset button now uses a two-tap in-page confirm. First tap arms
+       and shows TAP AGAIN TO CONFIRM in red. Second tap within 3s
+       executes. Replaces browser confirm() which is blocked in some
+       webviews including the Claude in-app browser, where the reset
+       button silently did nothing in v3.25.
+     - Added subtle backdrop-filter:blur(2px) so text remains legible
+       even with 30% background alpha.
+
+     v3.25: Green palette, drag-anywhere, default collapsed sections.
+     v3.24c: comment-leak fix.
+     v3.24b: comment-leak fix.
+     v3.24: opacity, drag, position absolute.
+     v3.23: debug panel UX overhaul.
+     v3.22: LRG2 cleanup.
+     v3.21: Hard mode 3-blank bias.
+     v3.20c: Backtracking BFS-order solver fixed Large fallback bug.
+
+     v3.25: Debug panel cosmetics + drag rework.
+
+     - Color: cyan to green. Background near-black with green accents,
+       text in soft mint. Easier to glance at against the cyan game UI.
+     - Opacity: 0.40 to 0.50 (slightly more readable, still ghostly).
+     - Both collapsible sections (TEMPLATE COUNTS, FAIL REASONS) now
+       default to closed. Panel opens compact; tap a header to expand.
+     - Drag handle expanded from header-only to whole panel. Excluded
+       zones: the close button, RESET COUNTS button, and the two
+       section-header rows. Tapping any of those still triggers their
+       click action; tapping anywhere else starts a drag.
+
+     v3.24c: comment-leak fix (literal close-comment chars in changelog).
+     v3.24b: comment-leak fix (premature close in changelog).
+     v3.24: opacity, drag, position absolute.
+     v3.23: debug panel UX overhaul.
+     v3.22: LRG2 cleanup.
+     v3.21: Hard mode 3-blank bias.
+     v3.20c: Backtracking BFS-order solver fixed Large fallback bug.
+
+     v3.24c: Fix v3.24b changelog itself containing literal close-comment
+     character sequences inside quoted strings. HTML parsers don't care
+     about quotes inside comments — the first occurrence of the close
+     sequence ends the comment, period. Replaced all literal close
+     sequences in the new changelog text with safe descriptions.
+     Removed the stray close tag that ended the v3.24 entry; the original
+     wrapping comment now continues uninterrupted to its real close at
+     line 3806.
+
+     This is the FOURTH time this exact bug has happened in this session
+     (v3.24c needed because v3.24b's changelog itself contained literal
+     close-comment sequences in quoted strings, which still close the
+     HTML comment regardless of being quoted in source).
+     Lesson logged for future Claude: when adding a new entry to the
+     top of an existing comment block, never add a closing tag, AND
+     never write the literal close-comment characters (dash-dash-gt)
+     anywhere inside a comment, even in quotes.
+
+     v3.24: Debug panel — opacity 0.40, draggable, position absolute.
+
+     - Default opacity dropped from 0.92 → 0.40. Sits ghostly over
+       the puzzle; values still readable but the puzzle is the focus.
+     - Panel is now draggable by its header bar (which shows ⋮⋮ DEBUG
+       and a move cursor on desktop). Mouse + touch both supported.
+       First drag switches the panel from "centered via transform" to
+       explicit left/top so the position sticks where you put it.
+     - Position changed from `fixed` to `absolute`. The Claude in-app
+       webview was likely clipping fixed-positioned overlays, which
+       explained why the panel didn't show up there. Absolute + a
+       very high z-index (99999) should render reliably.
+     - Default top is 80px so the panel doesn't cover the masthead
+       on first open.
+
+     v3.23: Debug panel UX overhaul.
+     v3.22: LRG2 cleanup.
+     v3.21: Hard mode 3-blank bias.
+     v3.20c: Backtracking BFS-order solver — fixed Large fallback bug.
 
      - LRG2 debug size removed. v3.20c proved values-gen reliability,
        so the A/B test served its purpose. Pool selection, minDiv,
@@ -5047,7 +5801,7 @@ window.onerror=function(msg,src,line,col,err){
        go nearly fully semi-circular like Play does. -->
   <div class="sel-cta-row"><button class="sel-play" id="playBtn">▶ PLAY</button></div>
   <div class="sel-cta-row"><button id="statsBtn" style="margin-top:10px;width:auto;padding:10px 28px;background:transparent;border:1.5px solid rgba(0,217,255,0.4);border-radius:18px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;font-weight:700;">📊 Stats</button></div>
-  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v3.22</div>
+  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v3.48</div>
 </div>
 
 <!-- GAME SCREEN -->
@@ -5061,19 +5815,30 @@ window.onerror=function(msg,src,line,col,err){
        (Menu/New) and an inline-styled circular ⚙. -->
   <div class="mast">
     <div class="mast-side left">
-      <button class="mast-back" id="backBtn">← Menu</button>
+      <!-- [v3.47] Back arrow optical-centering fix. line-height:1 was
+           still placing the ← visually low because the glyph's ink
+           sits in the upper-middle of its em-box, so its bounding
+           box centers fine but the visual mass lands below center.
+           A 2px upward translate corrects it. -->
+      <button class="mast-back" id="backBtn" style="height:28px;padding:0 12px;font-size:24px;line-height:1;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;" title="Menu"><span style="display:inline-block;transform:translateY(-2px);">←</span></button>
+      <!-- [v3.46] Pause locked to 28px to match. Vertical bars sized
+           proportionally — 12px tall x 3px wide, slightly smaller
+           than the previous 14px so they fit cleanly inside a 28px
+           button. -->
+      <button class="mast-back" id="pauseBtn" style="height:28px;color:var(--cyan);border-color:var(--cyan);box-shadow:0 0 8px rgba(0,217,255,0.3);padding:0 10px;margin-left:6px;display:inline-flex;align-items:center;justify-content:center;gap:4px;box-sizing:border-box;" title="Pause">
+        <span style="display:inline-block;width:3px;height:12px;background:var(--cyan);border-radius:1px;box-shadow:0 0 4px rgba(0,217,255,0.6);"></span>
+        <span style="display:inline-block;width:3px;height:12px;background:var(--cyan);border-radius:1px;box-shadow:0 0 4px rgba(0,217,255,0.6);"></span>
+      </button>
     </div>
     <div class="mast-center">
       <div class="mast-title" id="mastTitle"><span>E</span>QUIL</div>
       <div class="mast-info" id="mastInfo">HARD · JUMBO</div>
     </div>
     <div class="mast-side right">
-      <!-- [v2.75] "New" button now uses .mast-back styling for a
-           1:1 size+shape match with the Menu button on the left.
-           Removed the older inline font-size:8px / padding:4px 7px.
-           Cyan accent color overridden inline to keep the action-
-           feeling glow it had before. -->
-      <button class="mast-back" id="newp" style="color:var(--cyan);border-color:var(--cyan);box-shadow:0 0 8px rgba(0,217,255,0.3);">New</button>
+      <!-- [v2.75] "New" button uses .mast-back styling. [v3.46] Locked
+           to height:28px to match the settings ⚙ for visual rhythm
+           with the left-side back/pause buttons. -->
+      <button class="mast-back" id="newp" style="height:28px;padding:0 14px;color:var(--cyan);border-color:var(--cyan);box-shadow:0 0 8px rgba(0,217,255,0.3);display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;">New</button>
       <!-- [v2.97] WIN! debug button removed. Was the magenta tester
            that fired the full win sequence on demand (wave →
            fanfare → win card) for tuning. Win sequence is now
@@ -5085,22 +5850,32 @@ window.onerror=function(msg,src,line,col,err){
       <button id="optBtn" style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;width:28px;height:28px;padding:0;border-radius:999px;border:1.5px solid var(--cyan);background:transparent;color:var(--cyan);box-shadow:0 0 8px rgba(0,217,255,0.3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;" title="Options">⚙</button>
     </div>
   </div>
-  <div id="mastStats" style="width:100%;max-width:520px;padding:5px 14px 3px;display:flex;gap:14px;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;letter-spacing:2px;color:var(--cyan);background:var(--bg-tertiary);border-bottom:1px solid rgba(0,217,255,0.2);flex-shrink:0;">
-    <span>⏱ <span id="mastTimer">0:00</span></span>
-    <span style="opacity:0.4;">·</span>
-    <span><span id="mastMoves">0</span> moves</span>
-    <!-- [v2.68] Mistakes pip — hidden until first mistake. Red ✕ glyph
-         to read clearly against the cyan masthead palette without
-         needing extra ink at zero-state. Mirrors the timer/moves
-         separator-dot pattern (decorative · between fields). The
-         dot AND the count live inside one wrapper so flipping
-         display:none on the wrapper hides both at once. -->
-    <span id="mastMistakesWrap" style="display:none;align-items:center;gap:14px;color:#ff6b6b;">
-      <span style="opacity:0.4;color:var(--cyan);">·</span>
-      <span><span id="mastMistakes">0</span> ✕</span>
-    </span>
+  <!-- [v3.48] Stats row — timer is bare cyan numbers (no pill outline).
+       Too many pill shapes lined up at the top read as visual clutter.
+       The numbers carry a strong cyan text-shadow that pulses brighter
+       on game start (handled by the GO transition) then settles into
+       a softer steady glow. -->
+  <div id="mastStats" style="width:100%;max-width:520px;padding:5px 14px 3px;display:flex;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;letter-spacing:2px;color:var(--cyan);background:var(--bg-tertiary);border-bottom:1px solid rgba(0,217,255,0.2);flex-shrink:0;">
+    <div style="flex:1;display:flex;justify-content:flex-start;align-items:center;">
+      <span><span id="mastMoves">0</span> moves</span>
+    </div>
+    <div style="flex:0 0 auto;text-align:center;">
+      <span id="mastTimerWrap" style="display:inline-flex;align-items:center;justify-content:center;font-size:18px;letter-spacing:3px;color:var(--cyan);text-shadow:0 0 6px rgba(0,217,255,0.55);transition:opacity 0.4s ease, text-shadow 0.5s ease;font-weight:700;">
+        <span id="mastTimer">0:00</span>
+      </span>
+    </div>
+    <div style="flex:1;display:flex;justify-content:flex-end;align-items:center;">
+      <span id="mastMistakesWrap" style="display:none;align-items:center;gap:6px;color:#ff6b6b;">
+        <span><span id="mastMistakes">0</span> ✕</span>
+      </span>
+    </div>
   </div>
-  <div class="info-bar"><span class="blbl">Tap a square · then a number · tap placed to return · tap thumb circle to zoom · double-tap to zoom out</span></div>
+  <!-- [v3.46] Removed: the .info-bar with the long "Tap a square ·
+       then a number..." hints line. The puzzle's interaction model
+       is straightforward enough that the always-on hint isn't
+       earning its real estate. May reintroduce as a one-time
+       startup overlay later. -->
+  <div class="info-bar" style="display:none;"><span class="blbl">Tap a square · then a number · tap placed to return · tap thumb circle to zoom · double-tap to zoom out</span></div>
   <div class="gscroll"><div class="grid-clip" id="gridClip"><div class="grid" id="grid"></div></div>
 <!-- [Equil 1.04] Removed: seqPuz (Unified SEQ/PUZ toggle) button HTML — sequencer-only. -->
   </div>
@@ -5108,9 +5883,133 @@ window.onerror=function(msg,src,line,col,err){
        touch handlers don't intercept the tap. Tap to show counts. -->
   <div style="width:100%;max-width:520px;display:flex;justify-content:space-between;align-items:center;padding:2px 14px;font:11px/1.2 monospace;color:rgba(0,217,255,0.55);letter-spacing:1px;user-select:none;flex-shrink:0;">
     <span id="_dbgTplLabel"></span>
-    <button id="_dbgCountsBtn" style="background:rgba(0,217,255,0.10);border:1px solid rgba(0,217,255,0.40);color:rgba(0,217,255,0.85);font:10px/1 monospace;letter-spacing:1px;padding:4px 8px;border-radius:6px;cursor:pointer;">COUNTS</button>
+    <div style="display:flex;gap:6px;">
+      <button id="_dbgTimesBtn" style="background:rgba(0,217,255,0.10);border:1px solid rgba(0,217,255,0.40);color:rgba(0,217,255,0.85);font:10px/1 monospace;letter-spacing:1px;padding:4px 8px;border-radius:6px;cursor:pointer;">TIMES</button>
+      <button id="_dbgCountsBtn" style="background:rgba(0,217,255,0.10);border:1px solid rgba(0,217,255,0.40);color:rgba(0,217,255,0.85);font:10px/1 monospace;letter-spacing:1px;padding:4px 8px;border-radius:6px;cursor:pointer;">COUNTS</button>
+    </div>
   </div>
-  
+
+  <!-- [v3.29] Debug HUD panel.
+       Body text 4px, headers stay 6px so the hierarchy remains
+       readable. Number values get a subtle gray pill behind them so
+       they stand out from labels. Live update on every counter bump. -->
+  <div id="_dbgPanel" style="display:none;flex-direction:column;position:absolute;top:80px;left:50%;transform:translateX(-50%);z-index:99999;background:rgba(8,16,8,0.10);border:1px solid rgba(80,255,140,0.85);border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:4px;color:rgba(140,255,180,1);max-width:min(220px,90vw);max-height:75vh;box-shadow:0 2px 12px rgba(80,255,140,0.30);box-sizing:border-box;">
+    <div id="_dbgPanelHeader" style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(80,255,140,0.50);padding:6px 8px 3px;user-select:none;flex-shrink:0;cursor:move;touch-action:none;">
+      <span style="letter-spacing:1px;font-weight:700;font-size:6px;color:rgba(160,255,200,1);">⋮⋮ DEBUG (drag)</span>
+      <div style="display:flex;gap:3px;">
+        <button id="_dbgPanelOpacity" title="cycle background opacity" style="background:transparent;border:1px solid rgba(80,255,140,0.70);color:rgba(160,255,200,1);font:6px/1 monospace;padding:2px 5px;border-radius:3px;cursor:pointer;">◐</button>
+        <button id="_dbgPanelClose" style="background:transparent;border:1px solid rgba(80,255,140,0.70);color:rgba(160,255,200,1);font:6px/1 monospace;padding:2px 5px;border-radius:3px;cursor:pointer;">✕</button>
+      </div>
+    </div>
+
+    <!-- Scrollable middle section -->
+    <div id="_dbgPanelBody" style="flex:1 1 auto;overflow-y:auto;overflow-x:hidden;padding:5px 8px;min-height:0;touch-action:pan-y;">
+      <!-- CURRENT PUZZLE — collapsible, default open -->
+      <div style="margin-bottom:6px;">
+        <div id="_dbgCurrentHeader" style="display:flex;align-items:center;gap:3px;letter-spacing:0.7px;font-weight:700;font-size:6px;color:rgba(160,255,200,1);margin-bottom:3px;cursor:pointer;user-select:none;">
+          <span id="_dbgCurrentArrow" style="display:inline-block;width:5px;transform:rotate(0deg);transition:transform 0.15s;">▼</span>
+          CURRENT PUZZLE
+        </div>
+        <div id="_dbgPuzzleStats" style="padding-left:4px;line-height:1.7;color:rgba(140,255,180,1);"></div>
+      </div>
+
+      <!-- [v3.32] PUZZLE AVERAGES — collapsible, default open. Tracks
+           running averages over every successfully-built puzzle in this
+           session, plus a histogram of trivial-eq counts. Resets when
+           the user hits RESET COUNTS. -->
+      <div style="margin-bottom:6px;">
+        <div id="_dbgAvgHeader" style="display:flex;align-items:center;gap:3px;letter-spacing:0.7px;font-weight:700;font-size:6px;color:rgba(160,255,200,1);margin-bottom:3px;cursor:pointer;user-select:none;">
+          <span id="_dbgAvgArrow" style="display:inline-block;width:5px;transform:rotate(0deg);transition:transform 0.15s;">▼</span>
+          PUZZLE AVERAGES
+        </div>
+        <div id="_dbgAvgBody" style="padding-left:4px;line-height:1.7;color:rgba(140,255,180,1);"></div>
+      </div>
+
+      <!-- TEMPLATE COUNTS — collapsible, default closed -->
+      <div style="margin-bottom:6px;">
+        <div id="_dbgTplCountsHeader" style="display:flex;align-items:center;gap:3px;letter-spacing:0.7px;font-weight:700;font-size:6px;color:rgba(160,255,200,1);margin-bottom:3px;cursor:pointer;user-select:none;">
+          <span id="_dbgTplCountsArrow" style="display:inline-block;width:5px;transform:rotate(-90deg);transition:transform 0.15s;">▼</span>
+          TEMPLATE COUNTS
+        </div>
+        <div id="_dbgTplCountsBody" style="padding-left:4px;line-height:1.7;color:rgba(140,255,180,1);display:none;"></div>
+      </div>
+
+      <!-- FAIL REASONS — collapsible, default closed -->
+      <div style="margin-bottom:6px;">
+        <div id="_dbgFailHeader" style="display:flex;align-items:center;gap:3px;letter-spacing:0.7px;font-weight:700;font-size:6px;color:rgba(160,255,200,1);margin-bottom:3px;cursor:pointer;user-select:none;">
+          <span id="_dbgFailArrow" style="display:inline-block;width:5px;transform:rotate(-90deg);transition:transform 0.15s;">▼</span>
+          FAIL REASONS
+        </div>
+        <div id="_dbgFailBody" style="padding-left:4px;line-height:1.7;color:rgba(140,255,180,1);display:none;"></div>
+      </div>
+    </div>
+
+    <!-- Sticky bottom: reset button always visible -->
+    <div style="flex-shrink:0;padding:4px 8px 6px;border-top:1px solid rgba(80,255,140,0.30);">
+      <button id="_dbgResetBtn" style="width:100%;background:rgba(255,140,80,0.20);border:1px solid rgba(255,180,120,0.85);color:rgba(255,200,150,1);font:6px/1 monospace;letter-spacing:0.7px;padding:4px;border-radius:3px;cursor:pointer;">RESET COUNTS</button>
+    </div>
+  </div>
+
+  <!-- [v3.35] TIMES panel — separate window for tracking solve times.
+       Same drag/opacity/close behavior as the COUNTS panel. Tabs at
+       top select size (Small/Medium/Large/Jumbo). Body is three
+       side-by-side scrollable columns: Easy / Medium / Hard. Each
+       column shows solve times for that (size, diff) combo, newest
+       first, with count and best at the top. -->
+  <div id="_dbgTimesPanel" style="display:none;flex-direction:column;position:absolute;top:80px;left:50%;transform:translateX(-50%);z-index:99999;background:rgba(8,16,8,0.10);border:1px solid rgba(80,255,140,0.85);border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:5px;color:rgba(140,255,180,1);width:min(280px,92vw);max-height:75vh;box-shadow:0 2px 12px rgba(80,255,140,0.30);box-sizing:border-box;">
+    <div id="_dbgTimesPanelHeader" style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(80,255,140,0.50);padding:6px 8px 3px;user-select:none;flex-shrink:0;cursor:move;touch-action:none;">
+      <span style="letter-spacing:1px;font-weight:700;font-size:6px;color:rgba(160,255,200,1);">⋮⋮ TIMES (drag)</span>
+      <div style="display:flex;gap:3px;">
+        <button id="_dbgTimesPanelOpacity" title="cycle background opacity" style="background:transparent;border:1px solid rgba(80,255,140,0.70);color:rgba(160,255,200,1);font:6px/1 monospace;padding:2px 5px;border-radius:3px;cursor:pointer;">◐</button>
+        <button id="_dbgTimesPanelClose" style="background:transparent;border:1px solid rgba(80,255,140,0.70);color:rgba(160,255,200,1);font:6px/1 monospace;padding:2px 5px;border-radius:3px;cursor:pointer;">✕</button>
+      </div>
+    </div>
+
+    <!-- Size tabs. Active tab gets a brighter bg + bottom highlight. -->
+    <div id="_dbgTimesTabs" style="display:flex;border-bottom:1px solid rgba(80,255,140,0.30);flex-shrink:0;font-size:6px;">
+      <button data-size="small"  class="_dbgTimesTab" style="flex:1;background:transparent;border:0;color:rgba(140,255,180,0.65);font:6px/1.4 monospace;letter-spacing:0.7px;padding:4px 2px;cursor:pointer;border-right:1px solid rgba(80,255,140,0.20);">SMALL</button>
+      <button data-size="medium" class="_dbgTimesTab" style="flex:1;background:transparent;border:0;color:rgba(140,255,180,0.65);font:6px/1.4 monospace;letter-spacing:0.7px;padding:4px 2px;cursor:pointer;border-right:1px solid rgba(80,255,140,0.20);">MEDIUM</button>
+      <button data-size="large"  class="_dbgTimesTab" style="flex:1;background:transparent;border:0;color:rgba(140,255,180,0.65);font:6px/1.4 monospace;letter-spacing:0.7px;padding:4px 2px;cursor:pointer;border-right:1px solid rgba(80,255,140,0.20);">LARGE</button>
+      <button data-size="xl2"    class="_dbgTimesTab" style="flex:1;background:transparent;border:0;color:rgba(140,255,180,0.65);font:6px/1.4 monospace;letter-spacing:0.7px;padding:4px 2px;cursor:pointer;border-right:1px solid rgba(80,255,140,0.20);">JUMBO</button>
+      <!-- [v3.37] ANALYSIS tab — cross-sample regression on all
+           recorded solves to derive timer-formula coefficients. -->
+      <button data-size="analysis" class="_dbgTimesTab" style="flex:1;background:transparent;border:0;color:rgba(140,255,180,0.65);font:6px/1.4 monospace;letter-spacing:0.7px;padding:4px 2px;cursor:pointer;">ANLZ</button>
+    </div>
+
+    <!-- Body: three side-by-side difficulty columns (size tabs) OR
+         a single full-width analysis pane (analysis tab). The analysis
+         pane is hidden by default and shown only when ANLZ is active. -->
+    <div id="_dbgTimesBody" style="flex:1 1 auto;display:flex;min-height:0;touch-action:pan-y;">
+      <div data-diff="easy" class="_dbgTimesCol" style="flex:1;display:flex;flex-direction:column;min-width:0;border-right:1px solid rgba(80,255,140,0.20);">
+        <div style="text-align:center;padding:3px 2px;font:6px/1 monospace;letter-spacing:0.7px;font-weight:700;color:rgba(160,255,200,1);border-bottom:1px solid rgba(80,255,140,0.20);flex-shrink:0;">EASY</div>
+        <div data-diff="easy" class="_dbgTimesList" style="flex:1;overflow-y:auto;padding:3px 2px;line-height:1.5;text-align:center;"></div>
+      </div>
+      <div data-diff="medium" class="_dbgTimesCol" style="flex:1;display:flex;flex-direction:column;min-width:0;border-right:1px solid rgba(80,255,140,0.20);">
+        <div style="text-align:center;padding:3px 2px;font:6px/1 monospace;letter-spacing:0.7px;font-weight:700;color:rgba(160,255,200,1);border-bottom:1px solid rgba(80,255,140,0.20);flex-shrink:0;">MEDIUM</div>
+        <div data-diff="medium" class="_dbgTimesList" style="flex:1;overflow-y:auto;padding:3px 2px;line-height:1.5;text-align:center;"></div>
+      </div>
+      <div data-diff="hard" class="_dbgTimesCol" style="flex:1;display:flex;flex-direction:column;min-width:0;">
+        <div style="text-align:center;padding:3px 2px;font:6px/1 monospace;letter-spacing:0.7px;font-weight:700;color:rgba(160,255,200,1);border-bottom:1px solid rgba(80,255,140,0.20);flex-shrink:0;">HARD</div>
+        <div data-diff="hard" class="_dbgTimesList" style="flex:1;overflow-y:auto;padding:3px 2px;line-height:1.5;text-align:center;"></div>
+      </div>
+      <div id="_dbgAnalysisPane" style="flex:1;display:none;flex-direction:column;min-width:0;overflow-y:auto;padding:5px 8px;line-height:1.6;"></div>
+    </div>
+
+    <!-- Sticky bottom: export / import / reset row.
+         [v3.39] EXPORT downloads a JSON of all recorded times so the
+         data survives browser data-clearing (Brave's aggressive cookie/
+         storage wipe-on-close, file:// origin quirks, etc). IMPORT
+         loads it back. Both use a hidden file input. -->
+    <div style="flex-shrink:0;padding:4px 8px 6px;border-top:1px solid rgba(80,255,140,0.30);display:flex;gap:3px;flex-direction:column;">
+      <div style="display:flex;gap:3px;">
+        <button id="_dbgTimesExportBtn" style="flex:1;background:rgba(80,200,255,0.15);border:1px solid rgba(120,200,255,0.75);color:rgba(180,220,255,1);font:6px/1 monospace;letter-spacing:0.7px;padding:4px;border-radius:3px;cursor:pointer;">EXPORT</button>
+        <button id="_dbgTimesImportBtn" style="flex:1;background:rgba(80,255,140,0.10);border:1px solid rgba(120,255,170,0.60);color:rgba(180,255,200,1);font:6px/1 monospace;letter-spacing:0.7px;padding:4px;border-radius:3px;cursor:pointer;">IMPORT</button>
+      </div>
+      <button id="_dbgTimesResetBtn" style="width:100%;background:rgba(255,140,80,0.20);border:1px solid rgba(255,180,120,0.85);color:rgba(255,200,150,1);font:6px/1 monospace;letter-spacing:0.7px;padding:4px;border-radius:3px;cursor:pointer;">RESET TIMES</button>
+      <input id="_dbgTimesImportFile" type="file" accept="application/json,.json" style="display:none;">
+    </div>
+  </div>
+
   <div class="bank-outer">
     <!-- PAD TOOLS slim panel (SEQ mode only) -->
     <div class="slim-panel collapsed" id="padToolsSlimPanel" style="display:none;">
@@ -5429,8 +6328,71 @@ window.onerror=function(msg,src,line,col,err){
   </div>
 </div>
 
+<!-- [v3.42] READY overlay — full-screen with backdrop-filter blur.
+     Shown after a puzzle builds (entry from menu, or New tap). The
+     blur lets the user see the puzzle is loaded and ready behind it,
+     but everything's softened so they can't actually start solving.
+     The timer doesn't start until GO is tapped, which calls
+     mc113.startTimer() to kick the clock off.
+
+     This stops timing data from being polluted by pre-first-move
+     thinking time — on harder puzzles with only 3-4 given numbers,
+     the player can spend a minute or two figuring out where to
+     start before making a move, which used to skew the recorded
+     time downward (timer didn't start until first move).
+
+     z-index 320 — above the pause overlay (350) would be wrong since
+     pause should never be reachable while ready is up. Putting ready
+     above gameScreen but below pause: 320 is between gameScreen (~1)
+     and the pause overlay (350). Wait actually — pause needs to be
+     above ready if both could ever coexist. They can't (ready dismisses
+     before any move can be made, and pause is only reachable after
+     first move). So either ordering works. Use 320 — comfortably above
+     content, below the win card's 300... hmm but win is z-300 and
+     ready needs to be reachable before win could fire (impossible mid-
+     ready, but defensive). Use 320, which is above win.
+
+     Actually — none of this matters because ready is shown immediately
+     after build and dismissed immediately on GO, with no other overlays
+     in flight. z-index 320 is fine. -->
+<!-- [v3.48] READY overlay — single blur pane that covers grid +
+     bank as one continuous region, eliminating the seam where you
+     could see through between two separate panes. The pane is
+     positioned dynamically to span from the top of .gscroll to the
+     bottom of the bank-outer wrapper. Blur is set to 4px (between
+     the previous 2/5 split — a single value that softens both grid
+     and bank enough to obscure but still hint at the layout).
+     The GO button is positioned over the grid center, not screen
+     center, so it sits inside the blurred zone at a comfortable
+     reading height.
+     The overlay also locks body scroll while shown so the player
+     can't peek at the bank by scrolling. -->
+<div id="readyOverlay" style="display:none;position:fixed;inset:0;z-index:320;background:transparent;font-family:'IBM Plex Mono',monospace;color:var(--cyan);pointer-events:auto;">
+  <!-- Single blur pane spanning grid → bank. Position computed in JS. -->
+  <div id="readyBlurPane" style="position:fixed;background:rgba(0,0,0,0.05);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);pointer-events:none;"></div>
+  <!-- GO button positioned over grid center via JS in showReady. -->
+  <button id="readyGoBtn" style="font-family:'IBM Plex Mono',monospace;font-size:18px;padding:18px 56px;border:2px solid var(--cyan);border-radius:999px;background:rgba(0,217,255,0.20);color:var(--cyan);cursor:pointer;letter-spacing:6px;font-weight:700;box-shadow:0 0 32px rgba(0,217,255,0.5);text-shadow:0 0 12px rgba(0,217,255,0.6);position:fixed;z-index:1;">▶ GO</button>
+</div>
+
 <!-- Cyan win flash overlay -->
 <div id="winFlash" style="display:none;position:fixed;inset:0;z-index:250;background:radial-gradient(ellipse at center, rgba(0,217,255,0.45) 0%, rgba(0,217,255,0.15) 40%, rgba(0,0,0,0) 75%);pointer-events:none;"></div>
+
+<!-- [v3.38] Pause overlay. Covers the puzzle when the pause button
+     is tapped. Tap the overlay (or the RESUME button) to dismiss.
+     z-index 350 — above gameScreen but below win card (300 base, but
+     win card uses z-index:300 only when shown; we sit above it anyway
+     and the win flow can still cover us with its own animation.
+     Actually keep us at 250 to match winFlash so the win sequence's
+     z-index:300 wins). On second thought: 250 is below win, so a
+     win during pause would correctly draw over the pause overlay.
+     But we'll use 350 so the pause is dominant — the user explicitly
+     paused, and the win can't fire while paused anyway since input
+     is suspended. Going with 350. -->
+<div id="pauseOverlay" style="display:none;position:fixed;inset:0;z-index:350;background:rgba(0,0,0,0.92);align-items:center;justify-content:center;flex-direction:column;cursor:pointer;font-family:'IBM Plex Mono',monospace;color:var(--cyan);">
+  <div style="font-family:'Abril Fatface',serif;font-size:48px;letter-spacing:6px;color:var(--cyan);text-shadow:0 0 20px rgba(0,217,255,0.5);margin-bottom:8px;">PAUSED</div>
+  <div style="font-size:11px;letter-spacing:3px;color:var(--text-muted);text-transform:uppercase;margin-bottom:24px;">tap to resume</div>
+  <button id="pauseResumeBtn" style="font-family:'IBM Plex Mono',monospace;font-size:12px;padding:10px 28px;border:1.5px solid var(--cyan);border-radius:999px;background:rgba(0,217,255,0.15);color:var(--cyan);cursor:pointer;letter-spacing:2px;font-weight:700;box-shadow:0 0 18px rgba(0,217,255,0.4);">▶ RESUME</button>
+</div>
 
 <!-- Toast (for share copy confirmation) -->
 <!-- [v2.96] Toast border-radius bumped 4px → 999px so the pill
@@ -6317,6 +7279,8 @@ function _dbgBumpPick(name){
     obj[name]=(obj[name]||0)+1;
     localStorage.setItem('_dbgPickCounts',JSON.stringify(obj));
   }catch(e){}
+  // [v3.29] Live refresh if panel is open.
+  if(window._dbgRefreshIfOpen)window._dbgRefreshIfOpen();
 }
 function _dbgBumpFinal(name){
   try{
@@ -6325,6 +7289,7 @@ function _dbgBumpFinal(name){
     obj[name]=(obj[name]||0)+1;
     localStorage.setItem('_dbgFinalCounts',JSON.stringify(obj));
   }catch(e){}
+  if(window._dbgRefreshIfOpen)window._dbgRefreshIfOpen();
 }
 function _dbgGetCounts(){
   try{
@@ -6339,6 +7304,7 @@ function _dbgResetCounts(){
     localStorage.removeItem('_dbgPickCounts');
     localStorage.removeItem('_dbgFinalCounts');
     localStorage.removeItem('_dbgFailReasons');  // [v3.20]
+    localStorage.removeItem('_dbgAvgState');     // [v3.32]
   }catch(e){}
 }
 function _dbgFmtCounts(){
@@ -6391,26 +7357,654 @@ function _dbgFmtCounts(){
 }
 window._dbgFmtCounts=_dbgFmtCounts;
 
-// [v3.22] COUNTS button now shows view-only dialog. Reset is a SEPARATE
-// long-press gesture (handled in the wiring below) to prevent accidental
-// resets on quick taps. Audio feedback on every interaction so the user
-// knows the tap registered (some Android browsers suppress alert chirps
-// when the user is mid-gesture).
-window._dbgShowCounts=function(){
-  try{if(window._modalOpenChirp)window._modalOpenChirp();}catch(e){}
-  alert(_dbgFmtCounts());
-};
-window._dbgConfirmReset=function(){
-  try{if(window._modalOpenChirp)window._modalOpenChirp();}catch(e){}
-  if(confirm('Reset all debug counts? This cannot be undone.')){
-    _dbgResetCounts();
+// [v3.23] Render functions. Populate the panel sections.
+// [v3.29] Helper: wrap a value (number or short string) in a subtle
+// gray pill so it stands out from the surrounding label text.
+function _dbgPill(v){
+  return '<span style="display:inline-block;background:rgba(180,180,180,0.60);color:rgba(220,255,230,1);padding:0 3px;border-radius:2px;font-weight:700;">'+v+'</span>';
+}
+
+// [v3.30] Helper: build a CSS grid table from an array of row arrays.
+// Each row is [label, value] or [label, value1, value2, ...]. Columns
+// auto-size to their content (max-content). Labels left-aligned with
+// their column-end, values left-aligned in their pill column. The
+// result is that all values across rows line up vertically regardless
+// of label length.
+function _dbgGrid(rows,cols){
+  var html='<div style="display:grid;grid-template-columns:repeat('+cols+',max-content);gap:1px 4px;align-items:center;">';
+  for(var i=0;i<rows.length;i++){
+    var r=rows[i];
+    for(var j=0;j<r.length;j++){
+      html+='<div>'+r[j]+'</div>';
+    }
+  }
+  html+='</div>';
+  return html;
+}
+
+// [v3.32] Compute the per-puzzle metrics from window.PZ. Returns null
+// if no puzzle is loaded. Used by both the CURRENT PUZZLE render and
+// the per-roll recorder that feeds running averages.
+function _dbgComputeMetrics(){
+  if(!window.PZ||!window.PZ.tmpl)return null;
+  var eqCount=window.PZ.tmpl.length;
+  var blankCount=window.PZ.bank?window.PZ.bank.length:0;
+  var b3=0,b2=0,b1=0;
+  var ops={'+':0,'-':0,'x':0,'/':0};
+  var trivialCount=0;
+  for(var i=0;i<window.PZ.tmpl.length;i++){
+    var e=window.PZ.tmpl[i];
+    if(e.xl)continue;
+    var pts=numPts(e),CM=window.PZ.CM;
+    var ka=nk(pts[0]),kb=nk(pts[1]),kc=nk(pts[2]);
+    var n=0;
+    for(var j=0;j<pts.length;j++){
+      var k=nk(pts[j]);
+      if(CM[k]&&CM[k].isBlank)n++;
+    }
+    if(n===3)b3++;else if(n===2)b2++;else if(n===1)b1++;
+    var op=window.PZ.OPS&&window.PZ.OPS[e.id];
+    if(op&&ops[op]!=null)ops[op]++;
+    var va=CM[ka]&&CM[ka].answer,vb=CM[kb]&&CM[kb].answer,vc=CM[kc]&&CM[kc].answer;
+    if(va!=null&&vb!=null&&vc!=null){
+      var triv=false;
+      if(va===1&&vb===1)triv=true;
+      else if((op==='x'||op==='/')&&(va===1||vb===1))triv=true;
+      else if(op==='/'&&va===vb)triv=true;
+      if(triv)trivialCount++;
+    }
+  }
+  return {eqCount:eqCount,blankCount:blankCount,b1:b1,b2:b2,b3:b3,ops:ops,trivialCount:trivialCount};
+}
+
+// [v3.41] Richer metrics for per-solve recording. Adds dimensions
+// that aren't strictly needed for the live HUD but are valuable
+// for after-the-fact analysis: grid dimensions, XL eq counts, max
+// answer value, bank duplicate stats. These get folded into the
+// _dbgTimes entries on win.
+//
+// The fields are deliberately short keys (mAns, uVl, dup) to keep
+// the localStorage payload compact across many recorded solves.
+function _dbgComputeFullMetrics(){
+  var base=_dbgComputeMetrics();
+  if(!base||!window.PZ)return null;
+  var pz=window.PZ;
+  var extra={
+    cols: pz.cols||0,
+    rows: pz.rows||0,
+    cells: (pz.cols||0)*(pz.rows||0),
+    xlEq: 0,
+    mainEq: 0,
+    maxAns: 0,
+    minAns: null,
+    sumAns: 0,
+    nAns: 0,
+    uniqVals: 0,   // distinct values in the bank
+    bankDup: 0     // total duplicate instances (bank.length - uniqVals)
+  };
+  // XL vs main equation tally.
+  for(var i=0;i<pz.tmpl.length;i++){
+    if(pz.tmpl[i].xl)extra.xlEq++;
+    else extra.mainEq++;
+  }
+  // Max/min/avg of answer values across all num cells.
+  if(pz.CM){
+    for(var k in pz.CM){
+      if(!Object.prototype.hasOwnProperty.call(pz.CM,k))continue;
+      var c=pz.CM[k];
+      if(c&&typeof c.answer==='number'){
+        if(c.answer>extra.maxAns)extra.maxAns=c.answer;
+        if(extra.minAns===null||c.answer<extra.minAns)extra.minAns=c.answer;
+        extra.sumAns+=c.answer;
+        extra.nAns++;
+      }
+    }
+  }
+  // Bank value distribution.
+  if(pz.bank&&pz.bank.length){
+    var seen={};
+    for(var bi=0;bi<pz.bank.length;bi++){
+      var v=pz.bank[bi].value;
+      if(!seen[v])seen[v]=0;
+      seen[v]++;
+    }
+    var uniq=0;
+    for(var sv in seen){
+      if(Object.prototype.hasOwnProperty.call(seen,sv))uniq++;
+    }
+    extra.uniqVals=uniq;
+    extra.bankDup=pz.bank.length-uniq;
+  }
+  // Average answer (rounded to 1 decimal for compactness).
+  extra.avgAns=extra.nAns?Math.round((extra.sumAns/extra.nAns)*10)/10:0;
+  delete extra.sumAns;
+  delete extra.nAns;
+  return {base:base, extra:extra};
+}
+
+// [v3.32] Running-averages storage. Each call to _dbgRecordPuzzle
+// folds a fresh puzzle into the cumulative sums and trivial histogram.
+// Stored in localStorage so they survive reloads but reset with the
+// debug counts. Schema:
+//   {n: count of puzzles, sum: {eqCount, blankCount, b1, b2, b3,
+//    ops:{+,-,x,/}, trivial}, hist: {0:n, 1:n, 2:n, ...}}
+function _dbgGetAvgState(){
+  try{
+    var raw=localStorage.getItem('_dbgAvgState');
+    if(raw)return JSON.parse(raw);
+  }catch(e){}
+  return {n:0,sum:{eqCount:0,blankCount:0,b1:0,b2:0,b3:0,
+    ops:{'+':0,'-':0,'x':0,'/':0},trivial:0},hist:{}};
+}
+function _dbgRecordPuzzle(){
+  var m=_dbgComputeMetrics();
+  if(!m)return;
+  var s=_dbgGetAvgState();
+  s.n++;
+  s.sum.eqCount+=m.eqCount;
+  s.sum.blankCount+=m.blankCount;
+  s.sum.b1+=m.b1;s.sum.b2+=m.b2;s.sum.b3+=m.b3;
+  s.sum.ops['+']+=m.ops['+'];s.sum.ops['-']+=m.ops['-'];
+  s.sum.ops['x']+=m.ops['x'];s.sum.ops['/']+=m.ops['/'];
+  s.sum.trivial+=m.trivialCount;
+  s.hist[m.trivialCount]=(s.hist[m.trivialCount]||0)+1;
+  try{localStorage.setItem('_dbgAvgState',JSON.stringify(s));}catch(e){}
+  if(window._dbgRefreshIfOpen)window._dbgRefreshIfOpen();
+}
+window._dbgRecordPuzzle=_dbgRecordPuzzle;
+
+function _dbgRenderPuzzleStats(){
+  var el=document.getElementById('_dbgPuzzleStats');
+  if(!el)return;
+  var m=_dbgComputeMetrics();
+  if(!m){el.textContent='(no puzzle loaded)';return;}
+  var rows=[
+    ['equations:',_dbgPill(m.eqCount)],
+    ['blanks:',_dbgPill(m.blankCount)],
+    ['1-blank eqs:',_dbgPill(m.b1)],
+    ['2-blank eqs:',_dbgPill(m.b2)],
+    ['3-blank eqs:',_dbgPill(m.b3)],
+    ['+ ops:',_dbgPill(m.ops['+'])],
+    ['- ops:',_dbgPill(m.ops['-'])],
+    ['× ops:',_dbgPill(m.ops['x'])],
+    ['÷ ops:',_dbgPill(m.ops['/'])],
+    ['trivial eqs:',_dbgPill(m.trivialCount)]
+  ];
+  el.innerHTML=_dbgGrid(rows,2);
+}
+
+function _dbgRenderAverages(){
+  var el=document.getElementById('_dbgAvgBody');
+  if(!el)return;
+  var s=_dbgGetAvgState();
+  if(s.n===0){el.textContent='(no puzzles recorded)';return;}
+  function avg(v){return(v/s.n).toFixed(2);}
+  var rows=[
+    ['puzzles recorded:',_dbgPill(s.n)],
+    ['avg 1-blank eqs:',_dbgPill(avg(s.sum.b1))],
+    ['avg 2-blank eqs:',_dbgPill(avg(s.sum.b2))],
+    ['avg 3-blank eqs:',_dbgPill(avg(s.sum.b3))],
+    ['avg + ops:',_dbgPill(avg(s.sum.ops['+']))],
+    ['avg - ops:',_dbgPill(avg(s.sum.ops['-']))],
+    ['avg × ops:',_dbgPill(avg(s.sum.ops['x']))],
+    ['avg ÷ ops:',_dbgPill(avg(s.sum.ops['/']))],
+    ['avg trivials:',_dbgPill(avg(s.sum.trivial))]
+  ];
+  // Trivial-count histogram. Sort numerically.
+  var histKeys=Object.keys(s.hist).map(Number).sort(function(a,b){return a-b;});
+  if(histKeys.length){
+    rows.push(['',''])
+    rows.push(['TRIVIALS HIST:','(N puzzles)']);
+    histKeys.forEach(function(k){
+      rows.push([k+' trivials:',_dbgPill(s.hist[k])]);
+    });
+  }
+  el.innerHTML=_dbgGrid(rows,2);
+}
+function _dbgRenderTplCounts(){
+  var el=document.getElementById('_dbgTplCountsBody');
+  if(!el)return;
+  var c=_dbgGetCounts();
+  var keys=Object.keys(Object.assign({},c.picks,c.finals)).sort();
+  if(keys.length===0){el.textContent='(no data yet)';return;}
+  // [v3.30] 4-column grid: name, "pick=", pill, "final=", pill.
+  // All TS-family rows align since their names are equal length, and
+  // even mixed-length names (TJ vs TS3) line up at each column.
+  var rows=keys.map(function(k){
+    return [k+':','pick='+_dbgPill(c.picks[k]||0),'final='+_dbgPill(c.finals[k]||0)];
+  });
+  el.innerHTML=_dbgGrid(rows,3);
+}
+function _dbgRenderFailReasons(){
+  var el=document.getElementById('_dbgFailBody');
+  if(!el)return;
+  try{
+    var fr=JSON.parse(localStorage.getItem('_dbgFailReasons')||'{}');
+    var keys=Object.keys(fr).sort();
+    if(!keys.length){el.textContent='(no fails recorded)';return;}
+    var rows=keys.map(function(k){return [k+':',_dbgPill(fr[k])];});
+    el.innerHTML=_dbgGrid(rows,2);
+  }catch(e){el.textContent='(error)';}
+}
+function _dbgRenderAll(){
+  _dbgRenderPuzzleStats();
+  _dbgRenderAverages();
+  _dbgRenderTplCounts();
+  _dbgRenderFailReasons();
+}
+window._dbgRenderAll=_dbgRenderAll;
+
+// [v3.29] Live update: when a counter is bumped, refresh the panel
+// if it's currently open. Throttled via requestAnimationFrame so
+// rapid bumps (like 1000+ mismatch retries inside a single
+// buildPuzzle attempt) coalesce into a single DOM update per frame.
+function _dbgRefreshIfOpen(){
+  var pnl=document.getElementById('_dbgPanel');
+  if(!pnl||pnl.style.display!=='flex')return;
+  if(_dbgRefreshIfOpen._scheduled)return;
+  _dbgRefreshIfOpen._scheduled=true;
+  (window.requestAnimationFrame||function(cb){setTimeout(cb,16);})(function(){
+    _dbgRefreshIfOpen._scheduled=false;
+    var pnl2=document.getElementById('_dbgPanel');
+    if(pnl2&&pnl2.style.display==='flex')_dbgRenderAll();
+  });
+}
+window._dbgRefreshIfOpen=_dbgRefreshIfOpen;
+
+// [v3.23] Panel toggle. Pressing COUNTS toggles the panel; if the panel
+// was visible, it closes, otherwise it opens. Auto-refreshes content
+// when opening. Clicking outside the panel does NOT close it (avoids
+// accidental dismiss while reading) — only the X button or COUNTS toggle.
+window._dbgTogglePanel=function(){
+  var panel=document.getElementById('_dbgPanel');
+  if(!panel)return;
+  // [v3.27] Panel is a flex column, so we toggle between 'flex' and 'none'.
+  if(panel.style.display==='flex'){
+    panel.style.display='none';
     try{if(window._modalCloseChirp)window._modalCloseChirp();}catch(e){}
-    setTimeout(function(){alert('Counts reset.');},10);
   } else {
-    try{if(window._modalCloseChirp)window._modalCloseChirp();}catch(e){}
+    _dbgRenderAll();
+    panel.style.display='flex';
+    try{if(window._modalOpenChirp)window._modalOpenChirp();}catch(e){}
   }
 };
+// Legacy entry points kept for any external callers.
+window._dbgShowCounts=window._dbgTogglePanel;
 window._dbgReset=function(){_dbgResetCounts();};
+
+// [v3.35] TIMES panel — separate from COUNTS. Tracks solve times
+// per (size, diff) combo. Mirrors COUNTS panel behaviors: drag,
+// opacity cycle, persistent state, close, reset.
+
+// Storage schema: each entry is {ms, mk} where mk is mistake count.
+// Old format (just an array of ms numbers) is migrated transparently
+// on read.
+function _dbgGetTimes(){
+  try{
+    var raw=localStorage.getItem('_dbgTimes');
+    if(raw){
+      var p=JSON.parse(raw);
+      if(p&&typeof p==='object')return p;
+    }
+  }catch(e){}
+  return {small:{easy:[],medium:[],hard:[]},
+          medium:{easy:[],medium:[],hard:[]},
+          large:{easy:[],medium:[],hard:[]},
+          xl2:{easy:[],medium:[],hard:[]}};
+}
+// Normalize an entry: legacy was a bare ms number. New is {ms, mk}.
+function _dbgEntryMs(e){return (e&&typeof e==='object')?e.ms:e;}
+function _dbgEntryMk(e){return (e&&typeof e==='object')?(typeof e.mk==='number'?e.mk:null):null;}
+
+function _dbgRecordTime(size,diff,ms,mistakes){
+  if(!size||!diff||typeof ms!=='number'||ms<=0)return;
+  // Normalize: 'xl' rolls treated as 'xl2' since pool only uses xl2.
+  if(size==='xl')size='xl2';
+  if(['small','medium','large','xl2'].indexOf(size)<0)return;
+  if(['easy','medium','hard'].indexOf(diff)<0)return;
+  var t=_dbgGetTimes();
+  if(!t[size])t[size]={easy:[],medium:[],hard:[]};
+  if(!t[size][diff])t[size][diff]=[];
+  var entry={ms:ms};
+  if(typeof mistakes==='number')entry.mk=mistakes;
+  // [v3.37] Capture full puzzle metrics for timer-formula derivation.
+  // [v3.41] Expanded: now also captures grid dimensions, XL eq counts,
+  // bank value distribution, max/avg answer values, daily flag, moves,
+  // and timestamps. Short keys keep storage compact across many
+  // recorded solves.
+  try{
+    var fm=(typeof _dbgComputeFullMetrics==='function')?_dbgComputeFullMetrics():null;
+    if(fm&&fm.base){
+      var m=fm.base, x=fm.extra;
+      // Identity & template
+      entry.tpl=window._currentTplName||null;
+      // Core puzzle structure
+      entry.eq=m.eqCount;
+      entry.bk=m.blankCount;
+      // Total num cells across all non-XL eqs = 3*eqCount. Givens =
+      // num cells that are NOT blanks. (XL eqs are excluded from
+      // metrics for the same reason _dbgComputeMetrics skips them —
+      // they're 4-cell unevaluated equations whose cells already get
+      // counted via crossing main equations.)
+      entry.gv=(m.eqCount*3)-m.blankCount;
+      entry.b1=m.b1; entry.b2=m.b2; entry.b3=m.b3;
+      entry.opp=m.ops['+']; entry.opm=m.ops['-'];
+      entry.opx=m.ops['x']; entry.opd=m.ops['/'];
+      entry.tr=m.trivialCount;
+      // [v3.41] Grid dimensions and XL distribution.
+      entry.col=x.cols;
+      entry.row=x.rows;
+      entry.cells=x.cells;
+      entry.xlEq=x.xlEq;
+      entry.mainEq=x.mainEq;
+      // [v3.41] Answer-value distribution. Larger numbers in the
+      // grid correlate with perceived difficulty (more digits to
+      // hold in working memory).
+      entry.maxA=x.maxAns;
+      entry.minA=x.minAns;
+      entry.avgA=x.avgAns;
+      // [v3.41] Bank composition. uniqVals = how many distinct
+      // values; bankDup = duplicate-instance count. Higher dup
+      // count = easier scanning (e.g., "I see three 2s, lots of
+      // options to try"). Lower uniqVals on larger banks =
+      // pattern-recognition advantage.
+      entry.uVl=x.uniqVals;
+      entry.dup=x.bankDup;
+    }
+  }catch(e){}
+  // [v3.41] Player & session metadata.
+  try{
+    if(window._mc113){
+      // Total moves at win time. Useful for moves-per-blank and
+      // ms-per-move efficiency analysis.
+      if(typeof window._mc113.getMoves==='function'){
+        entry.mv=window._mc113.getMoves();
+      }
+      // Daily flag — daily puzzles are seeded so cross-player
+      // comparisons would be possible later.
+      if(typeof window._mc113.isDaily==='function'){
+        entry.dly=window._mc113.isDaily()?1:0;
+      }
+      if(typeof window._mc113.dailyDateStr==='function'){
+        var dd=window._mc113.dailyDateStr();
+        if(dd)entry.ddate=dd;
+      }
+    }
+  }catch(e){}
+  // [v3.41] Timestamp at completion. Lets you see real-world time-
+  // of-day patterns (am I faster in the morning?), session pacing
+  // (puzzles back-to-back vs spaced out), and trends over weeks.
+  entry.t=Date.now();
+  t[size][diff].push(entry);
+  try{localStorage.setItem('_dbgTimes',JSON.stringify(t));}catch(e){}
+  _dbgRenderTimesIfOpen();
+}
+window._dbgRecordTime=_dbgRecordTime;
+function _dbgClearTimes(){try{localStorage.removeItem('_dbgTimes');}catch(e){}}
+
+// Format ms as M:SS or just S.S for under 1 minute (compact for tiny font).
+function _dbgFmtMs(ms){
+  var s=Math.floor(ms/1000);
+  if(s<60)return s+'s';
+  var m=Math.floor(s/60), r=s%60;
+  return m+':'+(r<10?'0':'')+r;
+}
+
+// Track which size tab is active. Persisted so it doesn't reset.
+function _dbgGetActiveTimesSize(){
+  try{
+    var v=localStorage.getItem('_dbgTimesActiveSize');
+    if(v&&['small','medium','large','xl2','analysis'].indexOf(v)>=0)return v;
+  }catch(e){}
+  return 'medium';
+}
+function _dbgSetActiveTimesSize(s){
+  try{localStorage.setItem('_dbgTimesActiveSize',s);}catch(e){}
+  _dbgRenderTimes();
+}
+
+function _dbgRenderTimes(){
+  var pnl=document.getElementById('_dbgTimesPanel');
+  if(!pnl)return;
+  var active=_dbgGetActiveTimesSize();
+  // Update tab styling.
+  var tabs=pnl.querySelectorAll('._dbgTimesTab');
+  for(var i=0;i<tabs.length;i++){
+    var t=tabs[i];
+    if(t.getAttribute('data-size')===active){
+      t.style.background='rgba(80,255,140,0.20)';
+      t.style.color='rgba(160,255,200,1)';
+      t.style.fontWeight='700';
+    } else {
+      t.style.background='transparent';
+      t.style.color='rgba(140,255,180,0.65)';
+      t.style.fontWeight='400';
+    }
+  }
+  // [v3.37] Switch between size-view (3 columns) and analysis pane.
+  var cols=pnl.querySelectorAll('._dbgTimesCol');
+  var analysisPane=document.getElementById('_dbgAnalysisPane');
+  if(active==='analysis'){
+    for(var ci=0;ci<cols.length;ci++)cols[ci].style.display='none';
+    if(analysisPane){analysisPane.style.display='flex';_dbgRenderAnalysis(analysisPane);}
+    return;
+  } else {
+    for(var ci2=0;ci2<cols.length;ci2++)cols[ci2].style.display='flex';
+    if(analysisPane)analysisPane.style.display='none';
+  }
+  // Render each diff column.
+  var data=_dbgGetTimes();
+  var sizeData=data[active]||{easy:[],medium:[],hard:[]};
+  var lists=pnl.querySelectorAll('._dbgTimesList');
+  for(var j=0;j<lists.length;j++){
+    var list=lists[j];
+    var diff=list.getAttribute('data-diff');
+    var arr=sizeData[diff]||[];
+    if(arr.length===0){
+      list.innerHTML='<div style="opacity:0.45;padding-top:4px;">(none)</div>';
+      continue;
+    }
+    // [v3.36] Best (min ms) and avg ms; also avg mistakes across
+    // entries that have a recorded mistake count (legacy entries
+    // without a mk are excluded from the avg-mistakes calc).
+    var bestMs=_dbgEntryMs(arr[0]),sumMs=0;
+    var sumMk=0,nMk=0;
+    for(var k=0;k<arr.length;k++){
+      var ems=_dbgEntryMs(arr[k]);
+      if(ems<bestMs)bestMs=ems;
+      sumMs+=ems;
+      var emk=_dbgEntryMk(arr[k]);
+      if(typeof emk==='number'){sumMk+=emk;nMk++;}
+    }
+    var avgMs=sumMs/arr.length;
+    var avgMkStr=(nMk>0)?(sumMk/nMk).toFixed(1):'—';
+    // Header: count, best, avg, avg mistakes.
+    var html='<div style="margin-bottom:2px;font-weight:700;color:rgba(160,255,200,1);">'+_dbgPill(arr.length)+'</div>';
+    html+='<div style="opacity:0.75;margin-bottom:1px;">best</div>';
+    html+='<div style="margin-bottom:2px;">'+_dbgPill(_dbgFmtMs(bestMs))+'</div>';
+    html+='<div style="opacity:0.75;margin-bottom:1px;">avg</div>';
+    html+='<div style="margin-bottom:2px;">'+_dbgPill(_dbgFmtMs(avgMs))+'</div>';
+    html+='<div style="opacity:0.75;margin-bottom:1px;">avg ✕</div>';
+    html+='<div style="margin-bottom:4px;">'+_dbgPill(avgMkStr)+'</div>';
+    html+='<div style="border-top:1px solid rgba(80,255,140,0.20);padding-top:3px;">';
+    // [v3.37] List newest first. Each entry is two lines:
+    //   line 1: "TS  1:23 ✕2 ★"  — template, time, mistakes, best
+    //   line 2: "21 bk · 5/9/0 b · 8+8-4×4÷"  — quick metrics
+    // The metrics line is muted so the template/time stays the focus.
+    for(var n=arr.length-1;n>=0;n--){
+      var ne=arr[n];
+      var nms=_dbgEntryMs(ne);
+      var nmk=_dbgEntryMk(ne);
+      var isB=(nms===bestMs);
+      var tpl=(ne&&typeof ne==='object'&&ne.tpl)?ne.tpl:'';
+      var line1=(tpl?tpl+' ':'')+_dbgFmtMs(nms);
+      if(typeof nmk==='number'){
+        line1 += (nmk===0)?' ✓':' ✕'+nmk;
+      }
+      if(isB)line1+=' ★';
+      html+='<div style="opacity:'+(isB?'1':'0.85')+';color:'+(isB?'rgba(180,255,200,1)':'rgba(140,255,180,1)')+';margin-top:'+(n===arr.length-1?'0':'2px')+';">'+line1+'</div>';
+      // Compact metrics line if we have them.
+      if(ne&&typeof ne==='object'&&typeof ne.eq==='number'){
+        var bks=(ne.b1||0)+'/'+(ne.b2||0)+'/'+(ne.b3||0);
+        var ops=(ne.opp||0)+'+ '+(ne.opm||0)+'- '+(ne.opx||0)+'× '+(ne.opd||0)+'÷';
+        var trv=(typeof ne.tr==='number')?(' · '+ne.tr+'tr'):'';
+        html+='<div style="opacity:0.55;font-size:90%;">'+ne.bk+'bk '+bks+'b '+ops+trv+'</div>';
+      }
+    }
+    html+='</div>';
+    list.innerHTML=html;
+  }
+}
+window._dbgRenderTimes=_dbgRenderTimes;
+
+// [v3.37] ANALYSIS pane.
+// Aggregates all recorded solves with full metrics (entries from
+// v3.37+ only — legacy entries with just ms/mk are excluded since
+// they lack the per-puzzle features we need for regression).
+//
+// Three sections rendered in order:
+//   1. (size, diff) summary table — counts, avg time, avg mistakes
+//   2. Per-template stats — count and avg time per template
+//   3. Coefficients — simple per-feature avg "ms per unit" so we
+//      can read off rough timer-formula coefficients
+//
+// The regression is intentionally lo-fi: avg(time) per avg(feature)
+// across all entries. With more samples we can upgrade to actual
+// least-squares, but for a first-pass calibration the per-feature
+// scaling is the most useful number ("each blank tile costs ~3.5s")
+// and easy to read off.
+function _dbgRenderAnalysis(el){
+  if(!el)return;
+  var data=_dbgGetTimes();
+  // Flatten all entries with full metrics.
+  var all=[];
+  ['small','medium','large','xl2'].forEach(function(sz){
+    if(!data[sz])return;
+    ['easy','medium','hard'].forEach(function(df){
+      var arr=data[sz][df]||[];
+      for(var i=0;i<arr.length;i++){
+        var e=arr[i];
+        if(e&&typeof e==='object'&&typeof e.eq==='number'){
+          all.push({size:sz,diff:df,e:e});
+        }
+      }
+    });
+  });
+  if(all.length===0){
+    el.innerHTML='<div style="opacity:0.55;padding:6px 0;text-align:center;">No detailed solves recorded yet.<br>Solve some puzzles in v3.37+ to populate.</div>';
+    return;
+  }
+
+  function fmtMs(ms){
+    var s=Math.round(ms/1000);
+    if(s<60)return s+'s';
+    var m=Math.floor(s/60),r=s%60;
+    return m+':'+(r<10?'0':'')+r;
+  }
+  function avg(arr,fn){
+    if(!arr.length)return 0;
+    var s=0;for(var i=0;i<arr.length;i++)s+=fn(arr[i]);
+    return s/arr.length;
+  }
+
+  var html='';
+
+  // ── Section 1: (size, diff) summary ──────────────────────────
+  html+='<div style="font-weight:700;font-size:6px;letter-spacing:0.7px;color:rgba(160,255,200,1);margin-bottom:3px;">BY (SIZE, DIFF)</div>';
+  html+='<div style="display:grid;grid-template-columns:max-content max-content max-content max-content max-content;gap:1px 6px;align-items:center;margin-bottom:6px;">';
+  html+='<div style="opacity:0.6;">size</div><div style="opacity:0.6;">diff</div><div style="opacity:0.6;">n</div><div style="opacity:0.6;">avg t</div><div style="opacity:0.6;">avg ✕</div>';
+  ['small','medium','large','xl2'].forEach(function(sz){
+    ['easy','medium','hard'].forEach(function(df){
+      var bucket=all.filter(function(x){return x.size===sz&&x.diff===df;});
+      if(!bucket.length)return;
+      var aMs=avg(bucket,function(x){return x.e.ms;});
+      var mks=bucket.filter(function(x){return typeof x.e.mk==='number';});
+      var aMk=mks.length?avg(mks,function(x){return x.e.mk;}).toFixed(1):'—';
+      html+='<div>'+(sz==='xl2'?'jumbo':sz)+'</div><div>'+df+'</div>'
+         +'<div>'+_dbgPill(bucket.length)+'</div>'
+         +'<div>'+_dbgPill(fmtMs(aMs))+'</div>'
+         +'<div>'+_dbgPill(aMk)+'</div>';
+    });
+  });
+  html+='</div>';
+
+  // ── Section 2: per-template stats ───────────────────────────
+  var tplGroups={};
+  for(var i=0;i<all.length;i++){
+    var x=all[i],tpl=x.e.tpl||'?';
+    if(!tplGroups[tpl])tplGroups[tpl]=[];
+    tplGroups[tpl].push(x);
+  }
+  var tplKeys=Object.keys(tplGroups).sort();
+  if(tplKeys.length){
+    html+='<div style="font-weight:700;font-size:6px;letter-spacing:0.7px;color:rgba(160,255,200,1);margin-bottom:3px;">BY TEMPLATE</div>';
+    html+='<div style="display:grid;grid-template-columns:max-content max-content max-content max-content;gap:1px 6px;align-items:center;margin-bottom:6px;">';
+    html+='<div style="opacity:0.6;">tpl</div><div style="opacity:0.6;">n</div><div style="opacity:0.6;">avg t</div><div style="opacity:0.6;">avg ✕</div>';
+    tplKeys.forEach(function(tpl){
+      var bucket=tplGroups[tpl];
+      var aMs=avg(bucket,function(x){return x.e.ms;});
+      var mks=bucket.filter(function(x){return typeof x.e.mk==='number';});
+      var aMk=mks.length?avg(mks,function(x){return x.e.mk;}).toFixed(1):'—';
+      html+='<div>'+tpl+'</div><div>'+_dbgPill(bucket.length)+'</div>'
+         +'<div>'+_dbgPill(fmtMs(aMs))+'</div>'
+         +'<div>'+_dbgPill(aMk)+'</div>';
+    });
+    html+='</div>';
+  }
+
+  // ── Section 3: per-feature coefficients ─────────────────────
+  // For each feature, divide avg(time) by avg(feature) to get a
+  // rough "ms per unit" scaling. This isn't a real regression but
+  // it's a useful first pass — if avg solve takes 60s with 21
+  // blanks, that's ~2.85s per blank.
+  var aTime=avg(all,function(x){return x.e.ms;});
+  var feats=[
+    ['blank',function(x){return x.e.bk;}],
+    ['given',function(x){return x.e.gv;}],
+    ['eq',   function(x){return x.e.eq;}],
+    ['1-blank eq',function(x){return x.e.b1;}],
+    ['2-blank eq',function(x){return x.e.b2;}],
+    ['3-blank eq',function(x){return x.e.b3;}],
+    ['+ op', function(x){return x.e.opp;}],
+    ['- op', function(x){return x.e.opm;}],
+    ['× op', function(x){return x.e.opx;}],
+    ['÷ op', function(x){return x.e.opd;}],
+    ['trivial',function(x){return x.e.tr;}]
+  ];
+  html+='<div style="font-weight:700;font-size:6px;letter-spacing:0.7px;color:rgba(160,255,200,1);margin-bottom:3px;">SCALING (ms/unit, all sizes)</div>';
+  html+='<div style="opacity:0.55;font-size:90%;margin-bottom:2px;">avg t = '+fmtMs(aTime)+' across '+all.length+' solves</div>';
+  html+='<div style="display:grid;grid-template-columns:max-content max-content max-content;gap:1px 6px;align-items:center;margin-bottom:6px;">';
+  html+='<div style="opacity:0.6;">feat</div><div style="opacity:0.6;">avg #</div><div style="opacity:0.6;">s/unit</div>';
+  feats.forEach(function(f){
+    var aF=avg(all,f[1]);
+    var per=aF>0?(aTime/1000)/aF:0;
+    html+='<div>'+f[0]+'</div>'
+       +'<div>'+_dbgPill(aF.toFixed(1))+'</div>'
+       +'<div>'+_dbgPill(per.toFixed(1)+'s')+'</div>';
+  });
+  html+='</div>';
+
+  el.innerHTML=html;
+}
+
+function _dbgRenderTimesIfOpen(){
+  var p=document.getElementById('_dbgTimesPanel');
+  if(p&&p.style.display==='flex')_dbgRenderTimes();
+}
+
+window._dbgToggleTimesPanel=function(){
+  var panel=document.getElementById('_dbgTimesPanel');
+  if(!panel)return;
+  if(panel.style.display==='flex'){
+    panel.style.display='none';
+    try{if(window._modalCloseChirp)window._modalCloseChirp();}catch(e){}
+  } else {
+    _dbgRenderTimes();
+    panel.style.display='flex';
+    try{if(window._modalOpenChirp)window._modalOpenChirp();}catch(e){}
+  }
+};
+
 
 // [v3.20] Track failure reasons inside buildPuzzle so we can see which
 // step in the build pipeline is failing. Keys:
@@ -6429,41 +8023,339 @@ function _dbgBumpFail(reason){
     obj[reason]=(obj[reason]||0)+1;
     localStorage.setItem('_dbgFailReasons',JSON.stringify(obj));
   }catch(e){}
+  // [v3.29] Live refresh if panel is open.
+  if(window._dbgRefreshIfOpen)window._dbgRefreshIfOpen();
 }
 
-// [v3.22] COUNTS button: quick tap = view counts, long-press = reset
-// confirm. The previous version used confirm()-as-toggle which caused
-// accidental resets when users tapped OK to dismiss. Separate gestures
-// remove that footgun.
+// [v3.23] COUNTS button: simple toggle. Panel has its own RESET button
+// and X button. Long-press logic removed. Section headers in the panel
+// toggle their own collapse state.
 (function(){
   function hook(){
     var btn=document.getElementById('_dbgCountsBtn');
-    if(!btn)return;
-    var pressTimer=null,longPressed=false;
-    function startPress(ev){
-      longPressed=false;
-      pressTimer=setTimeout(function(){
-        longPressed=true;
-        pressTimer=null;
-        window._dbgConfirmReset();
-      },650);
-    }
-    function endPress(ev){
-      if(pressTimer){
-        clearTimeout(pressTimer);
-        pressTimer=null;
-        if(!longPressed)window._dbgShowCounts();
+    if(btn)btn.addEventListener('click',window._dbgTogglePanel);
+
+    var closeBtn=document.getElementById('_dbgPanelClose');
+    if(closeBtn)closeBtn.addEventListener('click',window._dbgTogglePanel);
+
+    // [v3.35] TIMES button — opens/closes the second panel.
+    var timesBtn=document.getElementById('_dbgTimesBtn');
+    if(timesBtn)timesBtn.addEventListener('click',window._dbgToggleTimesPanel);
+    var timesCloseBtn=document.getElementById('_dbgTimesPanelClose');
+    if(timesCloseBtn)timesCloseBtn.addEventListener('click',window._dbgToggleTimesPanel);
+
+    // [v3.35] TIMES panel: opacity cycle, tab switching, reset.
+    var timesOpacityBtn=document.getElementById('_dbgTimesPanelOpacity');
+    if(timesOpacityBtn){
+      var tStates=[
+        {alpha:0.10,glyph:'◐'},
+        {alpha:0.55,glyph:'◑'},
+        {alpha:0.95,glyph:'●'}
+      ];
+      // [v3.36] TIMES panel defaults to solid (idx=2) since it's a
+      // reference-lookup panel, not a live debug overlay — being able
+      // to read times clearly matters more than seeing the puzzle behind.
+      var tIdx=2;
+      try{
+        var tSaved=parseInt(localStorage.getItem('_dbgTimesPanelOpacityIdx'),10);
+        if(!isNaN(tSaved)&&tSaved>=0&&tSaved<tStates.length)tIdx=tSaved;
+      }catch(e){}
+      function applyTimesOpacity(){
+        var p=document.getElementById('_dbgTimesPanel');
+        if(!p)return;
+        var s=tStates[tIdx];
+        p.style.background='rgba(8,16,8,'+s.alpha+')';
+        timesOpacityBtn.textContent=s.glyph;
       }
+      applyTimesOpacity();
+      timesOpacityBtn.addEventListener('click',function(ev){
+        ev.stopPropagation();
+        tIdx=(tIdx+1)%tStates.length;
+        try{localStorage.setItem('_dbgTimesPanelOpacityIdx',String(tIdx));}catch(e){}
+        applyTimesOpacity();
+      });
     }
-    function cancelPress(){
-      if(pressTimer){clearTimeout(pressTimer);pressTimer=null;}
+
+    // Tab clicks switch active size.
+    var tabs=document.querySelectorAll('._dbgTimesTab');
+    for(var ti=0;ti<tabs.length;ti++){
+      (function(tab){
+        tab.addEventListener('click',function(ev){
+          ev.stopPropagation();
+          var sz=tab.getAttribute('data-size');
+          if(sz)_dbgSetActiveTimesSize(sz);
+        });
+      })(tabs[ti]);
     }
-    btn.addEventListener('mousedown',startPress);
-    btn.addEventListener('mouseup',endPress);
-    btn.addEventListener('mouseleave',cancelPress);
-    btn.addEventListener('touchstart',function(ev){ev.preventDefault();startPress(ev);},{passive:false});
-    btn.addEventListener('touchend',function(ev){ev.preventDefault();endPress(ev);},{passive:false});
-    btn.addEventListener('touchcancel',cancelPress);
+
+    // TIMES reset uses the same two-tap pattern as COUNTS.
+    var timesResetBtn=document.getElementById('_dbgTimesResetBtn');
+    if(timesResetBtn){
+      var tArmed=false,tTimer=null,tOrigLabel=timesResetBtn.textContent;
+      var tOrigBg=timesResetBtn.style.background;
+      var tOrigColor=timesResetBtn.style.color;
+      function disarmT(){
+        tArmed=false;
+        if(tTimer){clearTimeout(tTimer);tTimer=null;}
+        timesResetBtn.textContent=tOrigLabel;
+        timesResetBtn.style.background=tOrigBg;
+        timesResetBtn.style.color=tOrigColor;
+      }
+      timesResetBtn.addEventListener('click',function(ev){
+        ev.stopPropagation();
+        if(!tArmed){
+          tArmed=true;
+          timesResetBtn.textContent='TAP AGAIN TO CONFIRM';
+          timesResetBtn.style.background='rgba(255,80,80,0.40)';
+          timesResetBtn.style.color='rgba(255,220,220,1)';
+          tTimer=setTimeout(disarmT,3000);
+        } else {
+          _dbgClearTimes();
+          disarmT();
+          _dbgRenderTimes();
+        }
+      });
+    }
+
+    // [v3.39] EXPORT — download all _dbgTimes data as JSON. Filename
+    // includes a timestamp so multiple exports don't clobber each
+    // other. Uses a Blob + a synthesized <a> click for cross-browser
+    // download support (works in Brave, Chrome, Claude in-app webview).
+    var timesExportBtn=document.getElementById('_dbgTimesExportBtn');
+    if(timesExportBtn){
+      timesExportBtn.addEventListener('click',function(ev){
+        ev.stopPropagation();
+        try{
+          var data=_dbgGetTimes();
+          // Wrap with metadata so future imports can validate & migrate.
+          var payload={
+            version:1,
+            kind:'equil-times',
+            exportedAt:new Date().toISOString(),
+            data:data
+          };
+          var json=JSON.stringify(payload,null,2);
+          var blob=new Blob([json],{type:'application/json'});
+          var url=URL.createObjectURL(blob);
+          var ts=new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+          var a=document.createElement('a');
+          a.href=url;
+          a.download='equil-times-'+ts+'.json';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(function(){
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          },100);
+          // Brief visual confirmation on the button itself.
+          var orig=timesExportBtn.textContent;
+          timesExportBtn.textContent='SAVED ✓';
+          setTimeout(function(){timesExportBtn.textContent=orig;},1200);
+        }catch(e){
+          timesExportBtn.textContent='ERROR';
+          setTimeout(function(){timesExportBtn.textContent='EXPORT';},1500);
+        }
+      });
+    }
+
+    // [v3.39] IMPORT — read a previously-exported JSON file back into
+    // localStorage. Merges with current data: new buckets append (so
+    // re-importing duplicates entries). For a clean slate, RESET TIMES
+    // first then IMPORT.
+    var timesImportBtn=document.getElementById('_dbgTimesImportBtn');
+    var timesImportFile=document.getElementById('_dbgTimesImportFile');
+    if(timesImportBtn&&timesImportFile){
+      timesImportBtn.addEventListener('click',function(ev){
+        ev.stopPropagation();
+        timesImportFile.click();
+      });
+      timesImportFile.addEventListener('change',function(ev){
+        var f=ev.target.files&&ev.target.files[0];
+        if(!f)return;
+        var reader=new FileReader();
+        reader.onload=function(e){
+          try{
+            var parsed=JSON.parse(e.target.result);
+            // Accept either the wrapped format {version,kind,data} or
+            // a raw _dbgTimes object (for resilience).
+            var loaded=(parsed&&parsed.kind==='equil-times'&&parsed.data)?parsed.data:parsed;
+            if(!loaded||typeof loaded!=='object')throw new Error('bad format');
+            // Merge: for each (size,diff), append loaded entries to
+            // existing. Skips invalid keys silently.
+            var current=_dbgGetTimes();
+            ['small','medium','large','xl2'].forEach(function(sz){
+              if(!loaded[sz])return;
+              if(!current[sz])current[sz]={easy:[],medium:[],hard:[]};
+              ['easy','medium','hard'].forEach(function(df){
+                var src=loaded[sz][df];
+                if(!Array.isArray(src))return;
+                if(!Array.isArray(current[sz][df]))current[sz][df]=[];
+                for(var i=0;i<src.length;i++)current[sz][df].push(src[i]);
+              });
+            });
+            localStorage.setItem('_dbgTimes',JSON.stringify(current));
+            _dbgRenderTimes();
+            var orig=timesImportBtn.textContent;
+            timesImportBtn.textContent='LOADED ✓';
+            setTimeout(function(){timesImportBtn.textContent=orig;},1200);
+          }catch(err){
+            timesImportBtn.textContent='BAD FILE';
+            setTimeout(function(){timesImportBtn.textContent='IMPORT';},1500);
+          }
+          // Reset the input so picking the same file again still fires change.
+          timesImportFile.value='';
+        };
+        reader.onerror=function(){
+          timesImportBtn.textContent='READ ERR';
+          setTimeout(function(){timesImportBtn.textContent='IMPORT';},1500);
+        };
+        reader.readAsText(f);
+      });
+    }
+
+    // [v3.34] Opacity cycle button. Three states for the panel
+    // background:
+    //   0: see-through (default; 0.10 alpha — puzzle visible behind)
+    //   1: medium       (0.55 alpha — values readable, puzzle hinted)
+    //   2: solid        (0.95 alpha — values pop, puzzle nearly hidden)
+    // Indicator glyph rotates: ◐ → ◑ → ● to give a quick visual cue.
+    // Persists in localStorage so it survives reloads.
+    var opacityBtn=document.getElementById('_dbgPanelOpacity');
+    if(opacityBtn){
+      var states=[
+        {alpha:0.10,glyph:'◐'},
+        {alpha:0.55,glyph:'◑'},
+        {alpha:0.95,glyph:'●'}
+      ];
+      var idx=0;
+      try{
+        var saved=parseInt(localStorage.getItem('_dbgPanelOpacityIdx'),10);
+        if(!isNaN(saved)&&saved>=0&&saved<states.length)idx=saved;
+      }catch(e){}
+      function applyOpacity(){
+        var pnl=document.getElementById('_dbgPanel');
+        if(!pnl)return;
+        var s=states[idx];
+        pnl.style.background='rgba(8,16,8,'+s.alpha+')';
+        opacityBtn.textContent=s.glyph;
+      }
+      applyOpacity();
+      opacityBtn.addEventListener('click',function(ev){
+        ev.stopPropagation();
+        idx=(idx+1)%states.length;
+        try{localStorage.setItem('_dbgPanelOpacityIdx',String(idx));}catch(e){}
+        applyOpacity();
+      });
+    }
+
+    // [v3.26] In-page two-tap reset. confirm() is blocked by some
+    // webviews (notably the Claude in-app browser), so the button
+    // self-arms on first tap and executes on second tap within 3s.
+    var resetBtn=document.getElementById('_dbgResetBtn');
+    if(resetBtn){
+      var resetArmed=false,resetTimer=null,origLabel=resetBtn.textContent;
+      var origBg=resetBtn.style.background;
+      var origColor=resetBtn.style.color;
+      function disarmReset(){
+        resetArmed=false;
+        if(resetTimer){clearTimeout(resetTimer);resetTimer=null;}
+        resetBtn.textContent=origLabel;
+        resetBtn.style.background=origBg;
+        resetBtn.style.color=origColor;
+      }
+      resetBtn.addEventListener('click',function(ev){
+        ev.stopPropagation();
+        if(!resetArmed){
+          resetArmed=true;
+          resetBtn.textContent='TAP AGAIN TO CONFIRM';
+          resetBtn.style.background='rgba(255,80,80,0.45)';
+          resetBtn.style.color='rgba(255,255,255,1)';
+          resetTimer=setTimeout(disarmReset,3000);
+        } else {
+          disarmReset();
+          _dbgResetCounts();
+          window._dbgRenderAll();
+          try{if(window._modalCloseChirp)window._modalCloseChirp();}catch(e){}
+        }
+      });
+    }
+
+    // Collapsible section headers
+    function bindCollapse(headerId,bodyId,arrowId){
+      var header=document.getElementById(headerId);
+      var body=document.getElementById(bodyId);
+      var arrow=document.getElementById(arrowId);
+      if(!header||!body||!arrow)return;
+      header.addEventListener('click',function(){
+        var isOpen=body.style.display!=='none';
+        body.style.display=isOpen?'none':'block';
+        arrow.style.transform=isOpen?'rotate(-90deg)':'rotate(0deg)';
+      });
+    }
+    bindCollapse('_dbgCurrentHeader','_dbgPuzzleStats','_dbgCurrentArrow');
+    bindCollapse('_dbgAvgHeader','_dbgAvgBody','_dbgAvgArrow');
+    bindCollapse('_dbgTplCountsHeader','_dbgTplCountsBody','_dbgTplCountsArrow');
+    bindCollapse('_dbgFailHeader','_dbgFailBody','_dbgFailArrow');
+
+    // [v3.27] Drag is bound to the header only. Body region uses
+    // touch-action:pan-y for normal scrolling. This avoids the
+    // touch-conflict where dragging and scrolling competed for the
+    // same gesture. Mouse drag works only on header too — keeps the
+    // model simple and predictable.
+    // [v3.35] Refactored as a helper so the TIMES panel reuses it.
+    function _dbgMakeDraggable(panelId, headerId, excludeIds){
+      var panel=document.getElementById(panelId);
+      var header=document.getElementById(headerId);
+      if(!panel||!header)return;
+      var excludeSet={};
+      if(excludeIds)for(var ei=0;ei<excludeIds.length;ei++)excludeSet[excludeIds[ei]]=true;
+      var dragging=false,startX=0,startY=0,startLeft=0,startTop=0,initialized=false;
+      function px(v){return parseFloat(v)||0;}
+      function getXY(ev){
+        if(ev.touches&&ev.touches.length)return {x:ev.touches[0].clientX,y:ev.touches[0].clientY};
+        return {x:ev.clientX,y:ev.clientY};
+      }
+      function onDown(ev){
+        if(ev.target&&excludeSet[ev.target.id])return;
+        if(!initialized){
+          var rect=panel.getBoundingClientRect();
+          var bodyRect=document.body.getBoundingClientRect();
+          panel.style.left=(rect.left-bodyRect.left)+'px';
+          panel.style.top=(rect.top-bodyRect.top)+'px';
+          panel.style.transform='none';
+          initialized=true;
+        }
+        dragging=true;
+        var p=getXY(ev);
+        startX=p.x;startY=p.y;
+        startLeft=px(panel.style.left);
+        startTop=px(panel.style.top);
+        ev.preventDefault();
+      }
+      function onMove(ev){
+        if(!dragging)return;
+        var p=getXY(ev);
+        var dx=p.x-startX,dy=p.y-startY;
+        var newL=startLeft+dx,newT=startTop+dy;
+        var vw=window.innerWidth,vh=window.innerHeight;
+        if(newL<-100)newL=-100;
+        if(newL>vw-50)newL=vw-50;
+        if(newT<0)newT=0;
+        if(newT>vh-30)newT=vh-30;
+        panel.style.left=newL+'px';
+        panel.style.top=newT+'px';
+        ev.preventDefault();
+      }
+      function onUp(){dragging=false;}
+      header.addEventListener('mousedown',onDown);
+      document.addEventListener('mousemove',onMove);
+      document.addEventListener('mouseup',onUp);
+      header.addEventListener('touchstart',onDown,{passive:false});
+      document.addEventListener('touchmove',onMove,{passive:false});
+      document.addEventListener('touchend',onUp);
+    }
+    _dbgMakeDraggable('_dbgPanel','_dbgPanelHeader',['_dbgPanelClose','_dbgPanelOpacity']);
+    _dbgMakeDraggable('_dbgTimesPanel','_dbgTimesPanelHeader',['_dbgTimesPanelClose','_dbgTimesPanelOpacity']);
   }
   if(document.readyState==='loading'){
     document.addEventListener('DOMContentLoaded',hook);
@@ -7057,11 +8949,17 @@ function genNums(tmpl,allowedOps,minDiv){
 
       if(setCount===0){
         op=rp(useOps);
+        // [v3.33] Bias away from generating 1s. Random ranges shifted
+        // to start at 2 instead of 1 for free-choice values. With 1s
+        // excluded, trivial equations (1×n=n, n÷1=n, 1+1=2, etc.) drop
+        // dramatically. The constraints still allow 1s to appear via
+        // setCount=2 cases where the math forces them, so the puzzles
+        // aren't 1-free, just less 1-heavy.
         for(var t=0;t<80;t++){
-          if(op==='+'){av=ri(1,18);bv=ri(1,18);cv=av+bv;if(cv<=72){solved=true;break;}}
-          else if(op==='-'){av=ri(2,35);bv=ri(1,av-1);cv=av-bv;if(cv>=1&&cv<=72){solved=true;break;}}
-          else if(op==='x'){av=ri(1,9);bv=ri(1,9);cv=av*bv;if(cv<=72){solved=true;break;}}
-          else{cv=ri(1,9);bv=ri(1,9);av=cv*bv;if(av>=1&&av<=72){solved=true;break;}}
+          if(op==='+'){av=ri(2,18);bv=ri(2,18);cv=av+bv;if(cv<=72){solved=true;break;}}
+          else if(op==='-'){av=ri(3,35);bv=ri(2,av-1);cv=av-bv;if(cv>=1&&cv<=72){solved=true;break;}}
+          else if(op==='x'){av=ri(2,9);bv=ri(2,9);cv=av*bv;if(cv<=72){solved=true;break;}}
+          else{cv=ri(2,9);bv=ri(2,9);av=cv*bv;if(av>=1&&av<=72){solved=true;break;}}
           op=rp(useOps);
         }
         if(solved){bV[kA]=av;bV[kB]=bv;bV[kC]=cv;bOPS[e.id]=op;keysWritten=[kA,kB,kC];}
@@ -7069,22 +8967,26 @@ function genNums(tmpl,allowedOps,minDiv){
         op=rp(useOps);
         for(var t=0;t<80;t++){
           if(a!=null){
-            if(op==='+'){bv=ri(1,18);cv=a+bv;if(cv<=72){solved=true;break;}}
-            else if(op==='-'&&a>=2){bv=ri(1,a-1);cv=a-bv;if(cv>=1&&cv<=72){solved=true;break;}}
-            else if(op==='x'&&a>=1&&a<=9){bv=ri(1,9);cv=a*bv;if(cv<=72){solved=true;break;}}
-            else if(op==='/'&&a>=1){bv=ri(1,Math.min(9,a));cv=(a%bv===0)?a/bv:null;if(cv!=null&&cv>=1&&cv<=72){solved=true;break;}}
+            // [v3.33] When generating b given a, avoid b=1 for × and ÷
+            // (n×1=n, n÷1=n trivials). For +/−, also avoid b=1 to
+            // reduce trivial-feeling small differences (n−1, n+1 are
+            // borderline-trivial too).
+            if(op==='+'){bv=ri(2,18);cv=a+bv;if(cv<=72){solved=true;break;}}
+            else if(op==='-'&&a>=3){bv=ri(2,a-1);cv=a-bv;if(cv>=1&&cv<=72){solved=true;break;}}
+            else if(op==='x'&&a>=2&&a<=9){bv=ri(2,9);cv=a*bv;if(cv<=72){solved=true;break;}}
+            else if(op==='/'&&a>=2){bv=ri(2,Math.min(9,a));cv=(a%bv===0)?a/bv:null;if(cv!=null&&cv>=2&&cv<=72){solved=true;break;}}
           } else if(b!=null){
-            if(op==='+'){av=ri(1,18);cv=av+b;if(cv<=72){solved=true;break;}}
-            else if(op==='-'){av=ri(b+1,Math.min(72,b+18));cv=av-b;if(cv>=1){solved=true;break;}}
-            else if(op==='x'&&b>=1&&b<=9){av=ri(1,9);cv=av*b;if(cv<=72){solved=true;break;}}
-            else if(op==='/'&&b>=1&&b<=9){cv=ri(1,9);av=cv*b;if(av<=72){solved=true;break;}}
+            if(op==='+'){av=ri(2,18);cv=av+b;if(cv<=72){solved=true;break;}}
+            else if(op==='-'){av=ri(b+1,Math.min(72,b+18));cv=av-b;if(cv>=2){solved=true;break;}}
+            else if(op==='x'&&b>=2&&b<=9){av=ri(2,9);cv=av*b;if(cv<=72){solved=true;break;}}
+            else if(op==='/'&&b>=2&&b<=9){cv=ri(2,9);av=cv*b;if(av<=72){solved=true;break;}}
           } else if(c!=null){
-            if(op==='+'&&c>=2){av=ri(1,c-1);bv=c-av;if(bv>=1){solved=true;break;}}
-            else if(op==='-'){bv=ri(1,18);av=c+bv;if(av<=72){solved=true;break;}}
-            else if(op==='x'&&c>=1&&c<=72){
-              var divs=[];for(var d=1;d<=9;d++)if(c%d===0&&c/d>=1&&c/d<=9)divs.push(d);
+            if(op==='+'&&c>=4){av=ri(2,c-2);bv=c-av;if(bv>=2){solved=true;break;}}
+            else if(op==='-'){bv=ri(2,18);av=c+bv;if(av<=72){solved=true;break;}}
+            else if(op==='x'&&c>=4&&c<=72){
+              var divs=[];for(var d=2;d<=9;d++)if(c%d===0&&c/d>=2&&c/d<=9)divs.push(d);
               if(divs.length){bv=rp(divs);av=c/bv;solved=true;break;}
-            } else if(op==='/'&&c>=1&&c<=9){bv=ri(1,9);av=c*bv;if(av<=72){solved=true;break;}}
+            } else if(op==='/'&&c>=2&&c<=9){bv=ri(2,9);av=c*bv;if(av<=72){solved=true;break;}}
           }
           op=rp(useOps);
         }
@@ -7095,7 +8997,22 @@ function genNums(tmpl,allowedOps,minDiv){
           bOPS[e.id]=op;
         }
       } else if(setCount===2){
-        var ops_=useOps.slice().sort(function(){return Math.random()-0.5;});
+        // [v3.33] At setCount=2 we can't escape an existing 1 — if the
+        // crossings already locked a=1 or b=1, we must use it. But we
+        // CAN reorder the op preference so non-trivial ops come first.
+        // Sort puts +/- before x/÷ when 1 is involved so we prefer
+        // arithmetic over identity-multiplication.
+        var ops_=useOps.slice();
+        var hasOne=(a===1||b===1||c===1);
+        if(hasOne){
+          // Prefer +,- first when a 1 is present.
+          ops_.sort(function(x,y){
+            var rank={'+':0,'-':1,'x':2,'/':3};
+            return (rank[x]||0)-(rank[y]||0);
+          });
+        } else {
+          ops_.sort(function(){return Math.random()-0.5;});
+        }
         for(var oi=0;oi<ops_.length&&!solved;oi++){
           op=ops_[oi];
           if(a!=null&&b!=null){
@@ -8645,6 +10562,42 @@ function buildPuzzle(size,diff,_retry,_divRetry,_opts){
     }
   }
 
+  // [v3.33] Trivial-equation reject pass.
+  // 820-puzzle data showed avg 4.56 trivial eqs per Large/Medium puzzle
+  // (modal=2, but 30%+ of puzzles had 5+). Trivial eqs are ones where
+  // a player can solve them in <1 second because of identity arithmetic
+  // — n×1=n, n÷1=n, 1+1=2, n÷n=1. With the v3.33 solver bias these
+  // should drop, but some still slip through (especially when crossings
+  // force a 1 into setCount=2 cases). Reject + retry if the puzzle has
+  // too many. Threshold scales with puzzle size: roughly 12% of eqs.
+  var trivCount=0;
+  for(var ti=0;ti<tmpl.length;ti++){
+    var te=tmpl[ti];
+    if(te.xl)continue;
+    var tpts=numPts(te);
+    var tka=nk(tpts[0]),tkb=nk(tpts[1]),tkc=nk(tpts[2]);
+    var top=OPS&&OPS[te.id];
+    var tva=CM[tka]&&CM[tka].answer,tvb=CM[tkb]&&CM[tkb].answer,tvc=CM[tkc]&&CM[tkc].answer;
+    if(tva!=null&&tvb!=null&&tvc!=null){
+      var triv=false;
+      if(tva===1&&tvb===1)triv=true;
+      else if((top==='x'||top==='/')&&(tva===1||tvb===1))triv=true;
+      else if(top==='/'&&tva===tvb)triv=true;
+      if(triv)trivCount++;
+    }
+  }
+  // ~12% of equations max. Small (12 eqs) → 1, Medium (16) → 1,
+  // Large (24) → 2, Jumbo (16) → 1. Strict gives most impact on
+  // perceived difficulty without preventing puzzles from generating.
+  var trivThresh = Math.max(1,Math.floor(tmpl.length*0.12));
+  var maxTrivR = (size==='xl'||size==='xl2') ? 40
+              : (size==='large')             ? 30
+              :                                20;
+  if(trivCount>trivThresh && (_retry||0)<maxTrivR){
+    _dbgBumpFail((window._currentTplName||'?')+':trivialReject');
+    return buildPuzzle(size,diff,(_retry||0)+1,_divRetry,_opts);
+  }
+
   var bv=blanks.slice().sort(function(a,b){return a-b;});
   // [v3.18 v4] DEBUG: bump final counter — this is what the player gets.
   if(window._currentTplName)_dbgBumpFinal(window._currentTplName);
@@ -10014,6 +11967,12 @@ window._mc113 = (function(){
   var dailyMode=false;     // true if current puzzle is daily
   var dailyDateStr=null;   // 'YYYY-MM-DD' tag for the current daily, if any
   var rafId=null;
+  // [v3.38] Pause state. paused=true freezes the timer at pauseStartElapsed
+  // (the elapsed ms at the moment pause was called). On resume, startTs is
+  // shifted forward by the duration spent paused so _curMs() math keeps
+  // working with the existing (Date.now()-startTs) calculation.
+  var paused=false;
+  var pauseStartElapsed=0;
 
   function _pad2(n){n=Math.floor(n);return (n<10?'0':'')+n;}
   function fmtTime(ms){
@@ -10027,8 +11986,34 @@ window._mc113 = (function(){
   function _curMs(){
     if(!startTs) return 0;
     if(won) return elapsedMs;
+    // [v3.38] When paused, freeze the displayed time at the elapsed
+    // value captured at pause-start. The actual startTs gets shifted
+    // forward on resume() so post-resume math still works.
+    if(paused) return pauseStartElapsed;
     return Date.now()-startTs;
   }
+
+  // [v3.38] Pause: freeze timer display, stop rAF tick. Player can still
+  // see the puzzle state but the overlay covers it. Resume restores by
+  // shifting startTs forward by the time spent paused.
+  function pause(){
+    if(won||paused||!startTs) return;
+    paused=true;
+    pauseStartElapsed=Date.now()-startTs;
+    if(rafId){cancelAnimationFrame(rafId);rafId=null;}
+    _renderTimer();
+  }
+  function resume(){
+    if(!paused) return;
+    paused=false;
+    // Shift startTs so (now - startTs) again equals pauseStartElapsed
+    // at the instant of resume — i.e., the timer continues from where
+    // it left off, no jump.
+    startTs=Date.now()-pauseStartElapsed;
+    pauseStartElapsed=0;
+    if(!won) _tick();
+  }
+  function isPaused(){return paused;}
 
   function _renderTimer(){
     var t=document.getElementById('mastTimer');
@@ -10061,6 +12046,8 @@ window._mc113 = (function(){
     startTs=null; elapsedMs=0; won=false; moves=0;
     // [v2.68] Reset mistake tracking on every new puzzle.
     mistakes=0; badEqs={};
+    // [v3.38] Clear pause state on new puzzle.
+    paused=false; pauseStartElapsed=0;
     dailyMode=!!(opts&&opts.daily);
     dailyDateStr=(opts&&opts.dateStr)||null;
     _renderTimer();
@@ -10071,6 +12058,18 @@ window._mc113 = (function(){
     if(won) return;
     if(!startTs){ startTs=Date.now(); _tick(); }
     moves++;
+    _renderTimer();
+  }
+
+  // [v3.42] Explicitly start the timer without incrementing moves.
+  // Called when the user taps GO on the ready overlay so the timing
+  // baseline reflects "I've actually started thinking about this
+  // puzzle" rather than "I made my first move after 90s of staring".
+  // No-op if already started or already won.
+  function startTimer(){
+    if(won||startTs)return;
+    startTs=Date.now();
+    _tick();
     _renderTimer();
   }
 
@@ -10169,6 +12168,11 @@ window._mc113 = (function(){
       if(mistakesCount===0) rec.cleanRuns=(rec.cleanRuns||0)+1;
     }
     s[key]=rec;
+    // [v3.35] Also record into the TIMES debug panel storage. Independent
+    // from the user-facing stats so a RESET TIMES doesn't clobber the
+    // user's best/etc.
+    // [v3.36] Now also passes mistakes count for per-entry display.
+    try{if(window._dbgRecordTime)window._dbgRecordTime(size,diff,ms,mistakesCount);}catch(e){}
     // Daily tracking — store just the latest completed daily date and a
     // running solve count. No streaks shown to the user (per spec: honest
     // numbers only, no streak rewards).
@@ -10394,7 +12398,13 @@ window._mc113 = (function(){
     buildShareText:buildShareText,
     copyText:copyText,
     showToast:showToast,
-    renderStatsScreen:renderStatsScreen
+    renderStatsScreen:renderStatsScreen,
+    // [v3.38] Pause controls.
+    pause:pause,
+    resume:resume,
+    isPaused:isPaused,
+    // [v3.42] Explicit timer start (used by READY overlay).
+    startTimer:startTimer
   };
 })();
 
@@ -10498,6 +12508,13 @@ function newPuzzle(){
   PZ=buildPuzzle(SIZE,DIFF);SEL=null;HIST=[];
   // [v3.18] DEBUG: update the template label after build.
   _updateDbgTplLabel();
+  // [v3.32] Record this puzzle's metrics for running averages.
+  if(window._dbgRecordPuzzle)window._dbgRecordPuzzle();
+  // [v3.23] If debug panel is open, refresh its puzzle stats.
+  try{
+    var pnl=document.getElementById('_dbgPanel');
+    if(pnl&&pnl.style.display==='flex'&&window._dbgRenderAll)window._dbgRenderAll();
+  }catch(e){}
   // [Equil 1.13] "Next Puzzle" / "New" both produce a random puzzle
   // and reset the timer/move counter. Daily mode is launched explicitly
   // from the start screen via the Daily button → showGame({daily:true}).
@@ -10509,6 +12526,10 @@ function newPuzzle(){
   if(mi) mi.textContent=DIFF.toUpperCase()+' · '+sizeLabel(SIZE);
   document.getElementById('win').classList.remove('show');
   if(window._resetGridZoom)_resetGridZoom();render();
+  // [v3.42] Show the READY overlay so the player can study the
+  // puzzle layout before the timer starts. Tapping GO will dismiss
+  // it and call _mc113.startTimer().
+  if(window._showReady)window._showReady();
 }
 
 function selCell(k){
@@ -13569,6 +15590,13 @@ function showGame(opts){
   SEL=null;HIST=[];
   // [v3.18] DEBUG: update the template label after build.
   _updateDbgTplLabel();
+  // [v3.32] Record this puzzle's metrics for running averages.
+  if(window._dbgRecordPuzzle)window._dbgRecordPuzzle();
+  // [v3.23] Refresh debug panel stats if open.
+  try{
+    var pnl=document.getElementById('_dbgPanel');
+    if(pnl&&pnl.style.display==='flex'&&window._dbgRenderAll)window._dbgRenderAll();
+  }catch(e){}
   // Reset stats AFTER puzzle is built (so timer 0:00 matches first move).
   if(window._mc113) window._mc113.reset({daily:!!opts.daily, dateStr:opts.daily?dateStr:null});
   document.getElementById('selScreen').style.display='none';
@@ -13593,10 +15621,29 @@ function showGame(opts){
   // buttons) becomes visible. CSS hides .tile-controls-row when
   // body.menu-active is set.
   document.body.classList.remove('menu-active');
+  // [v3.42] Show the READY overlay so timing data isn't polluted
+  // by pre-first-move thinking time.
+  if(window._showReady)window._showReady();
 }
 function showMenu(){
   document.getElementById('gameScreen').style.display='none';
   document.getElementById('selScreen').style.display='flex';
+  // [v3.42] Hide the READY overlay if the user backs out before
+  // tapping GO. Otherwise it'd persist over the menu screen.
+  if(window._hideReady)window._hideReady();
+  // [v3.38] Restore size-button highlight to whichever size was last
+  // played. Without this, returning to menu via the Menu button leaves
+  // the buttons un-highlighted (the .on class only gets toggled by
+  // direct button clicks). SIZE is the global tracking the currently-
+  // selected size; default to xl2 if for some reason it's unset.
+  try{
+    var curSize=window.SIZE||'xl2';
+    document.querySelectorAll('.sel-btn[data-size]').forEach(function(b){
+      if(b.dataset.size===curSize)b.classList.add('on');
+      else b.classList.remove('on');
+    });
+    document.body.classList.toggle('xl2-mode',curSize==='xl2');
+  }catch(e){}
   // [v2.65] Add menu-active body class so puzzle-mode-only UI
   // (the tile-controls-row, etc.) hides via CSS while the user
   // is on the menu screen. Removed when the user starts a puzzle.
@@ -13629,9 +15676,12 @@ function showMenu(){
 }
 
 // Size buttons
-document.querySelectorAll('[data-size]').forEach(function(b){
+// [v3.38] Scope to .sel-btn only — the new TIMES panel tabs also use
+// data-size attributes and were getting unintentionally swept by the
+// previous broad selector.
+document.querySelectorAll('.sel-btn[data-size]').forEach(function(b){
   b.addEventListener('click',function(){
-    document.querySelectorAll('[data-size]').forEach(function(x){x.classList.remove('on');});
+    document.querySelectorAll('.sel-btn[data-size]').forEach(function(x){x.classList.remove('on');});
     b.classList.add('on');SIZE=b.dataset.size;document.body.classList.toggle('xl2-mode',SIZE==='xl2');
     playUIClick();
   });
@@ -17224,6 +19274,251 @@ document.getElementById('backBtn').addEventListener('click',function(){
 (function(){ var u=document.getElementById('undo'); if(u) u.addEventListener('click',undo); })();
 document.getElementById('newp').addEventListener('click',newPuzzle);
 document.getElementById('nxt').addEventListener('click',newPuzzle);
+
+// [v3.38] Pause button — opens the overlay and pauses the timer.
+// Tap on the overlay (outside the resume button works too) or the
+// RESUME button to dismiss. Only allow pausing if a puzzle is active
+// and not already won; pre-first-move taps are no-ops.
+(function(){
+  var pauseBtn=document.getElementById('pauseBtn');
+  var overlay=document.getElementById('pauseOverlay');
+  var resumeBtn=document.getElementById('pauseResumeBtn');
+  if(!pauseBtn||!overlay)return;
+  function showPause(){
+    if(!window._mc113||window._mc113.isWon())return;
+    // Only meaningful once the timer has started (i.e. after first move).
+    // Before that, _mc113.curMs() returns 0 and pause() is a no-op anyway,
+    // but we still gate the overlay so an idle pre-move pause doesn't
+    // pop up a confusing screen.
+    if(window._mc113.curMs()<=0)return;
+    window._mc113.pause();
+    overlay.style.display='flex';
+    if(window._modalOpenChirp)window._modalOpenChirp();
+  }
+  function hidePause(){
+    overlay.style.display='none';
+    if(window._mc113)window._mc113.resume();
+    if(window._modalCloseChirp)window._modalCloseChirp();
+  }
+  pauseBtn.addEventListener('click',function(ev){
+    ev.stopPropagation();
+    showPause();
+  });
+  // Tap anywhere on the overlay resumes — including the resume button.
+  overlay.addEventListener('click',hidePause);
+  // The resume button click bubbles to the overlay handler above, so
+  // we don't need a second listener — but stopPropagation isn't needed
+  // either since both end up calling hidePause.
+  if(resumeBtn){
+    resumeBtn.addEventListener('click',function(ev){
+      ev.stopPropagation();
+      hidePause();
+    });
+  }
+})();
+
+// [v3.42] READY overlay — full-screen blurred backdrop with a GO
+// button. Shown after every puzzle build (newPuzzle and showGame
+// flows). Tapping GO dismisses it and explicitly starts the timer
+// via mc113.startTimer(), so timing data reflects active solving
+// rather than including pre-first-move thinking time.
+//
+// Tap on the overlay background also dismisses (matches pause-
+// overlay UX), but only if the tap was directly on the overlay
+// not on the GO button (button gets its own handler that stops
+// propagation isn't needed since hideReady is idempotent). Both
+// paths converge on the same hide+start logic.
+(function(){
+  var overlay=document.getElementById('readyOverlay');
+  var goBtn=document.getElementById('readyGoBtn');
+  var blurPane=document.getElementById('readyBlurPane');
+  if(!overlay)return;
+
+  // [v3.47] Cache the GO button's original inline style string so we
+  // can restore it cleanly between puzzles. Previous bug: hideReady
+  // ended with `goBtn.removeAttribute('style')`, which stripped EVERY
+  // inline style — including the cyan border, background, and glow
+  // that defined the button's appearance. On the second puzzle, the
+  // button rendered with no styles at all (browser default = gray
+  // rectangle), then animated up to the timer in that broken state.
+  // Caching once and reapplying on showReady restores the full look.
+  var goBtnOriginalStyle=goBtn.getAttribute('style')||'';
+
+  // [v3.48] Single blur pane that spans from the top of .gscroll down
+  // through the bottom of the bank wrapper. This eliminates the seam
+  // between the previous two-pane setup where you could see through
+  // the gap between grid and bank. We also use a single 4px blur
+  // (between the previous 2/5 split) since one continuous pane reads
+  // as one zone, not two.
+  function positionBlurPane(){
+    if(!blurPane)return;
+    var grid=document.querySelector('.gscroll');
+    // Find the bank's outer container — falls back to bank-outer or
+    // the bank element itself, whichever exists.
+    var bank=document.querySelector('.bank-outer')
+            ||document.querySelector('.bank')
+            ||document.getElementById('bank');
+    if(!grid){blurPane.style.display='none';return;}
+    var gr=grid.getBoundingClientRect();
+    var top=gr.top, bottom=gr.bottom;
+    if(bank){
+      var br=bank.getBoundingClientRect();
+      // Only extend if bank is below the grid (defensive — could be
+      // hidden in some modes).
+      if(br.height>0&&br.bottom>bottom)bottom=br.bottom;
+    }
+    blurPane.style.display='block';
+    blurPane.style.left='0px';
+    blurPane.style.right='0px';
+    blurPane.style.top=top+'px';
+    blurPane.style.height=(bottom-top)+'px';
+    blurPane.style.width='100%';
+  }
+
+  // [v3.48] Position GO button over the GRID center (not screen
+  // center) so it reads as "starting in the puzzle area" and doesn't
+  // sit awkwardly low when the bank pushes the screen layout down.
+  function positionGoBtn(){
+    var grid=document.querySelector('.gscroll');
+    if(!grid)return;
+    var gr=grid.getBoundingClientRect();
+    // Read the button's natural size after styles applied so we can
+    // center it precisely.
+    goBtn.style.left='-9999px';
+    goBtn.style.top='-9999px';
+    goBtn.style.visibility='hidden';
+    var bw=goBtn.offsetWidth, bh=goBtn.offsetHeight;
+    goBtn.style.visibility='';
+    var cx=gr.left+gr.width/2-bw/2;
+    var cy=gr.top+gr.height/2-bh/2;
+    goBtn.style.left=cx+'px';
+    goBtn.style.top=cy+'px';
+  }
+
+  // [v3.48] Lock body scroll while overlay is up so the player can't
+  // scroll the bank into view to peek. Stored prev value so we can
+  // restore it on hide.
+  var savedBodyOverflow=null;
+  function lockScroll(){
+    if(savedBodyOverflow===null)savedBodyOverflow=document.body.style.overflow;
+    document.body.style.overflow='hidden';
+  }
+  function unlockScroll(){
+    if(savedBodyOverflow!==null){
+      document.body.style.overflow=savedBodyOverflow;
+      savedBodyOverflow=null;
+    }
+  }
+
+  function showReady(){
+    // [v3.47] Restore button's original style for a clean canvas.
+    goBtn.setAttribute('style', goBtnOriginalStyle);
+    goBtn.textContent='▶ GO';
+    overlay.style.transition='';
+    overlay.style.opacity='';
+    overlay.style.display='block';
+    // [v3.48] Reset blur pane to its default values.
+    if(blurPane){
+      blurPane.style.backdropFilter='blur(4px)';
+      blurPane.style.webkitBackdropFilter='blur(4px)';
+      blurPane.style.background='rgba(0,0,0,0.05)';
+    }
+    // Hide the real timer wrapper while overlay is up.
+    var timerWrap=document.getElementById('mastTimerWrap');
+    if(timerWrap){
+      timerWrap.style.opacity='0';
+      timerWrap.style.textShadow='0 0 6px rgba(0,217,255,0.55)';
+    }
+    // Lay out blur pane and GO button position based on current rects.
+    requestAnimationFrame(function(){
+      positionBlurPane();
+      positionGoBtn();
+    });
+    lockScroll();
+    if(window._modalOpenChirp)window._modalOpenChirp();
+  }
+
+  // [v3.48] Simplified dismiss animation. Drop the morph/dock idea —
+  // it was making the timer pill feel like another button. Now:
+  //   1. Blur pane fades out (rAF stepped, since backdrop-filter
+  //      doesn't transition reliably).
+  //   2. GO button fades out in parallel (CSS transition).
+  //   3. Real timer fades in WITH a bright glow burst that simmers
+  //      down to a normal soft glow over ~500ms. This still calls
+  //      attention to the start of the timer, just without the
+  //      morph distraction.
+  //   4. Scroll unlocks; overlay hides; cleanup.
+  function hideReady(){
+    if(overlay.style.display==='none'||overlay.dataset.animating==='1')return;
+    overlay.dataset.animating='1';
+
+    // Start the actual game timer immediately so when it appears
+    // it's already counting and feels alive.
+    if(window._mc113&&window._mc113.startTimer)window._mc113.startTimer();
+    if(window._modalCloseChirp)window._modalCloseChirp();
+
+    // Fade GO out via CSS.
+    goBtn.style.transition='opacity 0.4s ease, transform 0.4s ease';
+    goBtn.style.opacity='0';
+    goBtn.style.pointerEvents='none';
+
+    // Fade blur via rAF.
+    var startBlur=4;
+    var t0=performance.now(), dur=500;
+    function step(now){
+      var k=Math.min(1,(now-t0)/dur);
+      var ease=1-Math.pow(1-k,3);
+      var b=startBlur*(1-ease);
+      if(blurPane){
+        blurPane.style.backdropFilter='blur('+b+'px)';
+        blurPane.style.webkitBackdropFilter='blur('+b+'px)';
+        blurPane.style.background='rgba(0,0,0,'+(0.05*(1-ease))+')';
+      }
+      if(k<1)requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+
+    // Fade timer in with a bright glow burst that simmers down.
+    var timerWrap=document.getElementById('mastTimerWrap');
+    if(timerWrap){
+      timerWrap.style.opacity='1';
+      // Bright burst — wider blur radius, brighter cyan, and a layered
+      // glow for the "TIMER STARTED" feel.
+      timerWrap.style.textShadow='0 0 14px rgba(0,217,255,1), 0 0 28px rgba(0,217,255,0.75)';
+      // After 500ms, simmer the glow back down to its calm steady-state.
+      setTimeout(function(){
+        if(timerWrap){
+          timerWrap.style.textShadow='0 0 6px rgba(0,217,255,0.55)';
+        }
+      },500);
+    }
+
+    // Final cleanup — unlock scroll and hide overlay.
+    setTimeout(function(){
+      overlay.style.display='none';
+      overlay.dataset.animating='0';
+      unlockScroll();
+    },550);
+  }
+
+  window._showReady=showReady;
+  window._hideReady=hideReady;
+  // Tap anywhere on the overlay (incl. button) starts the puzzle.
+  overlay.addEventListener('click',hideReady);
+  if(goBtn){
+    goBtn.addEventListener('click',function(ev){
+      ev.stopPropagation();
+      hideReady();
+    });
+  }
+  // Reposition on resize so rotation/keyboard doesn't leave artifacts.
+  window.addEventListener('resize',function(){
+    if(overlay.style.display==='block'){
+      positionBlurPane();
+      positionGoBtn();
+    }
+  });
+})();
 
 // [v2.97] WIN! debug button + handler removed (was v2.84). The
 // win sequence is dialed in, no need for the on-screen tester
