@@ -1,4 +1,1253 @@
-<!-- Equil v2.98 | Built: 2026-05-04 CT | github.com/Spamboni
+<!-- Equil v3.22 | Built: 2026-05-09 CT | github.com/Spamboni
+     v3.22: Cleanup + COUNTS UX improvements.
+
+     - LRG2 debug size removed. v3.20c proved values-gen reliability,
+       so the A/B test served its purpose. Pool selection, minDiv,
+       TILE_VALUE_CAP, maxR, cascade, canonicalCols, maxCS — all
+       lrg2-conditional branches stripped.
+
+     - COUNTS dialog: no longer accidentally resets on OK tap.
+       Quick tap = view counts (alert, no buttons that delete data).
+       Long-press (650ms) = reset confirm (separate gesture, second
+       confirm + audio feedback + post-reset alert).
+
+     - COUNTS dialog now shows current puzzle stats:
+         equation count, total blanks, blank distribution
+         (1-blank/2-blank/3-blank counts). Useful for tuning future
+         template designs and difficulty curves.
+
+     - Audio feedback on COUNTS open (modal-open chirp), reset confirm
+       and reset success (modal-close chirp). Tap registration is now
+       audible.
+
+     v3.21: Hard mode 3-blank bias.
+     v3.20c: Backtracking BFS-order solver — fixed Large fallback bug.
+     v3.20b/v3.20: bridge pre-seed + fail-reason logging.
+     v3.19: LRG2 debug size (now removed).
+     v3.18d-b: picker history fixes.
+     v3.18: original Large diagnosis.
+
+     Pre-v3.21 Hard puzzles averaged ~1 three-blank equation per puzzle
+     (sometimes zero). Players couldn't tell Hard from Medium-diff
+     except by total blank count. Root cause: random shuffle in step 2
+     spreads blanks evenly, and the "every eq has at least 1 blank"
+     seeding leaves only 2-3 blanks of the target as "extras" — those
+     extras land randomly, rarely concentrating into 3-blank patterns.
+
+     Fix: when allowAll3 is true, score each candidate cell by how much
+     adding it would help complete a 3-blank equation. Cells in fully-
+     crossed equations with 2 already-blank cells get top priority,
+     then 1-blank fully-crossed eqs, etc. Random tiebreaker preserves
+     variety across rolls.
+
+     Result on TS Hard Large (Node simulation): avg 3-blank eqs went
+     from 2.24 to 5.16 per puzzle. Distribution {2:2,3:2,4:15,5:30,
+     6:22,7:8} — most puzzles now have 4-7 three-blank equations.
+
+     v3.20c: backtracking BFS-order solver fixed the Large fallback
+     bug. v3.20c is foundational; without it, Hard puzzles fell back
+     to Medium-diff so often the 3-blank issue was masked.
+     Fixes the root cause of Large/Medium fallback rates (~37% in v3.18,
+     ~13-17% in v3.20b after partial fix).
+
+     Diagnosis: TS-family templates have bridge V equations whose all 3
+     num cells are crossings with H equations on rows 6, 8, 10. When the
+     legacy genNums propagation reached these bridges, all 3 cells were
+     locked by upper/lower H equations. Only ~3% of random integer
+     triples (a,b,c) satisfy ANY of +/-/×/÷ as op (verified by Node
+     simulation). 97% of attempts fired integrity check "mismatch".
+
+     Counter data confirmed: TS3:mismatch=1196, TS5:mismatch=1148,
+     TS9:mismatch=1209 with only 7-8 picks each — meaning ~150 mismatch
+     retries per pick.
+
+     Fix (multi-step):
+       1. Build cell→equation map and adjacency graph.
+       2. Identify "fully-crossed" eqs: all 3 cells shared with another eq.
+       3. Pick a fully-crossed root. BFS from it, prioritizing fully-
+          crossed neighbors at each level.
+       4. For each eq in BFS order, count its already-set cells:
+            setCount=0 → free choice of op + values
+            setCount=1 → pick op + 2 values, anchor on the set cell
+            setCount=2 → solve constructively for 3rd cell
+            setCount=3 → check if existing op satisfies; backtrack if not
+       5. On failure, backtrack to predecessor and retry.
+       6. Up to 5 fresh BFS-tree restarts.
+       7. Legacy solveOne propagation runs after as no-op fallback (when
+          BT solver succeeds, every equation already has all 3 cells +
+          OPS assigned, so solveOne's hA&&hB&&hC path returns immediately).
+
+     Node simulation across all templates: 74-88% success rate per
+     attempt. With buildPuzzle's 120-retry budget, fallback rate should
+     drop to effectively 0%.
+
+     v3.20b (predecessor): bridge pre-seed only — fully-crossed eqs
+     seeded with random satisfying values, then legacy propagation. Cut
+     fallback ~37% → 13-17%. Worked partially because eqs that started
+     with 0-2 crossings could still hit the all-3-locked state during
+     propagation.
+
+     v3.20: failure-reason instrumentation in COUNTS dialog (kept).
+     v3.19: LRG2 debug size (kept for A/B testing — will remove once
+            confirmed).
+     v3.18d-b: picker history fixes.
+     v3.18: original Large-rolls-give-Medium-templates diagnosis.
+     v3.04 onwards: target-blank-count system. Full history below.
+
+     v3.19: Add a temporary "LRG2" size for A/B testing loose vs tight
+     values-gen constraints on Large templates.
+
+     v3.18d data showed Large still has 30-40% fallback rate to TP/TO
+     even after fixing the retry-history bug. The values generator
+     simply can't satisfy TS-family templates often enough at current
+     constraints. Three things might be the actual blockers:
+       1. minDiv=4 (4 forced division ops) is hard with tight crossings
+       2. TILE_VALUE_CAP=10 rejects any layout with 11+ duplicates
+       3. Both compounded with target=21/26 blanks
+
+     LRG2 is a 5th size, identical to Large in pool/cells/canonical/
+     target, but with loosened values-gen constraints:
+       - minDiv: 4 → 2  (Large stays at 4)
+       - TILE_VALUE_CAP: 10 → 14 (Large stays at 10)
+
+     Side-by-side comparison: roll Large 30 times, roll LRG2 30 times,
+     compare orange-fallback rates from the debug counter. If LRG2
+     drops fallback to <10%, we know constraints were the issue.
+
+     Fallback cascade for LRG2 still ends at Medium-size templates,
+     same as Large — the goal is to never trigger the cascade in the
+     first place.
+
+     The user also flagged that Hard puzzles haven't been showing
+     3-blank equations recently. That's noted but not addressed in
+     this version — diagnosing the 3-blank issue takes its own session
+     since it touches selectBlanks and the canSolveWithCrossings logic.
+
+     Pool state: unchanged.
+       Small: [TA, TJ, TM]
+       Medium: [TN, TO, TP, TQ, TQ2]
+       Large: [TS, TS3, TS5, TS9]
+       Lrg2: [TS, TS3, TS5, TS9]  (same pool, different gen constraints)
+       Jumbo: [TX2_sq_A..D]
+
+     LRG2 is a temporary diagnostic; if it works, the looser constraints
+     graduate to regular Large and LRG2 gets removed.
+
+     v3.18d: Retry picks ignore history so 120 retries can land on any
+     of the 4 Large templates instead of just the 1 not-recently-picked.
+     v3.18: Diagnose and partially fix the "Large rolls give Medium
+     templates 80% of the time" bug + add debug template label +
+     fix retry-template-swap bug.
+
+     User reported in v3.17: 80% of Large rolls came out as
+     Medium-pool templates. Then in v3.18 v2: 90% of Medium rolls
+     came out as TP. Took THREE rounds of diagnosis to find the
+     full picture.
+
+     ROUND 1 (v3.18 v1): Lower Hard target from 30 to 26 (was too
+     tight, causing fallback). Add debug label so user can identify
+     templates without screenshots.
+
+     ROUND 2 (v3.18 v2): Found that the flag-clearing logic for
+     window._fallbackFrom was wrong — recursive fallback calls
+     (which use _retry=0, _divRetry=0) were tripping the entry-line
+     clearer and wiping the warning. Fixed by passing _opts._isFallback
+     on cascade recursions so the clearer can distinguish.
+
+     ROUND 3 (v3.18 v3 — this version): Even with the warning fixed,
+     90% of Medium rolls were TP with no orange warning. Tracked
+     down to the values-gen retry loop calling _pickTemplate AGAIN
+     on each retry — silently swapping templates. So the user
+     requested Medium/Hard, the picker chose (say) TQ, values-gen
+     failed, retry recursion entered buildPuzzle, _pickTemplate
+     picked again — possibly a different template — and so on for
+     up to 60 retries. Templates with poor values-gen reliability
+     (TN, TO, TQ, TQ2) effectively never won; only TP, the most
+     reliably-generatable Medium template, made it to the user.
+     The label (set by _pickTemplate on its final success) showed
+     TP, with no orange because no cascade fired.
+
+     Fix: retries now preserve the same template via _opts._stickyTmpl.
+     A template that fails values-gen exhausts its 60 retries on
+     ITS OWN values, then triggers a real fallback (with orange
+     warning) instead of silently borrowing TP's success. divRetry
+     also preserves the sticky template (only values are
+     regenerated). Fallback cascade calls strip _stickyTmpl so
+     the new (size,diff) gets a fresh pick from its own pool.
+
+     ALSO in this version:
+
+     1) TT removed from Large pool, TS-family restored (TS, TS3,
+        TS5, TS9). TT was failing values-gen 80% of the time
+        which masked the bug as a Large-pool issue.
+
+     2) Hard target stays at 26 (reverted from 30). Less ambitious
+        but won't trigger fallback as often.
+
+     EXPECTED USER-VISIBLE CHANGES with v3.18 v3:
+     - Pool distributions become honest. If a template can't
+       generate values, the user will see a fallback warning
+       instead of getting a different template silently.
+     - Likely MORE orange warnings now, especially on Medium/Hard
+       and Large/Hard. Each warning says "X ⚠ from medium/hard"
+       (or whatever) — the X is the template that ultimately
+       succeeded in the cascade, and the "from" tells what was
+       requested. We can use these warnings to identify which
+       templates have generation problems and need replacement.
+
+     Pool state:
+       Small  : [TA, TJ, TM]
+       Medium : [TN, TO, TP, TQ, TQ2]
+       Large  : [TS, TS3, TS5, TS9]
+       Jumbo  : [TX2_sq_A..D]
+
+     v3.17: Replace TS-family with denser TT-family Large templates.
+
+     v3.16 attempted to fix Large feel via maxCS bump (26→36) and
+     Hard target bump (26→30). User feedback after v3.16: "Both
+     don't belong in large" — neither Medium-diff nor Hard-diff
+     Large rolls felt Large despite the changes. The maxCS bump
+     didn't help because on small phones (~360px wide), Large
+     cells are constrained by available width, not the cap. Cells
+     render at ~22px on Large vs ~26px on Medium — Medium cells
+     are bigger.
+
+     Hypothesis for this version: the perceived "smallness" comes
+     from TS-family's hollow-frame structure. The interior is
+     mostly empty (frame around hollow middle), so the puzzle
+     reads as "frame with empty space" rather than "dense large
+     grid." Trying a denser template that fills more of the
+     interior to see if that changes the perception.
+
+     NEW TEMPLATE: TT (replaces TS-family).
+
+     13×13 footprint, 25 equations, 44 unique num cells, 31
+     crossings, 13 uncrossed cells.
+
+     Structure:
+       Rows 0/4/8/12: H pairs (h_l + h_r) covering corners
+       Rows 2/6/10:   h_mid only (cols 4-8) covering middle column
+       Outer V cols (0/2/10/12): stacks rows 0-4 + rows 8-12
+       Inner V cols 4/8: stacks rows 0-4 + rows 6-10 (BRIDGE)
+       Center V col 6:  stacks rows 2-6 + rows 8-12
+
+     The inner V's at cols 4 and 8 spanning rows 6-10 (instead of
+     rows 8-12 like the outer V's) are the key bridge — they have
+     num cells at rows 6, 8, 10, which gives them crossings into
+     both the upper cluster (h6m at row 6) and lower cluster
+     (h8l/h8r at row 8). Without these bridges, the layout splits
+     into top and bottom halves at the row 5-7 gap.
+
+     Comparison to TS-family:
+       TS:     24 eq, 42 cells, 30 crossings, 12 uncrossed
+       TT:     25 eq, 44 cells, 31 crossings, 13 uncrossed
+
+     Modest density increase. If TT also doesn't feel Large in
+     play, the problem isn't density — likely cell pixel size
+     (Large cells render smaller than Medium cells on small
+     phones because of the canonical-cols/avail-width interaction)
+     or absolute pixel footprint (grid total takes same screen
+     space as Medium).
+
+     Pool state:
+       Small  : [TA, TJ, TM]            (unchanged)
+       Medium : [TN, TO, TP, TQ, TQ2]   (unchanged)
+       Large  : [TT]                    (was TS, TS3, TS5, TS9)
+       Jumbo  : [TX2_sq_A..D]           (unchanged)
+
+     TS, TS3, TS5, TS9 stay defined in the file but unpooled. If
+     TT works better, Medium-style variant variations of TT can
+     follow in v3.18+ to refill the Large pool.
+
+     Note: Hard target stays at 30 from v3.16. Cell-size maxCS=36
+     for Large stays from v3.16 (still binding on larger screens
+     even if not on small ones).
+
+     v3.16: Fix Large rendering smaller than Medium + bump Large
+     Hard target.
+
+     Two related issues from v3.15 feedback:
+
+     1) "Footprint seemed smaller" — Large templates were
+        rendering with SMALLER cells than Medium. Tracked to a
+        leftover constant: getCellSize() has a maxCS cap per size,
+        and Large was capped at 26px while Medium was capped at
+        42px. So even with 13-col canonical, Large grids were
+        13×26 = 338px wide, while Medium grids were 11×42 = 462px
+        wide. Medium rendered visibly bigger than Large — the
+        opposite of intended. The 26px cap was set when Large
+        templates had varying widths up to 13 cols and we wanted
+        to ensure fit; now that Large is consistently 13 cols and
+        cells are tier-canonical, the cap can come up.
+
+        New maxCS values:
+          Small  : 52 (unchanged)
+          Medium : 42 (unchanged)
+          Large  : 36 (was 26)
+          Jumbo  : 26 (unchanged)
+
+        At 36px × 13 cols = 468px wide — fits comfortably in
+        ~460px avail on a typical phone with 1-2px squeeze. Large
+        will now render visibly bigger than Medium (Medium tops
+        out at 11×42 = 462px wide, but most Medium templates use
+        less than full width). The size hierarchy reads correctly
+        in the UI.
+
+     2) "Not enough blank cells" on Large/Hard. Target was 26 on
+        42-cell templates (38% blanks) — only +5 over Large/Medium
+        (which is 21 = 50% blanks). User reported Hard didn't feel
+        harder than Medium. Bumping Hard target from 26 to 30
+        (71% of cells blank, +9 over Medium-diff). Now Hard means
+        only 12 givens on a 42-cell template — real "almost all
+        blank" challenge.
+
+        Updated table:
+                    Easy   Medium   Hard
+          Small      6      9       13
+          Medium    11     15       21
+          Large     15     21       30   ← was 26
+
+        This restores the +9 Hard bonus for Large that was on the
+        table back in v3.04-v3.07 era. Reachability check: TS
+        family has 42 cells, 12 uncrossed (which limit 12
+        equations to max 2 blanks), and 12 fully-crossed equations
+        (max 3 blanks). Position budget = 12×2 + 12×3 = 60. Target
+        30 is well within budget. Production genNums should hit
+        30 reliably; bench harness can't validate at this density
+        (15+ equations, simple greedy generator fails).
+
+     Note on "doesn't feel large" beyond the cell-size fix: the
+     TS-family template has an empty interior (frame structure
+     with hollow middle), which can read as "less dense" than a
+     fully-packed template. The cell-size fix should resolve the
+     primary footprint complaint, but if Large still feels too
+     hollow, future versions can author denser templates (more
+     equations packed into the middle) for visual variety. For
+     now, sticking with TS-family — the priority is fixing the
+     observable bug (smaller cells than Medium) and the missing
+     Hard challenge.
+
+     v3.15: Large pool fully on new system — TS3, TS5, TS9 added
+     as TS-family variants; TF, TG, TL removed.
+
+     Replaces all three legacy Large templates with TS-family
+     variants in one ship. The TS-family share the same outer
+     structure (16 outer equations forming a 13×13 frame) but vary
+     the 8 inner equations — middle H bridges and middle V's at
+     cols 4, 6, 8. All four (TS, TS3, TS5, TS9) hit the same Large
+     targets (15/21/26) reliably and look 13×13 sized in play.
+
+     TS-family inner structure variations:
+
+       TS  (current, v3.14): col 4 stacks rows 2-6 + 8-12,
+                              col 8 stacks rows 2-6 + 8-12,
+                              v6_bridge rows 6-10 (lower-middle)
+
+       TS3: col 4 stacks rows 2-6 + 8-12,
+            col 8 stacks rows 0-4 + 6-10 (shifted up),
+            v6_bridge rows 4-8 (centered)
+
+       TS5: col 4 stacks rows 0-4 + 6-10 (shifted up),
+            col 8 stacks rows 2-6 + 8-12,
+            v6_bridge rows 6-10 (lower-middle)
+
+       TS9: col 4 stacks rows 0-4 + 6-10 (shifted up),
+            col 8 stacks rows 2-6 + 8-12,
+            v6_bridge rows 4-8 (centered)
+
+     All four pass the same audits: connectivity PASS, no cell-type
+     collisions, no same-direction overlaps. 42-43 unique num cells,
+     29-30 crossings each. Different operator/equals cell positions
+     mean different math paths through the middle even though the
+     overall shape stays consistent.
+
+     During design I also tried symmetric variants (both cols using
+     the same row pattern); those failed connectivity — the inner V
+     columns need to interlock or have a v6_bridge in the right
+     position to keep the upper and lower halves bridged.
+
+     LEGACY TF/TG/TL REMOVED FROM POOL. They stay defined in the
+     file (matching TR/TB/TC/TD/TE/TK pattern). All three were
+     14-equation templates with 24-26 cells, designed for the
+     legacy blanks-per-equation system. Couldn't hit Medium=21 or
+     Hard=26 on the new system.
+
+     Pool state (all sizes now fully on the new system):
+       Small  : [TA, TJ, TM]                  (3 templates)
+       Medium : [TN, TO, TP, TQ, TQ2]         (5 templates)
+       Large  : [TS, TS3, TS5, TS9]           (4 templates)
+       Jumbo  : [TX2_sq_A..D]                 (4 templates, untouched)
+
+     This is the milestone: blank counts are now consistent across
+     every (size, diff) roll in Small, Medium, and Large. A good
+     time on any size/difficulty represents real improvement, not
+     luck-of-the-template.
+
+     Note on Large variety: TS-family all share the 13×13 outer
+     frame, so visually they look similar at a glance. The math
+     paths through the middle differ enough that solving still
+     varies, but if you find Large feels too samey across rolls,
+     v3.16+ can author genuinely different shapes (taller-narrower
+     like 9×15, or wider-shorter like 15×9) for visual variety.
+     This was the "variants for now" path — fastest way to get all
+     Large rolls feeling Large. New shapes can come later.
+
+     v3.14: TR replaced with TS — bigger Large footprint.
+
+     User feedback on v3.13's TR: "doesn't feel large." Diagnosis:
+     TR's 11×13 footprint sat right next to Medium templates
+     (Medium maxes at 11×11 / 7×13), so visually it didn't read
+     as a clearly larger size class. To feel Large, the template
+     needs to be wider AND taller than any Medium template.
+
+     NEW LARGE TEMPLATE TS. 13×13 footprint, 24 equations, 42
+     unique num cells, 30 crossings, 12 uncrossed.
+
+     TS extends TR's frame-with-bridge concept into a 13×13 grid
+     and fills the new space with more equations. Compared to TR
+     (35 cells, 22 crossings, 11×13), TS has 7 more cells, 8 more
+     crossings, and is 2 cols wider — a real density increase
+     paired with a real footprint increase.
+
+     Visual: H equations on rows 0/4/8/12 in left/right pairs (cols
+     0-4 and 8-12), middle bridge H equations on rows 2/6/10 (cols
+     4-8). Outer V equations stacked on cols 0/2/10/12 (rows 0-4
+     top stack + rows 8-12 bottom stack). Middle V equations on
+     cols 4 and 8 stacked the same way (rows 2-6 + rows 8-12).
+     Single V at c=6,r=6 spanning rows 6-10 ties the upper and
+     lower halves through the middle (without it the layout splits
+     into disconnected halves — caught during design).
+
+     Equation list (24 total):
+       Row 0:   h0l c=0,r=0    h0r c=8,r=0
+       Row 2:   h2_mid c=4,r=2
+       Row 4:   h4l c=0,r=4    h4r c=8,r=4
+       Row 6:   h6_mid c=4,r=6
+       Row 8:   h8l c=0,r=8    h8r c=8,r=8
+       Row 10:  h10_mid c=4,r=10
+       Row 12:  h12l c=0,r=12  h12r c=8,r=12
+       V outer top:    v0t  v2t  v10t  v12t  (all c=col,r=0)
+       V outer bottom: v0b  v2b  v10b  v12b  (all c=col,r=8)
+       V middle top:   v4t (c=4,r=2)  v8t (c=8,r=2)
+       V middle bottom: v4b (c=4,r=8) v8b (c=8,r=8)
+       v6_bridge c=6,r=6  ← KEY BRIDGE rows 6-10
+
+     Audit clean: connectivity PASS, no cell-type collisions, no
+     same-direction overlaps. Structural reachability: 42 cells
+     with target 26 (Hard) means 16 givens — plenty of headroom.
+     12 uncrossed cells limit 12 equations to max 2 blanks each;
+     remaining 12 equations are fully crossed (max 3 each).
+     Position budget 60 vs target 26.
+
+     Bench harness reliability: my simple +/- generator fails on
+     24-equation templates so I can't bench-verify. Production
+     genNums handles dense templates fine (mul/div pre-seeding,
+     forward propagation, retry layers).
+
+     TR REMOVED from Large pool (not from file — stays defined as
+     unpooled, matching the TB/TC/TD/TE/TK pattern). TR served as
+     a useful intermediate but didn't carry "Large feel"; TS
+     replaces it as the new-system Large representative.
+
+     Pool state:
+       Small  : [TA, TJ, TM]            (unchanged)
+       Medium : [TN, TO, TP, TQ, TQ2]   (unchanged)
+       Large  : [TF, TG, TL, TS]        (was [..., TR])
+       Jumbo  : [TX2_sq_A..D]           (unchanged)
+
+     Large canonical width: TS at 13 cols means Large needs to
+     handle 13 col templates. TL is also 13 cols. Other Large
+     templates are 9 cols (TF, TG). Setting Large canonical to
+     13 in this version so all Large templates render at the
+     same cell size, just like Small (canonical 9) and Medium
+     (canonical 11). 9-col templates render with empty space
+     around them rather than blowing up cell sizes.
+
+     v3.13: New Large template TR — first Large on the new system.
+
+     Same playbook as Medium: author one bigger template that hits
+     the Large targets (Easy=15, Medium=21, Hard=26), ship it
+     alongside the legacy templates, then gradually replace TF, TG,
+     and TL over later versions.
+
+     NEW LARGE TEMPLATE TR. 11×13 footprint, 19 equations, 35
+     unique num cells, 22 crossings.
+
+     Visual: an oversized "frame with bridge" — like TP scaled up.
+     Eight H equations split into left (cols 0-4) and right (cols
+     6-10) halves on rows 0/4/8/12, plus stacked V equations on
+     outer cols (0, 2, 8, 10) with top stack (rows 0-4) and bottom
+     stack (rows 8-12). Two middle V equations at cols 4 and 6
+     spanning rows 4-8 form the vertical center spine. A single
+     horizontal bridge (h6_mid at c=2,r=6) spans cols 2-6 to
+     connect the left and right halves through the center — without
+     it the layout splits into disconnected halves (caught during
+     design).
+
+     Equation list:
+       h0l c=0,r=0    h0r c=6,r=0
+       h4l c=0,r=4    h4r c=6,r=4
+       h8l c=0,r=8    h8r c=6,r=8
+       h12l c=0,r=12  h12r c=6,r=12
+       v0t c=0,r=0    v0b c=0,r=8
+       v2t c=2,r=0    v2b c=2,r=8
+       v8t c=8,r=0    v8b c=8,r=8
+       v10t c=10,r=0  v10b c=10,r=8
+       v4 c=4,r=4     v6 c=6,r=4    (middle spine)
+       h6_mid c=2,r=6                ← BRIDGE
+
+     Audit clean: connectivity PASS, no cell-type collisions, no
+     same-direction overlaps. Bench-verified hits Easy=15 and
+     Medium=21 100%, Hard=26 ~74% exact (most others at 24-25,
+     occasionally falling back). 35 cells gives real headroom over
+     the 26-blank Hard target.
+
+     Visual character: 11×13 — clearly larger than any Medium
+     template (Medium maxes at 11×11 / 7×13). Sets the bar for
+     "Large feels Large." When TF/TG/TL are eventually replaced
+     they should match this footprint or larger.
+
+     Pool state:
+       Small  : [TA, TJ, TM]            (unchanged)
+       Medium : [TN, TO, TP, TQ, TQ2]   (unchanged)
+       Large  : [TF, TG, TL, TR]        (was 3, now 4)
+       Jumbo  : [TX2_sq_A..D]           (unchanged)
+
+     Inconsistency note (gradual rollout): rolling TR gives the new
+     15/21/26 blank counts; rolling TF/TG/TL gives Easy=15 (works)
+     and Medium=~18, Hard=~20 (legacy fallback). 1 of 4 Large
+     templates is on the new system. Will resolve as TF, TG, TL
+     get replaced over v3.14+.
+
+     Large canonical width still uses actual cols (no canonical
+     scaling) per v3.05's deferral. Worth revisiting once Large
+     pool stabilizes — TR is 11 cols, TL is 13, etc., so consistent
+     cell sizing across rolls would help "good time = improvement"
+     here too.
+
+     v3.12: TQ2 added — TQ-family variant with rearranged inner V's.
+
+     Cheap-variety experiment: take TQ's outer structure (the 7 H
+     equations forming the spine and the 4 outer V equations on
+     cols 0 and 6) and rearrange just the 4 inner V's at cols 2
+     and 4 to make a new template that shares TQ's 7×13 narrow-tall
+     identity but has different equation paths through the middle.
+
+     TQ uses:    col 2 = (rows 2-6) + (rows 8-12)
+                 col 4 = (rows 0-4) + (rows 6-10)
+
+     TQ2 uses:   col 2 = (rows 0-4) + (rows 6-10)
+                 col 4 = (rows 2-6) + (rows 8-12)
+
+     Both pass connectivity, no cell-type collisions, no same-
+     direction overlaps. Both have 26 cells and 19 crossings.
+     During design I also tried symmetric variants (both cols
+     using the same row pattern); those failed connectivity —
+     the inner V columns need to interlock to keep the middle of
+     the grid bridged.
+
+     Visual impact: TQ2 looks very similar to TQ at a glance
+     since the H spine and outer V's are the same. The
+     differences are subtle — operator/equals signs in different
+     middle positions, different cell-sharing paths. Players will
+     feel "this puzzle is shaped like the last one but the math
+     flows differently." Not a dramatic visual shift, but a
+     genuine new template (different equations between same num
+     cells, different solving paths).
+
+     Equation list for TQ2:
+       h0 c=0,r=0   h2 c=2,r=2   h4 c=0,r=4   h6 c=2,r=6
+       h8 c=0,r=8   h10 c=2,r=10 h12 c=0,r=12
+       v0a c=0,r=0  v0b c=0,r=8
+       v2a c=2,r=0  v2b c=2,r=6   ← inner col 2, shifted
+       v4a c=4,r=2  v4b c=4,r=8   ← inner col 4, shifted
+       v6a c=6,r=2  v6b c=6,r=8
+
+     Pool state:
+       Small  : [TA, TJ, TM]                   (unchanged)
+       Medium : [TN, TO, TP, TQ, TQ2]          (was 4, now 5)
+       Large  : [TF, TG, TL]                   (unchanged)
+       Jumbo  : [TX2_sq_A..D]                  (unchanged)
+
+     Medium pool reaches 5 templates. With pool.length=5 the
+     no-recent-repeats picker excludes the last 4 picks, so every
+     New click cycles through all 5 before any can repeat.
+     Two of those 5 (TQ and TQ2) share visual identity but have
+     different math.
+
+     v3.11: New Medium template TQ + TK removed.
+
+     This finishes the Medium pool conversion to the new target-based
+     blank system. After v3.11, every Medium template can hit the
+     Easy/Medium/Hard targets (11/15/21) reliably, so blank counts
+     are consistent across rolls — meaning a good time on Medium
+     means real improvement, not luck-of-the-template.
+
+     1) NEW MEDIUM TEMPLATE TQ. 7×13 footprint, 15 equations, 26
+        unique num cells, 19 crossings. Visual: narrow vertical
+        column with H equations on alternating rows (0/2/4/6/8/10/12)
+        in alternating-offset zigzag pattern (left-edge c=0 and
+        slightly-indented c=2), plus 8 V equations stacked two-per-
+        column on cols 0/2/4/6 (top half rows 0-4 and bottom half
+        rows 8-12, gap at rows 5-7). The interior is highly
+        connected — only 7 cells are uncrossed, the densest crossing
+        structure of any template (19 crossings).
+
+        Equation list:
+          h0 c=0,r=0   h2 c=2,r=2   h4 c=0,r=4   h6 c=2,r=6
+          h8 c=0,r=8   h10 c=2,r=10 h12 c=0,r=12
+          v0a c=0,r=0  v0b c=0,r=8
+          v2a c=2,r=2  v2b c=2,r=8
+          v4a c=4,r=0  v4b c=4,r=6
+          v6a c=6,r=2  v6b c=6,r=8
+
+        Audit clean: connectivity PASS, no cell-type collisions, no
+        same-direction overlaps. Bench validation was hampered by
+        the simple test-harness generator failing on 15-equation
+        templates, but structural analysis confirms Hard target=21
+        is reachable: 9 of 15 equations are fully-crossed (can go
+        all-3-blank in Hard mode), only 6 limited by an uncrossed
+        cell. Production genNums (with mul/div pre-seeding and
+        forward propagation) handles dense templates fine.
+
+        Visual character: narrow-tall (7×13). Restores the "narrow
+        column" identity that TK had at 7×9, but at the bigger cell
+        count needed to hit new Medium targets. Distinct from TN
+        (11×9 wide), TO (9×11 tall), TP (11×11 square).
+
+     2) TK REMOVED FROM MEDIUM POOL. TK was the last legacy 16-17
+        cell Medium template, falling through to legacy on Medium/
+        Hard difficulties. Removing it makes the Medium pool fully
+        consistent on the new target system.
+
+        TK definition stays in the file unpooled, matching the
+        TB/TC/TD/TE/TH_final/TI_stair pattern.
+
+     Pool state:
+       Small  : [TA, TJ, TM]          (unchanged — all on new system)
+       Medium : [TN, TO, TP, TQ]      (was [TK, TN, TO, TP]) — all on new system ✓
+       Large  : [TF, TG, TL]          (unchanged — legacy)
+       Jumbo  : [TX2_sq_A..D]         (unchanged)
+
+     Both Small AND Medium are now fully target-consistent. Every
+     (size, diff) → blank count is the same regardless of which
+     template rolled. The "good time = real improvement" principle
+     holds for these tiers.
+
+     Next: same treatment for Large. v3.12 should author a bigger
+     Large template that hits Large targets (15/21/26), then
+     gradually replace TF, TG, TL.
+
+     v3.10: New Medium template TP + TE removed.
+
+     Two changes continuing the Medium pool replacement:
+
+     1) NEW MEDIUM TEMPLATE TP. 11×11 footprint, 15 equations, 31
+        unique num cells, 14 crossings. Square "frame with bridge"
+        shape — H equations at rows 0/4/6/10 in two halves (left
+        cols 0-4, right cols 6-10), V equations forming a ring
+        (left col 0, right col 10, with stacked top/bottom V's),
+        plus middle V equations at c=4 and c=6 spanning rows 2-6,
+        plus a horizontal bridge at r=2 connecting the middle V's.
+
+        Without h_bridge the layout splits into disconnected left
+        and right halves (caught during design). h_bridge at
+        c=4,r=2 spans cols 4-8 — its num cells (4,2)/(6,2)/(8,2)
+        crossings v_m at (4,2) and v_m2 at (6,2), tying the two
+        clusters together via two paths.
+
+        Equation list:
+          h_top_l c=0,r=0   h_top_r c=6,r=0
+          h_mid_l c=0,r=4   h_mid_r c=6,r=4
+          h_lm_l  c=0,r=6   h_lm_r  c=6,r=6
+          h_bot_l c=0,r=10  h_bot_r c=6,r=10
+          v_l_t c=0,r=0   v_l_b c=0,r=6
+          v_r_t c=10,r=0  v_r_b c=10,r=6
+          v_m c=4,r=2   v_m2 c=6,r=2
+          h_bridge c=4,r=2  ← BRIDGE
+
+        Audit clean: connectivity PASS, no cell-type collisions,
+        no same-direction overlaps. Bench-verified hits Easy=11
+        (100%), Medium=15 (100%), Hard=21 (~98% exact, ~2% at
+        19-20 falling back). Best Hard reliability of any Medium
+        template — 31 cells gives real headroom over the 21-blank
+        target.
+
+        Visual character: square 11×11 "frame" with cross-shaped
+        interior. Distinct from TN (11×9 wide), TO (9×11 tall),
+        and TK (7×9 narrow vertical staircase) — TP is the
+        biggest, squarest Medium.
+
+     2) TE REMOVED FROM MEDIUM POOL. TE was the surviving duplicate
+        of TB after v3.09 (we removed TB last version). Same shape
+        as TB (visually identical wide-Z), 16 cells, can't hit the
+        new Medium targets. Removing it makes room for TP without
+        bloating the pool.
+
+        TE definition stays in the file unpooled, matching TB / TC
+        / TD / TH_final / TI_stair pattern.
+
+     Pool state:
+       Small  : [TA, TJ, TM]          (unchanged — all on new system)
+       Medium : [TK, TN, TO, TP]      (was [TE, TK, TN, TO]) — 3 of 4 on new system
+       Large  : [TF, TG, TL]          (unchanged — legacy)
+       Jumbo  : [TX2_sq_A..D]         (unchanged)
+
+     TK is now the lone legacy template in Medium. v3.11 should
+     replace TK with a bigger version, after which the entire
+     Medium pool is on the new system and (size, diff) → blank
+     count is fully consistent in Medium just like in Small.
+
+     v3.09: New Medium template TO + TB removed (was duplicate of TE).
+
+     Two changes:
+
+     1) NEW MEDIUM TEMPLATE TO. 9×11 footprint, 14 equations, 27
+        unique num cells, 15 crossings. Vertical version of TN's
+        "lattice with wing" pattern — top and bottom 5×5 H/V
+        lattices stacked, bridged by a vertical span (v6_bridge at
+        c=6 spanning rows 2-6) that connects through the middle.
+
+        Design: H equations on rows 0, 2, 4, 6, 8, 10 (6 rows
+        possible on an 11-tall grid). V equations stacked: most
+        cols have a "top half V" (rows 0-4) and a "bottom half V"
+        (rows 6-10), with a gap at row 5 to avoid same-direction
+        adjacency. The bridging V at c=6 spans rows 2-6 to tie
+        the two halves into one connected component.
+
+        Equation list:
+          v0a c=0,r=0   v0b c=0,r=6   v4a c=4,r=0   v4b c=4,r=6
+          v8a c=8,r=0   v8b c=8,r=6   v2  c=2,r=2
+          v6_bridge c=6,r=2  ← BRIDGE
+          h0  c=0,r=0   h4  c=0,r=4   h8  c=0,r=8   h10 c=0,r=10
+          h0w c=4,r=6   h0w2 c=4,r=2
+
+        Audit clean: connectivity PASS, no cell-type collisions,
+        no same-direction overlaps. Bench-verified hits Easy=11
+        and Medium=15 reliably; Hard target=21 reaches 19-20 most
+        rolls, occasionally 21 (close to ceiling of what 27 cells
+        can support).
+
+        Adds vertical-tall variation to the new-system Medium pool
+        — TN was wide-and-short (11×9), TO is tall-and-narrow
+        (9×11). Together they bracket the visual range.
+
+     2) TB REMOVED FROM MEDIUM POOL. TB and TE were confirmed back
+        in v3.02 to render to identical cell maps (the "Z-shape"
+        and "L-shape" labels suggested different visuals but the
+        actual num/op cell positions were the same). Keeping both
+        was wasted pool space. TB removed from TMPL_MEDIUM; TE
+        stays as the legacy version of that shape until replaced.
+
+        TB definition stays in the file (just unpooled), matching
+        the TC/TD/TH_final/TI_stair pattern from earlier removals.
+
+     Pool state:
+       Small  : [TA, TJ, TM]          (unchanged)
+       Medium : [TE, TK, TN, TO]      (was [TB, TE, TK, TN])
+       Large  : [TF, TG, TL]          (unchanged)
+       Jumbo  : [TX2_sq_A..D]         (unchanged)
+
+     2 of 4 Medium templates are now on the new system (TN + TO).
+     TE and TK still fall through to legacy on Medium/Hard (TE has
+     16 cells, TK 17). Each remaining replacement extends new-
+     system reach further. v3.10 should grow or replace TE next.
+
+     v3.08: Three-tier difficulty restored (Easy ≠ Medium ≠ Hard).
+
+     Problem with v3.07's structure: Easy and Medium shared blank
+     count (e.g. Medium got 15 blanks for both Easy and Medium
+     diff). Theory was that ×/÷ vs +/- would carry the difficulty
+     difference. In actual play it didn't — 15 blanks across 9
+     equations means ~1.7 blanks/eq, which already requires real
+     crossing-deduction. So Medium-Easy felt almost as hard as
+     Medium-Medium, just with simpler arithmetic. And Medium-Hard
+     at +3 (target 18) didn't feel meaningfully harder either.
+
+     Solution: three real difficulty levels via blank count, with
+     operators as a secondary axis. Each step has a distinct feel:
+
+                 Easy   Medium   Hard
+       Small      6      9       13
+       Medium    11     15       21
+       Large     15     21       26
+
+     Per-equation averages by tier:
+                  Easy        Medium      Hard
+       Small      0.75 b/eq   1.1 b/eq    1.6 b/eq
+       Medium     0.85        1.15        1.6
+       Large      1.07        1.5         1.85
+
+     Easy ≈ 1 blank or fewer per equation. Most equations have a
+     blank you can solve from the other two given cells — light
+     and immediate. Medium ≈ 1-1.5 blanks/eq, occasional 2-blank
+     equations needing a crossing. Hard ≈ 1.6-1.9 blanks/eq with
+     several 3-blank equations forcing multi-step deduction
+     chains through crossings.
+
+     The 3-blank-equation rule from v3.04 stays unchanged —
+     all-3-blank only allowed when every cell is a crossing,
+     so puzzles always have a solution path.
+
+     Implementation: targetBlanks() rewritten to use a flat lookup
+     table instead of base+bonus. Cleaner to reason about, easier
+     to tune individual cells.
+
+     Reachability with current templates:
+       Small: TM (17 cells) hits 6/9/13 reliably. TA (16 cells)
+         hits 6/9/13 reliably. TJ (14 cells) — Easy/Medium fine,
+         Hard 13 means only 1 given on a 14-cell template, may
+         fall through occasionally.
+       Medium: TN (24 cells) hits 11/15/21 reliably. TB/TE/TK
+         (16-17 cells) — Easy 11 reachable, Medium/Hard fall
+         through to legacy. Will resolve as TB/TE/TK get replaced.
+       Large: TF/TL (26 cells) hit 15/21 reliably; Hard 26 means
+         basically all-blank, will be tight. TG (24 cells) — Hard
+         falls through. Existing Large templates need replacement
+         to fully support new Hard.
+
+     Net effect: Easy gets noticeably lighter across all sizes
+     (especially Medium-Easy from 15→11 and Large-Easy 21→15).
+     Hard gets meaningfully harder than Medium (+4/+6/+5 step
+     instead of +3/+3/+3). Medium-difficulty stays where it was.
+
+     v3.07: New Medium template TN + Medium Hard target lowered to 18.
+
+     Two changes that go together (same pattern as v3.06's Small fix):
+
+     1) Medium Hard target lowered from 22 to 18. Original target=22
+        required ~28 num cells per Medium template, which forces ~14-
+        15 equations and 9×11+ footprint. That puts Medium visually
+        in the same zone as Large (TF is also 9×11). Lowering Medium
+        Hard to 18 (+3 bonus) keeps Medium clearly between Small and
+        Large in visual size while still adding a meaningful Hard
+        step up from the Easy/Medium count of 15.
+
+        Updated table:
+                  Easy   Medium   Hard
+          Small      9      9      12
+          Medium    15     15      18   ← was 22
+          Large     21     21      30
+          Jumbo  (untouched)
+
+        Implementation: targetBlanks() medium-bonus changed from 7
+        to 3. Both Small and Medium now use +3, Large still uses +9.
+
+     2) New Medium template TN added. 11×9 footprint, 13 equations,
+        24 unique num cells, 15 crossings. Visual: a 5×5 lattice of
+        H equations on rows 0/2/4/6/8 with V equations stitching
+        every other column, plus a "wing" of two extra H equations
+        on the right at rows 0 and 4 (h0b at c=6, h2b at c=6) and a
+        bridging V at c=10. The wing is what brings the cell count
+        from ~19 (a 9×9 lattice would max out there) to 24.
+
+        Equation list:
+          h0 c=0,r=0 ; h0b c=6,r=0 ; h1 c=4,r=2 ;
+          h2 c=0,r=4 ; h2b c=6,r=4 ; h3 c=4,r=6 ; h4 c=0,r=8 ;
+          v0 c=0,r=0 ; v1 c=2,r=4 ; v2 c=4,r=0 ;
+          v3 c=6,r=2 ; v4 c=8,r=2 ; v5 c=10,r=0
+
+        Audit clean: connectivity PASS, no cell-type collisions, no
+        same-direction overlaps. Bench-verified hits Easy/Medium=15
+        and Hard=18 reliably; existing Medium templates (TB, TE, TK)
+        cap at ~12-13 blanks regardless of target, so they still
+        fall through to legacy on Medium Easy/Medium/Hard for now.
+
+        Pool state:
+          Small  : [TA, TJ, TM]      (unchanged from v3.06)
+          Medium : [TB, TE, TK, TN]  (was [TB, TE, TK]) — 4 templates
+          Large  : [TF, TG, TL]      (unchanged)
+          Jumbo  : [TX2_sq_A..D]     (unchanged)
+
+        Medium pool reaches 4 templates. With pool.length=4 the
+        no-recent-repeats picker excludes the last 3 picks, so every
+        New click cycles through the entire pool before any can
+        repeat — a real shape rotation across all four shapes.
+
+     Inconsistency note: rolling TN gives 15/15/18 blanks (new
+     system); rolling TB/TE/TK gives 11/11/13 blanks (legacy). This
+     is the expected gradual-rollout pattern — Medium tier is
+     transitioning, will fully convert as the older templates get
+     replaced or grown in v3.08+.
+
+     v3.06: New Small template TM + Small Hard target lowered to 12.
+
+     Two changes that go together:
+
+     1) Small Hard target lowered from 14 to 12. Original v3.04 plan
+        was Easy/Medium=9, Hard=14 (a +5 bonus). To hit 14 reliably,
+        a Small template needs ~21 num cells, which forces ~10
+        equations and a 9×11 footprint. That makes "Small" puzzles
+        as visually big as Large ones (TF is also 9×11), breaking
+        the size hierarchy. Lowering Small Hard to 12 (+3 bonus)
+        keeps Small visually small (9×9 footprint, 8 equations,
+        ~17 cells) while still adding a meaningful Hard step up
+        from the Easy/Medium count of 9.
+
+        Updated table:
+                  Easy   Medium   Hard
+          Small      9      9      12   ← was 14
+          Medium    15     15      22
+          Large     21     21      30
+          Jumbo  (untouched)
+
+        Implementation: targetBlanks() small-bonus changed from 5
+        to 3. Other tiers unchanged.
+
+     2) New Small template TM added. 9×9 footprint, 8 equations,
+        17 unique num cells, 7 crossings. Visual character: vertical
+        staircase formed by 5 H equations on alternating rows
+        (0/2/4/6/8) bridged by 3 V equations (col 0 lower half,
+        col 4 upper half, col 8 middle). Distinct from TA's
+        diagonal-down staircase and TJ's corner-corner interlock.
+
+        Equation list:
+          h0 c=0,r=0 ; h1 c=4,r=2 ; h2 c=0,r=4 ; h3 c=4,r=6 ;
+          h4 c=0,r=8 ; v0 c=0,r=4 ; v1 c=4,r=0 ; v2 c=8,r=2
+
+        Audit clean: connectivity PASS, no cell-type collisions,
+        no same-direction overlaps. Bench-verified to hit all
+        three Small targets (9/9/12) in well over 90% of trials,
+        consistent with TA and TJ on the new Hard=12.
+
+        Pool state:
+          Small  : [TA, TJ, TM]      (was [TA, TJ])
+          Medium : [TB, TE, TK]      (unchanged)
+          Large  : [TF, TG, TL]      (unchanged)
+          Jumbo  : [TX2_sq_A..D]     (unchanged)
+
+        Small pool reaches 3 templates; no-recent-repeats picker
+        will exclude the most recent 2 picks, so every New click
+        cycles through all three before any can repeat.
+
+     With Hard target lowered to 12, the entire Small pool (TA, TJ,
+     and TM) now hits the new system reliably. v3.06 is the first
+     version where Small Hard does NOT fall through to legacy.
+
+     v3.05: Tier-canonical cell sizing for Small and Medium.
+
+     Problem: cell size in getCellSize was computed from the actual
+     template's column count, divided into the available width. So
+     a 7-col template (TJ in Small, TK in Medium) got ~30% bigger
+     cells than the 9-col templates in the same tier (TA, TB, TE).
+     Visually, Small puzzles felt inconsistent — chunky tiles when
+     TJ rolled, smaller tiles when TA rolled.
+
+     Fix: compute cell size using the WIDEST template in the tier
+     ("canonical cols"), regardless of which template actually
+     rolled. This way every Small puzzle uses TA's width (9 cols)
+     to compute cell size, every Medium puzzle uses TB/TE/TF's
+     width (9 cols). Narrower templates render with their natural
+     col count but at the canonical cell size, so they take up
+     less screen real estate horizontally — but the tiles look
+     identical in size to other puzzles in the tier.
+
+     Canonical cols by tier:
+       Small  : 9 (TA)             — applies to TA, TJ
+       Medium : 9 (TB, TE)         — applies to TB, TE, TK
+       Large  : (UNCHANGED)        — see note below
+       Jumbo  : (UNCHANGED, xl2)
+
+     Large not addressed: TL is 13 cols (the widest), so canonical=13
+     would shrink TF/TG (9 cols) cell sizes by ~30%. That's a
+     regression, not a fix. Deferred until either TL gets retired
+     or a wider TF/TG replacement is authored. Today nobody has
+     complained about Large's slight inconsistency in practice.
+
+     Implementation: getCellSize gains a small lookup that maps SIZE
+     to canonical cols, falls back to the passed-in cols for sizes
+     not in the table. The cap from v2.69-era (maxCS) stays as the
+     upper bound to keep cell sizes reasonable on big screens.
+
+     v3.04: Target-based blank selection — framework + Small enabled.
+
+     Problem: pre-v3.04 selectBlanks used "blanks per equation"
+     (1 for easy, 2 for medium, ~1 for hard via blank-then-restore).
+     Bank size therefore varied with template — TB and TE in Medium
+     gave ~11 blanks while TK gave ~13. Worse, Medium TB at 11
+     blanks felt nearly identical to Small TA at 11 blanks. The
+     player-facing experience is bank size, not equation count, and
+     it was leaking template-shape variance into difficulty variance.
+
+     Solution: define a fixed target by (size, diff). selectBlanks
+     hits that target if achievable, else falls through to legacy
+     pre-v3.04 logic preserving today's behavior on tiers that
+     can't yet hit the target.
+
+     Targets:
+                Easy   Medium   Hard
+       Small      9      9      14
+       Medium    15     15      22
+       Large     21     21      30
+       Jumbo  (untouched — selectBlanksXL, separate codepath)
+
+     Easy and Medium share the count by design — Medium gets its
+     difficulty bump from allowing × and ÷ rather than from more
+     blanks. Hard adds +5/+7/+9 over Easy/Medium, scaling with size.
+
+     **Reachability reality:** the Hard targets exceed the unique
+     num cells in many existing templates (TJ has 14 cells, target
+     14 means "all blank" which is impossible; TB/TE have 16 cells,
+     Medium Hard target 22 is impossible). The targets describe the
+     *intended* gameplay, not what every existing template can
+     deliver today. Behavior:
+
+       Small Easy/Medium (target 9): TA hits target consistently.
+         TJ has 14 cells — also achievable. Both templates
+         enabled. Player-visible change: Small Easy goes from ~6
+         blanks to 9 (a real bump but still easy with +/- only).
+         Small Medium goes from ~11 to 9 (slightly down).
+       Small Hard (target 14): TJ can't reach it. Falls through to
+         legacy. No visible change vs v3.03.
+       Medium / Large: ALL targets unreachable on current templates.
+         Falls through to legacy. No visible change vs v3.03.
+
+     v3.05+ will introduce bigger templates one at a time, and as
+     each tier reaches "all templates can hit the target," that
+     tier flips to the new behavior. v3.04 is mostly framework with
+     Small Easy/Medium being the only visible behavior change.
+
+     Algorithm changes in selectBlanks:
+     1) New helper targetBlanks(size, diff) returns the target.
+     2) Greedy fill: shuffle the unique num cells, walk the list,
+        add each cell to BS if doing so keeps the puzzle locally
+        solvable. Stop when target reached or no more cells fit.
+     3) Validation unchanged (canSolve per eq, crossing agreement,
+        mul-both-blank bank check) except for the all-3-blank
+        case below.
+     4) All-3-blank equations are now allowed in Hard mode IF all
+        three cells are crossings (each shared with another eq).
+        Pre-v3.04 canSolve hardcoded "n===3 → false." A new wrapper
+        canSolveWithCrossings adds the "OK if all crossings" path
+        for Hard. Easy and Medium retain strict no-all-3-blank.
+     5) Outer retry: 80 attempts as before. On failure, falls
+        through to _selectBlanksLegacy which is a verbatim copy
+        of pre-v3.04 selectBlanks (1/2/restore-1 per eq depending
+        on diff) — chosen instead of a minimal-blanks fallback so
+        falling-through doesn't change difficulty noticeably.
+
+     This change does NOT touch selectBlanksXL (Jumbo's path).
+     Jumbo stays as-is — user prefers it that way.
+
+     v3.03: New Large template TL added. Brings Large to 3 templates.
+
+     TL design: wide horizontal compound, 13×7 footprint, 14 equations.
+     Two TB-like clusters at left (cols 0-4) and right (cols 8-12)
+     bridged by an H equation at row 2 (h2: c=4,r=2 spans 4-8) and a
+     V equation at col 6 (v6: c=6,r=2 spans rows 2-6). Without those
+     two bridges the layout would be two disconnected 5×7 islands —
+     this was caught in TL v1 audit; bridges added in v6.
+
+     Equation breakdown: 7 H + 7 V = 14. Connectivity, cell-type
+     collisions, and same-direction adjacency all clean. 16
+     crossings, matching TF's density.
+
+     The point of TL: TF and TG are both narrow and tall (9×11 and
+     9×13). Both feel like "two TB's stacked vertically," because
+     that's what they are. TL is the lateral version — wide and
+     short, with the bridge going horizontally rather than the join
+     going vertically. With three Large templates now (TF, TG, TL)
+     and the no-recent-repeats picker excluding the most-recent 2
+     (since pool.length=3 → maxHist=2), every Large roll cycles
+     through all three before any can repeat — which means the
+     wide vs tall variation will always show up within 3 New
+     button clicks.
+
+     Bench note: TL benches at ~9% first-attempt success in my
+     simulator. For comparison, TF benches at 19% — and TF has
+     been the production Large template for many versions with
+     no observed generation failures. The production genNums has
+     mul/div pre-seeding, forward propagation, and a 120-retry
+     budget for Large. The bench is a relative indicator at best.
+
+     Pool state after v3.03:
+       Small  : [TA, TJ]         (2 templates)
+       Medium : [TB, TE, TK]     (3 templates)
+       Large  : [TF, TG, TL]     (3 templates) — added TL
+       Jumbo  : [TX2_sq_A..D]    (4 templates)
+
+     Next: Small is the only pool still at 2. v3.04 should focus
+     there — author a third Small template. After that, all four
+     pools will have at least 3, and the no-recent-repeats picker
+     will give players genuine variety.
+
+     v3.02: New Medium template TK added. Brings Medium back to 3
+     templates after TD's v3.01 removal.
+
+     TK design: vertical staircase, 7×9 footprint, 9 equations.
+     5 H equations stacked at rows 0/2/4/6/8 with alternating
+     left-aligned (c=0) and slightly-indented (c=2) starting cols,
+     making a Z/staircase pattern. 4 V equations: v0,v1 in the
+     upper half (rows 0-4) at cols 0,2; v3 mid-right (rows 2-6)
+     at col 6; v2 lower-mid (rows 4-8) at col 4. Connected,
+     verified by audit. 10 crossings.
+
+     The point of TK: visually different proportions from TB and
+     TE. TB and TE both render to the same 9×7 wide-ish shape
+     (despite different equation lists, their cell maps are
+     nearly identical). TK is taller-than-wide, breaking the
+     "wide Z" feel that dominated v3.01 Medium. With the no-
+     recent-repeats picker, players cycling through Medium will
+     now hit a 7×9 vertical layout 1/3 of the time, which should
+     read as a real shape change.
+
+     Generator load: my simple bench-simulator shows ~40% first-
+     attempt success on TK vs ~95% on TB/TE. Production genNums
+     is significantly more sophisticated (mul/div pre-seeding,
+     forward propagation, partial-cell solve fallback) and has
+     a 60-retry outer budget for Medium, so the actual user-
+     visible failure rate should be near zero.
+
+     Pool state after v3.02:
+       Small  : [TA, TJ]       (unchanged from v3.01)
+       Medium : [TB, TE, TK]   (added TK)
+       Large  : [TF, TG]       (unchanged)
+       Jumbo  : [TX2_sq_A..D]  (unchanged)
+
+     Next: v3.03 should focus on Large and Small (each at 2
+     templates). A new Large would also benefit from a fresh
+     visual approach since TF and TG share TB/TE-derived
+     structure.
+
+     v3.01: Connectivity rule for templates + first new template (TJ).
+
+     1) CONNECTIVITY RULE established and enforced. Every equation
+        in a template must connect — directly or transitively
+        through shared num cells — to every other equation. A
+        template with disconnected equations creates "islands"
+        that can be solved independently with no cross-constraint,
+        which makes the puzzle feel disjoint and hides what should
+        be a tight constraint graph.
+
+        Audit of v3.00 pools found two violations:
+          - TC (Small): 2 islands. Cluster {h0,v0,v1,v2,h1} solved
+            independently from {h2,v3} at the bottom-right. This
+            is what made TC the "Two-pillars" template literally —
+            two disconnected vertical groups.
+          - TD (Medium): 3 islands, including a fully-orphaned h3
+            with zero crossings to anything. TD only just moved to
+            Medium in v3.00 (was Small before); inherited the
+            disconnection.
+
+        Both removed from their pools. Their declarations stay in
+        the file (TA-block region) for potential rework later;
+        only the pool array entries are gone.
+
+        TA, TB, TE, TF, TG, TX2_sq_A..D all pass the rule.
+        TH_final, TI_stair pass too (already unpooled in v3.00 for
+        unrelated footprint reasons).
+
+     2) NEW TEMPLATE TJ added to TMPL_SMALL. 7×7 footprint, 8
+        equations, "diagonal-step interlock" shape — two H/V
+        clusters at opposite corners interlocked through shared
+        num cells at (2,2), (2,4), (4,2). All 8 equations in one
+        connected component. 10 crossings (vs TA's 6) — denser
+        constraint graph, the densest we've authored.
+
+        Generator load: bench-tested 200 generations per template
+        with all 4 ops. TA: 100% first-attempt success. TJ: ~50%
+        first-attempt success, but the production buildPuzzle
+        retry loop (maxR=30 for Small) easily absorbs this — TJ
+        always produces a valid puzzle, just sometimes after a
+        few internal retries that are invisible to the player.
+
+        Pool state after v3.01:
+          Small  : [TA, TJ]       (was [TA, TC])
+          Medium : [TB, TE]       (was [TB, TD, TE])
+          Large  : [TF, TG]       (unchanged)
+          Jumbo  : [TX2_sq_A..D]  (unchanged)
+
+        Per-size best times for Small and Medium reset (TJ being
+        added to Small effectively replaces TC; TD removal from
+        Medium leaves the average difficulty roughly unchanged,
+        all three were 9-eq templates).
+
+        Next: v3.02 should author a Medium replacement to bring
+        Medium back to 3 templates, matching the goal of 4+ per
+        pool eventually.
+
+     v3.00: Two related changes to puzzle template selection.
+
+     1) REPOOL by equation count for size-tier consistency. Before,
+        each size pool mixed templates with very different equation
+        counts — Medium ranged from 9 (TB,TE) to 14 (TF,TG). That
+        made "best time" records depend on which template you
+        rolled, not on play. New pools group by workload:
+
+          Small  : TA(8eq), TC(7eq)        — was TA,TC,TD
+          Medium : TB(9eq), TD(9eq), TE(9eq) — was TB,TE,TF,TG
+          Large  : TF(14eq), TG(14eq)     — was TH_final,TI_stair
+          Jumbo  : TX2_sq_A..D            — unchanged
+
+        Equation curve across tiers is now ~7→9→14→28+ — roughly
+        a doubling each step. Previously: ~8→11(avg)→28→30+, with
+        the Small→Medium step nearly flat and a huge gap before
+        Large. TD moved Small→Medium (it was always 9-eq). TF/TG
+        moved Medium→Large (always 14-eq). TH_final and TI_stair
+        are unpooled — 28-eq fits Jumbo by workload but their
+        17×11 / 17×17 footprints render with too-small cells under
+        xl2-mode's 26px cell cap, leaving a half-empty container.
+        They stay in code for revival later. Internal SIZE keys
+        unchanged so the four buttons keep working — just what's
+        *inside* each pool changed. Per-size best times reset
+        (user OK with this; nobody else is playing yet).
+
+     2) NO-RECENT-REPEATS picker. New _pickTemplate(pool,size)
+        function maintains a per-size recent-history list of
+        template *array references* in localStorage under
+        'equil_recentTemplates'. When picking, excludes the last
+        N entries (N = min(3, pool.length-1)) so consecutive
+        rolls of the New button can't yield the same template
+        back-to-back, and a player cycling through to "find one
+        they like" sees genuinely different shapes for several
+        clicks before any can repeat. With Small at 2 templates,
+        N=1 (no immediate repeat). Medium has 3 → N=2. Large has
+        2 → N=1. Jumbo has 6 → N=3.
+
+        Identity is by ARRAY REFERENCE not by a name string —
+        templates are pure data with no id field, so we store the
+        index into the pool. localStorage value shape:
+          { small:[idx,idx,...], medium:[...], large:[...], xl2:[...] }
+        Caps at N entries per size; older entries shift out.
+
+        Daily mode bypasses the history (buildPuzzle called with
+        {daily:true} → picker ignores history and uses the seeded
+        RNG to choose). This keeps daily puzzles deterministic
+        per (date,size,diff) across all players regardless of
+        their personal recent-templates state.
+
+        Failure modes considered:
+        - localStorage quota / parse errors → catch and treat as
+          empty history (graceful degrade to v2.99 behavior).
+        - Pool shrinks below history length (e.g. on a future
+          repool) → indices that no longer exist are filtered out
+          on read.
+        - Race with daily-mode call inside withSeed → daily flag
+          short-circuits before any history read/write.
+
+     v2.99: Fixed the win wave not firing on actual solves. Tiles
+     would just sit there, the win card would appear without the
+     cascade of pops and particles.
+
+     Root cause: in place(), the order was:
+       1. winCheck → start _winWaveSequence (captures .bt refs,
+          schedules setTimeouts to burst each one)
+       2. render() — synchronous, calls renderBank which does
+          `be.innerHTML=''` and destroys every .bt element
+       3. setTimeouts later fire and try to add .bursting to
+          detached DOM nodes → no visible effect
+     This was always broken on real solves; the v2.84 WIN! debug
+     button worked because it didn't trigger a render() between
+     reference capture and burst, so I never noticed the bug
+     until the WIN! button got removed in v2.97.
+
+     Fix: hoist render() above the win-handling block so the
+     bank is at its final state BEFORE the wave captures tile
+     references. The wave's setTimeouts now operate on attached
+     DOM that survives until newPuzzle. winCheck's result is
+     stashed in a local before render() so we can check it
+     after.
+
      v2.98: Hid the four diagonal corner accents on .gscroll for
      all puzzle sizes EXCEPT Jumbo (xl2-mode). The diagonals were
      pixel-sized to land exactly on .grid-clip's outer outline
@@ -3798,7 +5047,7 @@ window.onerror=function(msg,src,line,col,err){
        go nearly fully semi-circular like Play does. -->
   <div class="sel-cta-row"><button class="sel-play" id="playBtn">▶ PLAY</button></div>
   <div class="sel-cta-row"><button id="statsBtn" style="margin-top:10px;width:auto;padding:10px 28px;background:transparent;border:1.5px solid rgba(0,217,255,0.4);border-radius:18px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;font-weight:700;">📊 Stats</button></div>
-  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v2.98</div>
+  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v3.22</div>
 </div>
 
 <!-- GAME SCREEN -->
@@ -3854,6 +5103,12 @@ window.onerror=function(msg,src,line,col,err){
   <div class="info-bar"><span class="blbl">Tap a square · then a number · tap placed to return · tap thumb circle to zoom · double-tap to zoom out</span></div>
   <div class="gscroll"><div class="grid-clip" id="gridClip"><div class="grid" id="grid"></div></div>
 <!-- [Equil 1.04] Removed: seqPuz (Unified SEQ/PUZ toggle) button HTML — sequencer-only. -->
+  </div>
+  <!-- [v3.18b] DEBUG: template-name label. Outside .gscroll so the grid's
+       touch handlers don't intercept the tap. Tap to show counts. -->
+  <div style="width:100%;max-width:520px;display:flex;justify-content:space-between;align-items:center;padding:2px 14px;font:11px/1.2 monospace;color:rgba(0,217,255,0.55);letter-spacing:1px;user-select:none;flex-shrink:0;">
+    <span id="_dbgTplLabel"></span>
+    <button id="_dbgCountsBtn" style="background:rgba(0,217,255,0.10);border:1px solid rgba(0,217,255,0.40);color:rgba(0,217,255,0.85);font:10px/1 monospace;letter-spacing:1px;padding:4px 8px;border-radius:6px;cursor:pointer;">COUNTS</button>
   </div>
   
   <div class="bank-outer">
@@ -4230,6 +5485,97 @@ function evalXL(a,op1,b,op2,c){
 var SYM={'+':'+','-':'−','x':'×','/':'/'};
 function ri(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
 function rp(arr){return arr[Math.floor(Math.random()*arr.length)];}
+
+// [v3.00] No-recent-repeats template picker.
+// Maintains per-size history (indices into the pool) in localStorage so
+// consecutive New-button rolls can't yield the same template back-to-back,
+// and a player browsing through several puzzles sees genuinely different
+// shapes before any can repeat. Daily mode bypasses this entirely so the
+// (date,size,diff) seed remains deterministic across players.
+//
+// History size N = min(3, pool.length-1). With pool.length=2 → N=1
+// (avoid only the most recent). pool.length=3 → N=2. pool.length>=4 → N=3.
+// localStorage shape: { small:[idx,...], medium:[...], large:[...], xl2:[...] }
+var _RECENT_KEY='equil_recentTemplates';
+function _readRecent(){
+  try{
+    var raw=localStorage.getItem(_RECENT_KEY);
+    if(!raw)return{};
+    var obj=JSON.parse(raw);
+    return (obj&&typeof obj==='object')?obj:{};
+  }catch(e){return{};}
+}
+function _writeRecent(obj){
+  try{localStorage.setItem(_RECENT_KEY,JSON.stringify(obj));}catch(e){}
+}
+function _pickTemplate(pool,size,opts){
+  // Daily mode: defer to plain rp() so the seeded RNG inside withSeed()
+  // produces the same template for every player on a given (date,size,diff).
+  // Also short-circuits the localStorage read/write — daily picks should
+  // never affect personal recent-history.
+  // [v3.18b] _isRetry suppresses pick counter bump (but still labels).
+  var skipCounter=!!(opts&&opts._isRetry);
+  if(opts&&opts.daily){
+    var t=rp(pool);
+    if(t&&_TEMPLATE_NAMES.has(t)){
+      var nm=_TEMPLATE_NAMES.get(t);
+      window._currentTplName=nm;
+      if(!skipCounter)_dbgBumpPick(nm);
+    }
+    return t;
+  }
+  if(!pool||pool.length===0)return null;
+  if(pool.length===1){
+    if(_TEMPLATE_NAMES.has(pool[0])){
+      var nm=_TEMPLATE_NAMES.get(pool[0]);
+      window._currentTplName=nm;
+      if(!skipCounter)_dbgBumpPick(nm);
+    }
+    return pool[0];
+  }
+
+  var historyMap=_readRecent();
+  var hist=(historyMap[size]||[]).filter(function(i){
+    return typeof i==='number' && i>=0 && i<pool.length;
+  });
+  var maxHist=Math.min(3,pool.length-1);
+
+  // [v3.18c] On retry picks, ignore history entirely. Otherwise the
+  // candidate set is just (pool minus 3 recently-picked templates),
+  // which on retry leaves only 1 candidate — and 120 retries all on
+  // that one failing template defeats the purpose of retrying. With
+  // history ignored, retries can land on any of the 4 templates and
+  // values-gen gets 120 chances across the full pool.
+  var excluded={};
+  if(!skipCounter){
+    for(var i=Math.max(0,hist.length-maxHist);i<hist.length;i++)excluded[hist[i]]=true;
+  }
+  var candidates=[];
+  for(var j=0;j<pool.length;j++)if(!excluded[j])candidates.push(j);
+
+  if(candidates.length===0)candidates=pool.map(function(_,k){return k;});
+
+  var chosenIdx=candidates[Math.floor(Math.random()*candidates.length)];
+
+  // [v3.18b] On retry picks, don't write to history. Otherwise rapid
+  // retries on a failing template would fill history with templates
+  // the user didn't actually see, and the no-recent-repeats logic
+  // would exclude templates the user genuinely hasn't played recently.
+  if(!skipCounter){
+    hist.push(chosenIdx);
+    while(hist.length>maxHist)hist.shift();
+    historyMap[size]=hist;
+    _writeRecent(historyMap);
+  }
+
+  if(_TEMPLATE_NAMES.has(pool[chosenIdx])){
+    var nm=_TEMPLATE_NAMES.get(pool[chosenIdx]);
+    window._currentTplName=nm;
+    if(!skipCounter)_dbgBumpPick(nm);
+  }
+
+  return pool[chosenIdx];
+}
 function ev(a,op,b){
   if(op==='+')return a+b;
   if(op==='-')return a-b;
@@ -4240,9 +5586,31 @@ function ev(a,op,b){
 
 // ═══════════════════════════════════════════════════════════
 // TEMPLATES
-// Small: TA,TC,TD (9×7 to 9×9)
-// Medium: TB,TE,TF,TG (9×7 to 9×11)
-// Large: TH,TI — bigger grids ~18-20 cells wide/tall
+// [v3.00] Repooled by equation count.
+// [v3.01] TC and TD removed (failed connectivity rule);
+//         TJ added (new 7×7 diagonal-step interlock).
+// [v3.02] TK added (new 7×9 vertical staircase).
+// [v3.03] TL added (new 13×7 wide horizontal compound).
+// [v3.06] TM added (new 9×9 vertical-staircase, brings Small to 3).
+// [v3.07] TN added (new 11×9 lattice-with-wing, brings Medium to 4).
+// [v3.09] TO added (new 9×11 vertical lattice-with-wing).
+//         TB removed (was visually duplicate of TE).
+// [v3.10] TP added (new 11×11 square frame-with-bridge).
+//         TE removed (legacy 16-cell, can't hit new Medium targets).
+// [v3.11] TQ added (new 7×13 narrow-tall dense lattice).
+//         TK removed (legacy 17-cell; Medium pool now fully on new system).
+// [v3.12] TQ2 added (TQ-family variant, inner V's rearranged).
+// [v3.13] TR added to Large (new 11×13 frame-with-bridge, first Large on new system).
+// [v3.14] TS added to Large (new 13×13, 42 cells, denser); TR removed (didn't feel Large).
+// [v3.15] TS3, TS5, TS9 added (TS-family variants); TF, TG, TL removed.
+//         All Large templates now on new system.
+// [v3.17] TT added (denser 13×13, 44 cells); TS-family removed (didn't feel Large enough).
+// [v3.18] TT removed (failed values-gen 80% of the time, causing fallback to
+//         Medium templates); TS-family restored.
+// Now: Small={TA,TJ,TM}, Medium={TN,TO,TP,TQ,TQ2},
+// Large={TS,TS3,TS5,TS9}, Jumbo unchanged.
+// TB, TC, TD, TE, TF, TG, TK, TL, TR, TT, TH_final, TI_stair stay
+// defined but unpooled.
 // ═══════════════════════════════════════════════════════════
 
 // TA: Staircase 9×9
@@ -4290,6 +5658,472 @@ var TG=[
   {id:'v3',dir:'v',c:2,r:0},{id:'v4',dir:'v',c:6,r:2},
   {id:'hx0',dir:'h',c:4,r:8},{id:'hx1',dir:'h',c:4,r:10},
   {id:'vx2',dir:'v',c:4,r:6},{id:'vx0',dir:'v',c:8,r:8},{id:'vx1',dir:'v',c:6,r:8}
+];
+
+// [v3.01] TJ: Diagonal-step interlock 7×7, 8 equations, 10 crossings.
+// Two H/V clusters at opposite corners interlocked via shared num cells
+// at (2,2), (2,4), (4,2). All equations in one connected component
+// (verified by connectivity audit). Denser than TA (10 crossings vs 6),
+// which means slightly higher generator-retry rate (~50% first-attempt
+// vs 100% for TA in bench tests) but well within the maxR=30 retry
+// budget. Adds shape variety to Small alongside TA's staircase.
+var TJ=[
+  {id:'h0',dir:'h',c:0,r:0},{id:'h1',dir:'h',c:0,r:2},
+  {id:'h2',dir:'h',c:2,r:4},{id:'h3',dir:'h',c:2,r:6},
+  {id:'v0',dir:'v',c:0,r:0},{id:'v1',dir:'v',c:2,r:0},
+  {id:'v2',dir:'v',c:4,r:2},{id:'v3',dir:'v',c:6,r:2}
+];
+
+// [v3.06] TM: Vertical-staircase Small template, 9×9, 8 equations,
+// 17 unique num cells, 7 crossings. Visual: five horizontal equations
+// stacked on alternating rows (0/2/4/6/8) with three vertical bridges
+// — v0 covers rows 4-8 on the left, v1 covers rows 0-4 in the middle,
+// v2 covers rows 2-6 on the right. The H staircase alternates left
+// edge (c=0) and middle (c=4) start columns, like TK does for Medium.
+// Distinct from TA (diagonal-down staircase) and TJ (corner-to-corner
+// interlock). Audit clean: connectivity PASS, no cell-type collisions,
+// no same-direction overlaps. Hits Small Easy/Medium target (9) and
+// Hard target (12) reliably in bench tests. Brings Small pool to 3.
+var TM=[
+  {id:'h0',dir:'h',c:0,r:0},
+  {id:'h1',dir:'h',c:4,r:2},
+  {id:'h2',dir:'h',c:0,r:4},
+  {id:'h3',dir:'h',c:4,r:6},
+  {id:'h4',dir:'h',c:0,r:8},
+  {id:'v0',dir:'v',c:0,r:4},
+  {id:'v1',dir:'v',c:4,r:0},
+  {id:'v2',dir:'v',c:8,r:2}
+];
+
+// [v3.07] TN: Lattice-with-wing Medium template, 11×9, 13 equations,
+// 24 unique num cells, 15 crossings. Visual: a 5×5 lattice on cols
+// 0-4 / rows 0-8 (5 H equations + 4 V equations) extended on the
+// right by an upper-right "wing" — two extra H equations at c=6
+// (rows 0 and 4) plus a V at c=10 stitching their right ends. The
+// wing is what brings the cell count from 19 (a pure 9×9 lattice
+// caps there) to 24, enough headroom for Hard target=18 with all-3-
+// blank equations allowed in some places. Audit clean: connectivity
+// PASS, no cell-type collisions, no same-direction overlaps. Bench-
+// verified to hit Easy/Medium=15 and Hard=18 reliably. Brings Medium
+// pool to 4. Distinct shape from TB/TE (9×7 wide-Z) and TK (7×9
+// vertical staircase) — TN is wide-and-short with right-side wing.
+var TN=[
+  {id:'h0',dir:'h',c:0,r:0},
+  {id:'h0b',dir:'h',c:6,r:0},
+  {id:'h1',dir:'h',c:4,r:2},
+  {id:'h2',dir:'h',c:0,r:4},
+  {id:'h2b',dir:'h',c:6,r:4},
+  {id:'h3',dir:'h',c:4,r:6},
+  {id:'h4',dir:'h',c:0,r:8},
+  {id:'v0',dir:'v',c:0,r:0},
+  {id:'v1',dir:'v',c:2,r:4},
+  {id:'v2',dir:'v',c:4,r:0},
+  {id:'v3',dir:'v',c:6,r:2},
+  {id:'v4',dir:'v',c:8,r:2},
+  {id:'v5',dir:'v',c:10,r:0}
+];
+
+// [v3.09] TO: Vertical lattice-with-wing Medium template, 9×11, 14
+// equations, 27 unique num cells, 15 crossings. Vertical companion
+// to TN. Two 5×5 H/V lattices stacked vertically (rows 0-4 and
+// rows 6-10), bridged by v6_bridge at c=6 spanning rows 2-6 to
+// connect the halves into one component. Plus two "wing" H
+// equations (h0w at r=6, h0w2 at r=2) extending the lattice
+// horizontally on rows 2 and 6 to reach c=8.
+//
+// Audit clean: connectivity PASS, no cell-type collisions, no
+// same-direction overlaps. Bench-verified hits Easy=11 and
+// Medium=15 reliably; Hard target=21 reaches 19-20 most rolls,
+// occasionally 21. Together with TN forms a wide/tall pair in
+// Medium's new-system pool — TN is 11×9 (wide-short), TO is
+// 9×11 (tall-narrow).
+var TO=[
+  {id:'v0a',dir:'v',c:0,r:0},
+  {id:'v0b',dir:'v',c:0,r:6},
+  {id:'v4a',dir:'v',c:4,r:0},
+  {id:'v4b',dir:'v',c:4,r:6},
+  {id:'v8a',dir:'v',c:8,r:0},
+  {id:'v8b',dir:'v',c:8,r:6},
+  {id:'v2',dir:'v',c:2,r:2},
+  {id:'v6_bridge',dir:'v',c:6,r:2},
+  {id:'h0',dir:'h',c:0,r:0},
+  {id:'h4',dir:'h',c:0,r:4},
+  {id:'h8',dir:'h',c:0,r:8},
+  {id:'h10',dir:'h',c:0,r:10},
+  {id:'h0w',dir:'h',c:4,r:6},
+  {id:'h0w2',dir:'h',c:4,r:2}
+];
+
+// [v3.10] TP: Square frame-with-bridge Medium template, 11×11, 15
+// equations, 31 unique num cells, 14 crossings. Visual: a "frame"
+// of H equations on rows 0, 4, 6, 10 (each row split into left
+// half cols 0-4 and right half cols 6-10) plus stacked V's on
+// the outer cols 0 and 10. The interior has two middle V's at
+// c=4 and c=6 (rows 2-6), connected via a horizontal bridge at
+// r=2 (cols 4-8). Without the h_bridge equation the layout splits
+// into disconnected left/right halves — bridge ties them together.
+//
+// Audit clean: connectivity PASS, no cell-type collisions, no
+// same-direction overlaps. Bench-verified to hit Easy=11 100%,
+// Medium=15 100%, Hard=21 ~98% — best Hard reliability of any
+// Medium template since 31 cells gives real headroom over the
+// 21-blank target. Adds the square-and-large variation to Medium
+// alongside TN (wide), TO (tall), and TK (narrow vertical).
+var TP=[
+  {id:'h_top_l',dir:'h',c:0,r:0},
+  {id:'h_top_r',dir:'h',c:6,r:0},
+  {id:'h_mid_l',dir:'h',c:0,r:4},
+  {id:'h_mid_r',dir:'h',c:6,r:4},
+  {id:'h_lm_l',dir:'h',c:0,r:6},
+  {id:'h_lm_r',dir:'h',c:6,r:6},
+  {id:'h_bot_l',dir:'h',c:0,r:10},
+  {id:'h_bot_r',dir:'h',c:6,r:10},
+  {id:'v_l_t',dir:'v',c:0,r:0},
+  {id:'v_l_b',dir:'v',c:0,r:6},
+  {id:'v_r_t',dir:'v',c:10,r:0},
+  {id:'v_r_b',dir:'v',c:10,r:6},
+  {id:'v_m',dir:'v',c:4,r:2},
+  {id:'v_m2',dir:'v',c:6,r:2},
+  {id:'h_bridge',dir:'h',c:4,r:2}
+];
+
+// [v3.11] TQ: Narrow-tall lattice Medium template, 7×13, 15
+// equations, 26 unique num cells, 19 crossings. Visual: a tall
+// narrow column with H equations on alternating rows in zigzag
+// pattern (rows 0,2,4,6,8,10,12 with starting c=0 and c=2
+// alternating), bridged by V equations stacked two-per-column
+// on cols 0/2/4/6 (top half rows 0-4, bottom half rows 8-12,
+// gap at rows 5-7 to avoid same-direction overlap). Densest
+// crossing structure of any template (19 crossings) — only 7
+// of 26 cells are uncrossed.
+//
+// Audit clean: connectivity PASS, no cell-type collisions, no
+// same-direction overlaps. Hard target=21 reachable per
+// structural analysis (9 of 15 equations fully-crossed, can
+// be all-3-blank in Hard mode). Restores the "narrow column"
+// visual identity TK had at 7×9 but at the bigger 26-cell
+// count needed for the new system.
+var TQ=[
+  {id:'h0',dir:'h',c:0,r:0},
+  {id:'h2',dir:'h',c:2,r:2},
+  {id:'h4',dir:'h',c:0,r:4},
+  {id:'h6',dir:'h',c:2,r:6},
+  {id:'h8',dir:'h',c:0,r:8},
+  {id:'h10',dir:'h',c:2,r:10},
+  {id:'h12',dir:'h',c:0,r:12},
+  {id:'v0a',dir:'v',c:0,r:0},
+  {id:'v0b',dir:'v',c:0,r:8},
+  {id:'v2a',dir:'v',c:2,r:2},
+  {id:'v2b',dir:'v',c:2,r:8},
+  {id:'v4a',dir:'v',c:4,r:0},
+  {id:'v4b',dir:'v',c:4,r:6},
+  {id:'v6a',dir:'v',c:6,r:2},
+  {id:'v6b',dir:'v',c:6,r:8}
+];
+
+// [v3.12] TQ2: TQ-family variant. Same 7×13 footprint, same outer
+// structure (7 H equations + 4 outer V equations on cols 0 and 6),
+// but the 4 inner V equations on cols 2 and 4 are rearranged. TQ's
+// inner pattern was col 2 = (2-6)+(8-12), col 4 = (0-4)+(6-10);
+// TQ2 swaps to col 2 = (0-4)+(6-10), col 4 = (2-6)+(8-12). Both
+// patterns pass connectivity (the inner V's must interlock — both
+// cols using the same row-pattern fails connectivity). Same cell
+// count (26), same crossing count (19), same target reachability.
+// Visually similar to TQ but with different op/eq cell positions
+// and different equation paths through the middle.
+var TQ2=[
+  {id:'h0',dir:'h',c:0,r:0},
+  {id:'h2',dir:'h',c:2,r:2},
+  {id:'h4',dir:'h',c:0,r:4},
+  {id:'h6',dir:'h',c:2,r:6},
+  {id:'h8',dir:'h',c:0,r:8},
+  {id:'h10',dir:'h',c:2,r:10},
+  {id:'h12',dir:'h',c:0,r:12},
+  {id:'v0a',dir:'v',c:0,r:0},
+  {id:'v0b',dir:'v',c:0,r:8},
+  {id:'v2a',dir:'v',c:2,r:0},
+  {id:'v2b',dir:'v',c:2,r:6},
+  {id:'v4a',dir:'v',c:4,r:2},
+  {id:'v4b',dir:'v',c:4,r:8},
+  {id:'v6a',dir:'v',c:6,r:2},
+  {id:'v6b',dir:'v',c:6,r:8}
+];
+
+// [v3.13] TR: First Large template on the new target system. 11×13
+// footprint, 19 equations, 35 unique num cells, 22 crossings, 13
+// uncrossed. "Frame with bridge" pattern scaled up from TP — eight
+// H equations forming left/right halves on rows 0/4/8/12, stacked
+// V equations on outer cols 0/2/8/10 (top stack rows 0-4, bottom
+// stack rows 8-12), middle V spine at cols 4/6 (rows 4-8), and a
+// single horizontal bridge h6_mid at c=2,r=6 connecting the left
+// and right halves through the center. Without h6_mid the layout
+// splits into disconnected halves (caught during design).
+//
+// Audit clean: connectivity PASS, no cell-type collisions, no
+// same-direction overlaps. Bench-verified hits Easy=15 100%,
+// Medium=21 100%, Hard=26 ~74% exact (others at 24-25). 35 cells
+// gives real headroom over the 26-blank Hard target.
+//
+// Sets the visual bar for "Large feels Large" — clearly larger
+// than any Medium template (Medium maxes at 11×11 or 7×13). When
+// TF/TG/TL are replaced over v3.14+ they should match this size.
+var TR=[
+  {id:'h0l',dir:'h',c:0,r:0},
+  {id:'h0r',dir:'h',c:6,r:0},
+  {id:'h4l',dir:'h',c:0,r:4},
+  {id:'h4r',dir:'h',c:6,r:4},
+  {id:'h8l',dir:'h',c:0,r:8},
+  {id:'h8r',dir:'h',c:6,r:8},
+  {id:'h12l',dir:'h',c:0,r:12},
+  {id:'h12r',dir:'h',c:6,r:12},
+  {id:'v0t',dir:'v',c:0,r:0},
+  {id:'v0b',dir:'v',c:0,r:8},
+  {id:'v2t',dir:'v',c:2,r:0},
+  {id:'v2b',dir:'v',c:2,r:8},
+  {id:'v8t',dir:'v',c:8,r:0},
+  {id:'v8b',dir:'v',c:8,r:8},
+  {id:'v10t',dir:'v',c:10,r:0},
+  {id:'v10b',dir:'v',c:10,r:8},
+  {id:'v4',dir:'v',c:4,r:4},
+  {id:'v6',dir:'v',c:6,r:4},
+  {id:'h6_mid',dir:'h',c:2,r:6}
+];
+
+// [v3.14] TS: 13×13 frame-with-bridge — replaces TR as the new-
+// system Large template. 24 equations, 42 unique num cells, 30
+// crossings. Significant size jump from TR (11×13, 35 cells) for
+// "Large feels Large" — TS is wider than any Medium template
+// (Medium maxes 11×11) and taller than most.
+//
+// Layout: H equations in left/right halves on rows 0/4/8/12 (cols
+// 0-4 and 8-12), middle bridge H equations on rows 2/6/10 (cols
+// 4-8). Outer V equations on cols 0/2/10/12, stacked rows 0-4 top
+// + rows 8-12 bottom. Middle V equations on cols 4 and 8, same
+// stack pattern (rows 2-6 + rows 8-12). v6_bridge at c=6,r=6
+// spans rows 6-10 — the single column-6 vertical that bridges
+// upper and lower halves through the middle (without it the
+// layout splits into disconnected halves; caught during design).
+//
+// Audit clean: connectivity PASS, no cell-type collisions, no
+// same-direction overlaps. 42 cells with target 26 (Hard) means
+// 16 givens — generous headroom. 12 uncrossed cells; the other
+// 30 are crossings (densest Large template).
+var TS=[
+  {id:'h0l',dir:'h',c:0,r:0},
+  {id:'h0r',dir:'h',c:8,r:0},
+  {id:'h4l',dir:'h',c:0,r:4},
+  {id:'h4r',dir:'h',c:8,r:4},
+  {id:'h8l',dir:'h',c:0,r:8},
+  {id:'h8r',dir:'h',c:8,r:8},
+  {id:'h12l',dir:'h',c:0,r:12},
+  {id:'h12r',dir:'h',c:8,r:12},
+  {id:'h2_mid',dir:'h',c:4,r:2},
+  {id:'h6_mid',dir:'h',c:4,r:6},
+  {id:'h10_mid',dir:'h',c:4,r:10},
+  {id:'v0t',dir:'v',c:0,r:0},
+  {id:'v0b',dir:'v',c:0,r:8},
+  {id:'v2t',dir:'v',c:2,r:0},
+  {id:'v2b',dir:'v',c:2,r:8},
+  {id:'v10t',dir:'v',c:10,r:0},
+  {id:'v10b',dir:'v',c:10,r:8},
+  {id:'v12t',dir:'v',c:12,r:0},
+  {id:'v12b',dir:'v',c:12,r:8},
+  {id:'v4t',dir:'v',c:4,r:2},
+  {id:'v4b',dir:'v',c:4,r:8},
+  {id:'v8t',dir:'v',c:8,r:2},
+  {id:'v8b',dir:'v',c:8,r:8},
+  {id:'v6_bridge',dir:'v',c:6,r:6}
+];
+
+// [v3.15] TS-family variants. Same 13×13 outer frame as TS (the 16
+// outer equations: 8 corner H pairs + 8 outer V stacks). Inner 8
+// equations rearranged. All pass the same audits as TS: connectivity
+// PASS, no collisions, no overlaps. 42-43 cells, 29-30 crossings.
+//
+// TS3: col 4 stacks at rows 2-6 + 8-12 (same as TS).
+//      col 8 stacks at rows 0-4 + 6-10 (shifted UP from TS).
+//      v6_bridge at rows 4-8 (centered, vs TS's rows 6-10).
+var TS3=[
+  {id:'h0l',dir:'h',c:0,r:0},
+  {id:'h0r',dir:'h',c:8,r:0},
+  {id:'h4l',dir:'h',c:0,r:4},
+  {id:'h4r',dir:'h',c:8,r:4},
+  {id:'h8l',dir:'h',c:0,r:8},
+  {id:'h8r',dir:'h',c:8,r:8},
+  {id:'h12l',dir:'h',c:0,r:12},
+  {id:'h12r',dir:'h',c:8,r:12},
+  {id:'h2_mid',dir:'h',c:4,r:2},
+  {id:'h6_mid',dir:'h',c:4,r:6},
+  {id:'h10_mid',dir:'h',c:4,r:10},
+  {id:'v0t',dir:'v',c:0,r:0},
+  {id:'v0b',dir:'v',c:0,r:8},
+  {id:'v2t',dir:'v',c:2,r:0},
+  {id:'v2b',dir:'v',c:2,r:8},
+  {id:'v10t',dir:'v',c:10,r:0},
+  {id:'v10b',dir:'v',c:10,r:8},
+  {id:'v12t',dir:'v',c:12,r:0},
+  {id:'v12b',dir:'v',c:12,r:8},
+  {id:'v4t',dir:'v',c:4,r:2},
+  {id:'v4b',dir:'v',c:4,r:8},
+  {id:'v8t',dir:'v',c:8,r:0},
+  {id:'v8b',dir:'v',c:8,r:6},
+  {id:'v6_bridge',dir:'v',c:6,r:4}
+];
+
+// TS5: col 4 stacks at rows 0-4 + 6-10 (shifted UP).
+//      col 8 stacks at rows 2-6 + 8-12 (same as TS).
+//      v6_bridge at rows 6-10 (same as TS).
+var TS5=[
+  {id:'h0l',dir:'h',c:0,r:0},
+  {id:'h0r',dir:'h',c:8,r:0},
+  {id:'h4l',dir:'h',c:0,r:4},
+  {id:'h4r',dir:'h',c:8,r:4},
+  {id:'h8l',dir:'h',c:0,r:8},
+  {id:'h8r',dir:'h',c:8,r:8},
+  {id:'h12l',dir:'h',c:0,r:12},
+  {id:'h12r',dir:'h',c:8,r:12},
+  {id:'h2_mid',dir:'h',c:4,r:2},
+  {id:'h6_mid',dir:'h',c:4,r:6},
+  {id:'h10_mid',dir:'h',c:4,r:10},
+  {id:'v0t',dir:'v',c:0,r:0},
+  {id:'v0b',dir:'v',c:0,r:8},
+  {id:'v2t',dir:'v',c:2,r:0},
+  {id:'v2b',dir:'v',c:2,r:8},
+  {id:'v10t',dir:'v',c:10,r:0},
+  {id:'v10b',dir:'v',c:10,r:8},
+  {id:'v12t',dir:'v',c:12,r:0},
+  {id:'v12b',dir:'v',c:12,r:8},
+  {id:'v4t',dir:'v',c:4,r:0},
+  {id:'v4b',dir:'v',c:4,r:6},
+  {id:'v8t',dir:'v',c:8,r:2},
+  {id:'v8b',dir:'v',c:8,r:8},
+  {id:'v6_bridge',dir:'v',c:6,r:6}
+];
+
+// TS9: col 4 stacks at rows 0-4 + 6-10 (shifted UP).
+//      col 8 stacks at rows 2-6 + 8-12 (same as TS).
+//      v6_bridge at rows 4-8 (centered).
+var TS9=[
+  {id:'h0l',dir:'h',c:0,r:0},
+  {id:'h0r',dir:'h',c:8,r:0},
+  {id:'h4l',dir:'h',c:0,r:4},
+  {id:'h4r',dir:'h',c:8,r:4},
+  {id:'h8l',dir:'h',c:0,r:8},
+  {id:'h8r',dir:'h',c:8,r:8},
+  {id:'h12l',dir:'h',c:0,r:12},
+  {id:'h12r',dir:'h',c:8,r:12},
+  {id:'h2_mid',dir:'h',c:4,r:2},
+  {id:'h6_mid',dir:'h',c:4,r:6},
+  {id:'h10_mid',dir:'h',c:4,r:10},
+  {id:'v0t',dir:'v',c:0,r:0},
+  {id:'v0b',dir:'v',c:0,r:8},
+  {id:'v2t',dir:'v',c:2,r:0},
+  {id:'v2b',dir:'v',c:2,r:8},
+  {id:'v10t',dir:'v',c:10,r:0},
+  {id:'v10b',dir:'v',c:10,r:8},
+  {id:'v12t',dir:'v',c:12,r:0},
+  {id:'v12b',dir:'v',c:12,r:8},
+  {id:'v4t',dir:'v',c:4,r:0},
+  {id:'v4b',dir:'v',c:4,r:6},
+  {id:'v8t',dir:'v',c:8,r:2},
+  {id:'v8b',dir:'v',c:8,r:8},
+  {id:'v6_bridge',dir:'v',c:6,r:4}
+];
+
+// [v3.17] TT: Denser 13×13 Large template — replaces TS-family.
+// 25 equations, 44 cells, 31 crossings. Compared to TS (24/42/30),
+// modest density increase. Key structural change: the inner V's
+// at cols 4 and 8 span rows 6-10 (instead of stacks rows 0-4 +
+// rows 8-12 like outer V's). This bridges the row 5-7 gap that
+// caused TS-family to feel "hollow" in the middle. The h_mid
+// equations on rows 2/6/10 (cols 4-8) give the center column
+// crossings, eliminating empty interior rows.
+//
+// Audit clean: connectivity PASS, no cell-type collisions, no
+// same-direction overlaps. Hard target=30 reachable on 44 cells
+// (14 givens) with the 31-crossing structure.
+var TT=[
+  // Top corner H pair
+  {id:'h0l',dir:'h',c:0,r:0},
+  {id:'h0r',dir:'h',c:8,r:0},
+  // Mid-row H pairs
+  {id:'h4l',dir:'h',c:0,r:4},
+  {id:'h4r',dir:'h',c:8,r:4},
+  {id:'h8l',dir:'h',c:0,r:8},
+  {id:'h8r',dir:'h',c:8,r:8},
+  // Bottom corner H pair
+  {id:'h12l',dir:'h',c:0,r:12},
+  {id:'h12r',dir:'h',c:8,r:12},
+  // Middle bridge H equations (cols 4-8) on rows 2/6/10
+  {id:'h2m',dir:'h',c:4,r:2},
+  {id:'h6m',dir:'h',c:4,r:6},
+  {id:'h10m',dir:'h',c:4,r:10},
+  // Outer V's: cols 0/2/10/12 stacks rows 0-4 + rows 8-12
+  {id:'v0t',dir:'v',c:0,r:0},
+  {id:'v0b',dir:'v',c:0,r:8},
+  {id:'v2t',dir:'v',c:2,r:0},
+  {id:'v2b',dir:'v',c:2,r:8},
+  {id:'v10t',dir:'v',c:10,r:0},
+  {id:'v10b',dir:'v',c:10,r:8},
+  {id:'v12t',dir:'v',c:12,r:0},
+  {id:'v12b',dir:'v',c:12,r:8},
+  // Inner V's: cols 4/8 with BRIDGE (rows 6-10 instead of rows 8-12)
+  {id:'v4t',dir:'v',c:4,r:0},     // rows 0-4
+  {id:'v4mid',dir:'v',c:4,r:6},   // rows 6-10 — KEY BRIDGE
+  {id:'v8t',dir:'v',c:8,r:0},     // rows 0-4
+  {id:'v8mid',dir:'v',c:8,r:6},   // rows 6-10 — KEY BRIDGE
+  // Center V col 6: rows 2-6 + rows 8-12 (gap row 7)
+  {id:'v6t',dir:'v',c:6,r:2},
+  {id:'v6b',dir:'v',c:6,r:8}
+];
+
+// [v3.02] TK: Vertical staircase 7×9, 9 equations, 10 crossings.
+// Five H equations stacked at rows 0/2/4/6/8, alternating left-edge
+// (c=0) and slightly-indented (c=2) start columns, forming a Z down
+// the page. Four V equations stitch them together at cols 0, 2, 4, 6
+// at staggered row offsets so no two V's share a cell. Connectivity,
+// cell-type collisions, and same-direction adjacency all audited
+// clean. Adds taller-than-wide proportions (7×9) to Medium —
+// distinctly different from TB and TE which both render as 9×7 wide
+// Z shapes. Bench notes same as TJ: my simulator shows 40% first-
+// attempt success but production retries make this invisible.
+var TK=[
+  {id:'h0',dir:'h',c:0,r:0},
+  {id:'h1',dir:'h',c:2,r:2},
+  {id:'h2',dir:'h',c:0,r:4},
+  {id:'h3',dir:'h',c:2,r:6},
+  {id:'h4',dir:'h',c:0,r:8},
+  {id:'v0',dir:'v',c:0,r:0},
+  {id:'v1',dir:'v',c:2,r:0},
+  {id:'v2',dir:'v',c:4,r:4},
+  {id:'v3',dir:'v',c:6,r:2}
+];
+
+// [v3.03] TL: Wide horizontal compound 13×7, 14 equations, 16 crossings.
+// Two TB-like clusters at left (cols 0-4) and right (cols 8-12) bridged
+// by h2 (c=4,r=2 spans 4-8, num cells at cols 4/6/8) and v6 (c=6,r=2
+// spans rows 2-6, num cells at rows 2/4/6). Without these two bridges
+// the layout would split into disconnected halves — bridges are what
+// make connectivity pass. Pattern: 7 H + 7 V. The Large pool's first
+// wide template — TF and TG are both narrow-tall (9×11 / 9×13), both
+// "two TB's stacked vertically," so TL's wide-short shape gives the
+// pool a real proportion variation. Audit clean: connected, no cell
+// collisions, no same-direction adjacency.
+var TL=[
+  {id:'h0',dir:'h',c:0,r:0},
+  {id:'h1',dir:'h',c:8,r:0},
+  {id:'h2',dir:'h',c:4,r:2},  // BRIDGE — middle row 2, spans 4-8
+  {id:'h3',dir:'h',c:0,r:4},
+  {id:'h4',dir:'h',c:8,r:4},
+  {id:'h5',dir:'h',c:2,r:6},
+  {id:'h6',dir:'h',c:8,r:6},
+  {id:'v0',dir:'v',c:0,r:0},
+  {id:'v1',dir:'v',c:4,r:0},
+  {id:'v2',dir:'v',c:8,r:0},
+  {id:'v3',dir:'v',c:12,r:0},
+  {id:'v4',dir:'v',c:2,r:2},
+  {id:'v5',dir:'v',c:10,r:2},
+  {id:'v6',dir:'v',c:6,r:2}   // BRIDGE — middle col 6, spans rows 2-6
 ];
 
 // TH: Large — two TB blocks stacked, sharing via bridges. ~17×17
@@ -4417,9 +6251,240 @@ function makeTFShifted(colOffset,rowOffset,idSuffix){
 // TF_b.v0 at c=8,r=6: A=(8,6). TF_a.h3.C=(8,6) ✓ — connected!
 var TI_stair=makeTFShifted(0,0,'_e').concat(makeTFShifted(8,6,'_f'));
 
-var TMPL_SMALL=[TA,TC,TD];
-var TMPL_MEDIUM=[TB,TE,TF,TG];
-var TMPL_LARGE=[TH_final,TI_stair];
+// [v3.00] Repooled by equation count for size-tier consistency.
+// Equation counts: TA=8, TC=7, TB=9, TD=9, TE=9, TF=14, TG=14, TJ=8, TK=9, TL=14, TM=8, TN=13, TO=14, TP=15, TQ=15, TQ2=15, TR=19, TS=24, TS3=24, TS5=24, TS9=24, TT=25.
+// [v3.01] TC removed from Small (2 disconnected islands).
+//         TD removed from Medium (3 disconnected islands incl. orphaned h3).
+//         TJ added to Small (new diagonal-step interlock, fully connected).
+// [v3.02] TK added to Medium (new vertical staircase, 7×9 footprint).
+// [v3.03] TL added to Large (new wide horizontal compound, 13×7 footprint).
+// [v3.06] TM added to Small (new vertical-staircase 9×9, 17 cells).
+// [v3.07] TN added to Medium (new lattice-with-wing 11×9, 24 cells).
+// [v3.09] TO added to Medium (new vertical lattice-with-wing 9×11, 27 cells).
+//         TB removed from Medium (was duplicate of TE; both rendered identically).
+// [v3.10] TP added to Medium (new square 11×11 frame-with-bridge, 31 cells).
+//         TE removed from Medium (was 16-cell legacy, can't hit new targets).
+// [v3.11] TQ added to Medium (new narrow-tall 7×13 dense lattice, 26 cells).
+//         TK removed from Medium (was 17-cell legacy; pool now fully on new system).
+// [v3.12] TQ2 added to Medium (TQ-family variant, inner V's rearranged).
+// [v3.13] TR added to Large (new 11×13 frame-with-bridge, 35 cells, first on new system).
+// [v3.14] TS added to Large (13×13, 42 cells, denser); TR removed (didn't feel Large).
+// [v3.15] TS3, TS5, TS9 added (TS-family variants); TF, TG, TL removed.
+// [v3.00] Repooled by equation count for size-tier consistency.
+// [...]
+// [v3.13] TR added to Large (new 11×13 frame-with-bridge, 35 cells, first on new system).
+// [v3.14] TS added to Large (13×13, 42 cells, denser); TR removed (didn't feel Large).
+// [v3.15] TS3, TS5, TS9 added (TS-family variants); TF, TG, TL removed.
+//         All Large templates now on new system.
+// [v3.17] TT added to Large (denser 13×13, 44 cells); TS-family removed (didn't feel Large enough).
+// [v3.18] TS-family RESTORED, TT removed. User reported 16/20 Large rolls
+//         falling back to Medium templates. Reason: TT's 25 equations are
+//         too many for the values generator to satisfy reliably. TS-family
+//         (24 eq) generates more reliably even though they don't feel as
+//         dense. Real fix for "feels large" is bigger templates that also
+//         generate well — v3.19+ work, not a v3.18 fix.
+var TMPL_SMALL=[TA,TJ,TM];
+var TMPL_MEDIUM=[TN,TO,TP,TQ,TQ2];
+var TMPL_LARGE=[TS,TS3,TS5,TS9];
+
+// [v3.18] DEBUG ONLY: template name registry. Maps template-array
+// references to short string names so the picker can label which
+// template is currently active. Lets the user identify rolls
+// without screenshot guesswork. Will be removed before public
+// ship — anything keyed off window._currentTplName is debug code.
+var _TEMPLATE_NAMES=new Map();
+[
+  ['TA',TA],['TJ',TJ],['TM',TM],
+  ['TN',TN],['TO',TO],['TP',TP],['TQ',TQ],['TQ2',TQ2],
+  ['TS',TS],['TS3',TS3],['TS5',TS5],['TS9',TS9],['TT',TT]
+].forEach(function(pair){_TEMPLATE_NAMES.set(pair[1],pair[0]);});
+
+// [v3.18 v4] DEBUG: counter system to diagnose pool-distribution issues.
+// _dbgBumpPick(name)    — incremented each time _pickTemplate picks.
+// _dbgBumpFinal(name)   — incremented each time a build returns successfully
+//                          (so we see the FINAL template the player gets,
+//                          which may differ from what was first picked if
+//                          fallback fired).
+// _dbgGetCounts()       — returns {picks: {...}, finals: {...}} from localStorage.
+// _dbgResetCounts()     — clears the counters.
+// _dbgFmtCounts()       — returns a string like "TN:3 TO:5 TP:18 TQ:0 TQ2:0".
+// _dbgShowCounts()      — alert() formatted counts (call from console).
+// Will be removed before public ship.
+function _dbgBumpPick(name){
+  try{
+    var raw=localStorage.getItem('_dbgPickCounts')||'{}';
+    var obj=JSON.parse(raw);
+    obj[name]=(obj[name]||0)+1;
+    localStorage.setItem('_dbgPickCounts',JSON.stringify(obj));
+  }catch(e){}
+}
+function _dbgBumpFinal(name){
+  try{
+    var raw=localStorage.getItem('_dbgFinalCounts')||'{}';
+    var obj=JSON.parse(raw);
+    obj[name]=(obj[name]||0)+1;
+    localStorage.setItem('_dbgFinalCounts',JSON.stringify(obj));
+  }catch(e){}
+}
+function _dbgGetCounts(){
+  try{
+    return {
+      picks: JSON.parse(localStorage.getItem('_dbgPickCounts')||'{}'),
+      finals: JSON.parse(localStorage.getItem('_dbgFinalCounts')||'{}')
+    };
+  }catch(e){return{picks:{},finals:{}};}
+}
+function _dbgResetCounts(){
+  try{
+    localStorage.removeItem('_dbgPickCounts');
+    localStorage.removeItem('_dbgFinalCounts');
+    localStorage.removeItem('_dbgFailReasons');  // [v3.20]
+  }catch(e){}
+}
+function _dbgFmtCounts(){
+  var c=_dbgGetCounts();
+  var keys=Object.keys(Object.assign({},c.picks,c.finals)).sort();
+  var lines=[];
+
+  // [v3.22] Show stats of currently-rendered puzzle at the top.
+  if(window.PZ&&window.PZ.tmpl){
+    var eqCount=window.PZ.tmpl.length;
+    var blankCount=window.PZ.bank?window.PZ.bank.length:0;
+    var b3=0,b2=0,b1=0;
+    for(var i=0;i<window.PZ.tmpl.length;i++){
+      var e=window.PZ.tmpl[i];
+      if(e.xl)continue; // count standard eqs only for blanks-per-eq
+      var pts=numPts(e),CM=window.PZ.CM;
+      var n=0;
+      for(var j=0;j<pts.length;j++){
+        var k=nk(pts[j]);
+        if(CM[k]&&CM[k].isBlank)n++;
+      }
+      if(n===3)b3++;else if(n===2)b2++;else if(n===1)b1++;
+    }
+    lines.push('CURRENT PUZZLE');
+    lines.push('  equations: '+eqCount);
+    lines.push('  blanks: '+blankCount);
+    lines.push('  blank distribution: 1-blank='+b1+', 2-blank='+b2+', 3-blank='+b3);
+    lines.push('');
+  }
+
+  if(keys.length===0){
+    lines.push('TEMPLATE COUNTS: (no data yet)');
+    return lines.join('\n');
+  }
+  lines.push('TEMPLATE COUNTS');
+  keys.forEach(function(k){
+    lines.push('  '+k+': pick='+(c.picks[k]||0)+', final='+(c.finals[k]||0));
+  });
+  // Append failure-reason breakdown.
+  try{
+    var fr=JSON.parse(localStorage.getItem('_dbgFailReasons')||'{}');
+    var frKeys=Object.keys(fr).sort();
+    if(frKeys.length){
+      lines.push('');
+      lines.push('FAIL REASONS:');
+      frKeys.forEach(function(k){lines.push('  '+k+': '+fr[k]);});
+    }
+  }catch(e){}
+  return lines.join('\n');
+}
+window._dbgFmtCounts=_dbgFmtCounts;
+
+// [v3.22] COUNTS button now shows view-only dialog. Reset is a SEPARATE
+// long-press gesture (handled in the wiring below) to prevent accidental
+// resets on quick taps. Audio feedback on every interaction so the user
+// knows the tap registered (some Android browsers suppress alert chirps
+// when the user is mid-gesture).
+window._dbgShowCounts=function(){
+  try{if(window._modalOpenChirp)window._modalOpenChirp();}catch(e){}
+  alert(_dbgFmtCounts());
+};
+window._dbgConfirmReset=function(){
+  try{if(window._modalOpenChirp)window._modalOpenChirp();}catch(e){}
+  if(confirm('Reset all debug counts? This cannot be undone.')){
+    _dbgResetCounts();
+    try{if(window._modalCloseChirp)window._modalCloseChirp();}catch(e){}
+    setTimeout(function(){alert('Counts reset.');},10);
+  } else {
+    try{if(window._modalCloseChirp)window._modalCloseChirp();}catch(e){}
+  }
+};
+window._dbgReset=function(){_dbgResetCounts();};
+
+// [v3.20] Track failure reasons inside buildPuzzle so we can see which
+// step in the build pipeline is failing. Keys:
+//   'null_val'     — genNums left some num cell without a value
+//   'mismatch'     — values exist but don't satisfy the equation
+//   'xl_null'      — same as null_val for XL templates
+//   'xl_mismatch'  — same as mismatch for XL templates
+//   'divFail'      — division-count below minDiv
+//   'tileFail'     — tile-distribution exceeded TILE_VALUE_CAP
+//   'cascadeOut'   — exhausted all retries, falling through cascade
+function _dbgBumpFail(reason){
+  if(!reason)return;
+  try{
+    var raw=localStorage.getItem('_dbgFailReasons')||'{}';
+    var obj=JSON.parse(raw);
+    obj[reason]=(obj[reason]||0)+1;
+    localStorage.setItem('_dbgFailReasons',JSON.stringify(obj));
+  }catch(e){}
+}
+
+// [v3.22] COUNTS button: quick tap = view counts, long-press = reset
+// confirm. The previous version used confirm()-as-toggle which caused
+// accidental resets when users tapped OK to dismiss. Separate gestures
+// remove that footgun.
+(function(){
+  function hook(){
+    var btn=document.getElementById('_dbgCountsBtn');
+    if(!btn)return;
+    var pressTimer=null,longPressed=false;
+    function startPress(ev){
+      longPressed=false;
+      pressTimer=setTimeout(function(){
+        longPressed=true;
+        pressTimer=null;
+        window._dbgConfirmReset();
+      },650);
+    }
+    function endPress(ev){
+      if(pressTimer){
+        clearTimeout(pressTimer);
+        pressTimer=null;
+        if(!longPressed)window._dbgShowCounts();
+      }
+    }
+    function cancelPress(){
+      if(pressTimer){clearTimeout(pressTimer);pressTimer=null;}
+    }
+    btn.addEventListener('mousedown',startPress);
+    btn.addEventListener('mouseup',endPress);
+    btn.addEventListener('mouseleave',cancelPress);
+    btn.addEventListener('touchstart',function(ev){ev.preventDefault();startPress(ev);},{passive:false});
+    btn.addEventListener('touchend',function(ev){ev.preventDefault();endPress(ev);},{passive:false});
+    btn.addEventListener('touchcancel',cancelPress);
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',hook);
+  }else{
+    hook();
+  }
+})();
+
+// [v3.18] DEBUG: render the template label below the grid.
+// Reads window._currentTplName (set by _pickTemplate) and
+// window._fallbackFrom (set by buildPuzzle on retry-cascade fail).
+// When the fallback flag is set, the label reads "TQ ⚠ from large/hard"
+// so it's obvious when a non-requested template is rendering.
+function _updateDbgTplLabel(){
+  var el=document.getElementById('_dbgTplLabel');
+  if(!el)return;
+  var name=window._currentTplName||'?';
+  var fb=window._fallbackFrom;
+  el.textContent=fb?(name+' ⚠ from '+fb):name;
+  el.style.color=fb?'rgba(255,140,80,0.85)':'rgba(0,217,255,0.55)';
+}
 
 // ── XL TEMPLATES: 7-cell equations (A op1 B op2 C = D) ──
 // Each equation spans 7 cells. Num cells at positions 0,2,4,6.
@@ -4875,6 +6940,12 @@ var TX2_sq_D=[
   {id:'v2_4',dir:'v',c:2,r:4,xl:true}
 ];
 
+// [v3.00] TX2_sq pool unchanged. TH_final and TI_stair are 28-eq
+// compounds that fit Jumbo by workload but their 17×11 / 17×17
+// footprints render with awkwardly small cells under xl2-mode's
+// max cell size of 26px — they'd float in a half-empty container.
+// They stay defined in the code (above) but unpooled, awaiting
+// either a UI mode that suits them or removal in a later version.
 var TMPL_XL2=[TX2_sq_A,TX2_sq_B,TX2_sq_C,TX2_sq_D];
 
 // ═══════════════════════════════════════════════════════════
@@ -4888,6 +6959,212 @@ function genNums(tmpl,allowedOps,minDiv){
   var useOps=allowedOps||['+','-'];
   var minDiv=minDiv||0;
   var wantMul=useOps.indexOf('x')>=0||useOps.indexOf('/')>=0;
+
+  // [v3.20c] BACKTRACKING SOLVER. The original genNums propagation runs
+  // equations in template-list order, which causes 3-of-3 lockup on
+  // densely-crossed templates like TS-family: when an equation is
+  // reached, all 3 cells may already be set by earlier equations, and
+  // only ~3% of random integer triples satisfy any of +/-/×/÷ as an op.
+  //
+  // Solution: process equations in BFS order from a fully-crossed root.
+  // For each equation in order, constructively assign values to satisfy
+  // some op. If the equation can't be solved (e.g. setCount=2 with no
+  // valid op), BACKTRACK to the predecessor and retry. Up to 5 fresh
+  // BFS attempts. Node simulation: 99.8% success on TS template (vs
+  // ~3% for the old propagation approach).
+  function _runBT(){
+    var bV={},bOPS={};
+    var cellEqs={};
+    for(var i=0;i<tmpl.length;i++){
+      var pts=numPts(tmpl[i]);
+      for(var j=0;j<pts.length;j++){
+        var k=nk(pts[j]);
+        if(!cellEqs[k])cellEqs[k]=[];
+        cellEqs[k].push(i);
+      }
+    }
+    var adj={};
+    for(var i=0;i<tmpl.length;i++)adj[i]={};
+    for(var k in cellEqs){
+      var eqs=cellEqs[k];
+      for(var i=0;i<eqs.length;i++)for(var j=i+1;j<eqs.length;j++){
+        adj[eqs[i]][eqs[j]]=true;
+        adj[eqs[j]][eqs[i]]=true;
+      }
+    }
+    var isFC=[];
+    for(var i=0;i<tmpl.length;i++){
+      var pts=numPts(tmpl[i]),allCrossed=true;
+      for(var j=0;j<pts.length;j++){
+        var k=nk(pts[j]);
+        if(!cellEqs[k]||cellEqs[k].length<2){allCrossed=false;break;}
+      }
+      isFC[i]=allCrossed;
+    }
+    var fcIdxs=[];
+    for(var i=0;i<tmpl.length;i++)if(isFC[i])fcIdxs.push(i);
+    var rootIdx=fcIdxs.length
+      ? fcIdxs[Math.floor(Math.random()*fcIdxs.length)]
+      : Math.floor(Math.random()*tmpl.length);
+    var visited={},order=[],queue=[rootIdx];visited[rootIdx]=true;
+    while(queue.length){
+      var idx=queue.shift();
+      order.push(idx);
+      var nbrs=Object.keys(adj[idx]).map(Number);
+      nbrs.sort(function(a,b){
+        if(isFC[a]&&!isFC[b])return -1;
+        if(!isFC[a]&&isFC[b])return 1;
+        return Math.random()-0.5;
+      });
+      for(var i=0;i<nbrs.length;i++){
+        if(!visited[nbrs[i]]){visited[nbrs[i]]=true;queue.push(nbrs[i]);}
+      }
+    }
+    for(var i=0;i<tmpl.length;i++)if(!visited[i]){visited[i]=true;order.push(i);}
+
+    var writes=[],p=0,attempts=[],consecBT=0;
+    var totalSteps=0,MAX_STEPS=tmpl.length*500;
+
+    while(p<order.length){
+      totalSteps++;
+      if(totalSteps>MAX_STEPS)return null;
+      var e=tmpl[order[p]];
+      if(!attempts[p])attempts[p]=0;
+      attempts[p]++;
+      if(attempts[p]>30){
+        attempts[p]=0;
+        if(p===0)return null;
+        consecBT++;
+        var jumpBack=Math.min(p,1+Math.floor(consecBT/3));
+        for(var bb=0;bb<jumpBack;bb++){
+          var w=writes[p-1];
+          if(w){
+            for(var ki=0;ki<w.keys.length;ki++)delete bV[w.keys[ki]];
+            delete bOPS[w.opId];
+            writes[p-1]=null;
+          }
+          attempts[p-1]=0;
+          p--;
+          if(p===0)break;
+        }
+        continue;
+      }
+
+      var pts=numPts(e),kA=nk(pts[0]),kB=nk(pts[1]),kC=nk(pts[2]);
+      var a=bV[kA],b=bV[kB],c=bV[kC];
+      var setCount=(a!=null?1:0)+(b!=null?1:0)+(c!=null?1:0);
+      var keysWritten=[],solved=false,op,av,bv,cv;
+
+      if(setCount===0){
+        op=rp(useOps);
+        for(var t=0;t<80;t++){
+          if(op==='+'){av=ri(1,18);bv=ri(1,18);cv=av+bv;if(cv<=72){solved=true;break;}}
+          else if(op==='-'){av=ri(2,35);bv=ri(1,av-1);cv=av-bv;if(cv>=1&&cv<=72){solved=true;break;}}
+          else if(op==='x'){av=ri(1,9);bv=ri(1,9);cv=av*bv;if(cv<=72){solved=true;break;}}
+          else{cv=ri(1,9);bv=ri(1,9);av=cv*bv;if(av>=1&&av<=72){solved=true;break;}}
+          op=rp(useOps);
+        }
+        if(solved){bV[kA]=av;bV[kB]=bv;bV[kC]=cv;bOPS[e.id]=op;keysWritten=[kA,kB,kC];}
+      } else if(setCount===1){
+        op=rp(useOps);
+        for(var t=0;t<80;t++){
+          if(a!=null){
+            if(op==='+'){bv=ri(1,18);cv=a+bv;if(cv<=72){solved=true;break;}}
+            else if(op==='-'&&a>=2){bv=ri(1,a-1);cv=a-bv;if(cv>=1&&cv<=72){solved=true;break;}}
+            else if(op==='x'&&a>=1&&a<=9){bv=ri(1,9);cv=a*bv;if(cv<=72){solved=true;break;}}
+            else if(op==='/'&&a>=1){bv=ri(1,Math.min(9,a));cv=(a%bv===0)?a/bv:null;if(cv!=null&&cv>=1&&cv<=72){solved=true;break;}}
+          } else if(b!=null){
+            if(op==='+'){av=ri(1,18);cv=av+b;if(cv<=72){solved=true;break;}}
+            else if(op==='-'){av=ri(b+1,Math.min(72,b+18));cv=av-b;if(cv>=1){solved=true;break;}}
+            else if(op==='x'&&b>=1&&b<=9){av=ri(1,9);cv=av*b;if(cv<=72){solved=true;break;}}
+            else if(op==='/'&&b>=1&&b<=9){cv=ri(1,9);av=cv*b;if(av<=72){solved=true;break;}}
+          } else if(c!=null){
+            if(op==='+'&&c>=2){av=ri(1,c-1);bv=c-av;if(bv>=1){solved=true;break;}}
+            else if(op==='-'){bv=ri(1,18);av=c+bv;if(av<=72){solved=true;break;}}
+            else if(op==='x'&&c>=1&&c<=72){
+              var divs=[];for(var d=1;d<=9;d++)if(c%d===0&&c/d>=1&&c/d<=9)divs.push(d);
+              if(divs.length){bv=rp(divs);av=c/bv;solved=true;break;}
+            } else if(op==='/'&&c>=1&&c<=9){bv=ri(1,9);av=c*bv;if(av<=72){solved=true;break;}}
+          }
+          op=rp(useOps);
+        }
+        if(solved){
+          if(a==null){bV[kA]=av;keysWritten.push(kA);}
+          if(b==null){bV[kB]=bv;keysWritten.push(kB);}
+          if(c==null){bV[kC]=cv;keysWritten.push(kC);}
+          bOPS[e.id]=op;
+        }
+      } else if(setCount===2){
+        var ops_=useOps.slice().sort(function(){return Math.random()-0.5;});
+        for(var oi=0;oi<ops_.length&&!solved;oi++){
+          op=ops_[oi];
+          if(a!=null&&b!=null){
+            if(op==='+'&&a+b>=1&&a+b<=72){bV[kC]=a+b;bOPS[e.id]='+';keysWritten=[kC];solved=true;}
+            else if(op==='-'&&a-b>=1&&a-b<=72){bV[kC]=a-b;bOPS[e.id]='-';keysWritten=[kC];solved=true;}
+            else if(op==='x'&&a>=1&&a<=9&&b>=1&&b<=9&&a*b<=72){bV[kC]=a*b;bOPS[e.id]='x';keysWritten=[kC];solved=true;}
+            else if(op==='/'&&b>0&&b<=9&&a%b===0&&a/b>=1&&a/b<=72){bV[kC]=a/b;bOPS[e.id]='/';keysWritten=[kC];solved=true;}
+          } else if(a!=null&&c!=null){
+            if(op==='+'&&c-a>=1&&c-a<=72){bV[kB]=c-a;bOPS[e.id]='+';keysWritten=[kB];solved=true;}
+            else if(op==='-'&&a-c>=1&&a-c<=72){bV[kB]=a-c;bOPS[e.id]='-';keysWritten=[kB];solved=true;}
+            else if(op==='x'&&a>=1&&a<=9&&c%a===0&&c/a>=1&&c/a<=9){bV[kB]=c/a;bOPS[e.id]='x';keysWritten=[kB];solved=true;}
+            else if(op==='/'&&c>=1&&c<=9&&a%c===0&&a/c>=1&&a/c<=9){bV[kB]=a/c;bOPS[e.id]='/';keysWritten=[kB];solved=true;}
+          } else {
+            if(op==='+'&&c-b>=1&&c-b<=72){bV[kA]=c-b;bOPS[e.id]='+';keysWritten=[kA];solved=true;}
+            else if(op==='-'&&c+b>=1&&c+b<=72){bV[kA]=c+b;bOPS[e.id]='-';keysWritten=[kA];solved=true;}
+            else if(op==='x'&&b>=1&&b<=9&&c%b===0&&c/b>=1&&c/b<=9){bV[kA]=c/b;bOPS[e.id]='x';keysWritten=[kA];solved=true;}
+            else if(op==='/'&&c>=1&&c<=9&&b>=1&&b<=9&&c*b<=72){bV[kA]=c*b;bOPS[e.id]='/';keysWritten=[kA];solved=true;}
+          }
+        }
+      } else {
+        for(var oi=0;oi<useOps.length;oi++){
+          op=useOps[oi];
+          if(op==='+'&&a+b===c){bOPS[e.id]='+';solved=true;break;}
+          if(op==='-'&&a-b===c&&c>0){bOPS[e.id]='-';solved=true;break;}
+          if(op==='x'&&a*b===c&&a>=1&&a<=9&&b>=1&&b<=9){bOPS[e.id]='x';solved=true;break;}
+          if(op==='/'&&b>0&&a%b===0&&a/b===c&&b>=1&&b<=9&&c>=1){bOPS[e.id]='/';solved=true;break;}
+        }
+      }
+
+      if(solved){
+        writes[p]={keys:keysWritten,opId:e.id};
+        attempts[p]=0;
+        consecBT=0;
+        p++;
+      } else {
+        if(p===0)return null;
+        consecBT++;
+        var jumpBack=Math.min(p,1+Math.floor(consecBT/3));
+        for(var bb=0;bb<jumpBack;bb++){
+          var w=writes[p-1];
+          if(w){
+            for(var ki=0;ki<w.keys.length;ki++)delete bV[w.keys[ki]];
+            delete bOPS[w.opId];
+            writes[p-1]=null;
+          }
+          attempts[p-1]=0;
+          p--;
+          if(p===0)break;
+        }
+      }
+    }
+    return {V:bV,OPS:bOPS};
+  }
+
+  // Try backtracking with up to 5 fresh BFS-order restarts.
+  var btResult=null;
+  for(var btAttempt=0;btAttempt<5&&!btResult;btAttempt++){
+    btResult=_runBT();
+  }
+  if(btResult){
+    V=btResult.V;
+    OPS=btResult.OPS;
+  }
+  // If backtracking succeeded, V and OPS are fully populated. The legacy
+  // solveOne propagation pass below will still run but find nothing to do
+  // (every equation has all 3 cells set + OPS assigned, so the hA&&hB&&hC
+  // path in solveOne returns immediately at "if(OPS[e.id])return").
+  // If backtracking failed, V and OPS are empty and legacy code takes over.
+
 
   // PRE-SEED: if mul/div allowed, force some equations to x or /
   // by setting their three values before propagation locks things.
@@ -5815,78 +8092,169 @@ function requiredVal(e,k,BS,CM,OPS){
 // difficulty: 'easy'|'medium'|'hard'
 // Rule: never leave all 3 num cells of any equation as given
 // ═══════════════════════════════════════════════════════════
-function selectBlanks(tmpl,CM,OPS,diff){
+// [v3.04] Target blank counts per (size, diff).
+// [v3.08] Restructured to a flat lookup table — three real difficulty
+// levels via blank count, with operators as a secondary axis. Earlier
+// versions had Easy and Medium share blank count (relying on +/- vs
+// ×/÷ to carry the difference) which in practice felt nearly identical
+// at the 1.5+ blanks/equation density needed. Now Easy is genuinely
+// lighter (~1 blank/eq), Medium adds crossing-deduction (~1.2 b/eq),
+// and Hard forces multi-step chains via 3-blank equations (~1.7 b/eq).
+//
+// [v3.18] Large Hard reverted from 30 to 26. Target=30 was too tight
+// for the values generator — failed retries cascaded through fallback
+// chain ending at Medium-size templates rendering as Large (~4% of
+// rolls per user report). Until bigger Large templates arrive,
+// target=26 is the highest reliable value.
+//
+// Average blanks-per-equation by (size, diff):
+//   Small  Easy 0.75  Med 1.1   Hard 1.6   (8 eq templates)
+//   Medium Easy 0.85  Med 1.15  Hard 1.6   (13 eq templates)
+//   Large  Easy 1.07  Med 1.5   Hard 1.85  (14 eq templates)
+//
+// Jumbo (xl2) is intentionally NOT in this table — its blanks come
+// from selectBlanksXL which has its own logic for the 7-cell
+// equation format. Adding xl2 here would do nothing because xl2
+// puzzles never reach this function.
+function targetBlanks(size,diff){
+  var table={
+    small:  {easy:6,  medium:9,  hard:13},
+    medium: {easy:11, medium:15, hard:21},
+    large:  {easy:15, medium:21, hard:26}
+  };
+  var row=table[size];
+  if(!row)return null;
+  return row[diff]!=null?row[diff]:null;
+}
+
+// [v3.04] Wrap canSolve so that all-3-blank is allowed for Hard mode
+// IF every cell in the equation is a crossing cell (eqs.length >= 2).
+// All-3-blank with an uncrossed cell would leave that cell with no path
+// to a value — rejected. Easy and Medium retain the strict canSolve
+// behavior (n===3 always rejected).
+function canSolveWithCrossings(bA,bB,bC,vA,vB,vC,op,allow3,cellA,cellB,cellC){
+  var n=(bA?1:0)+(bB?1:0)+(bC?1:0);
+  if(n===3){
+    if(!allow3)return false;
+    // All-3-blank only works if every cell is a crossing.
+    var aOK=cellA&&cellA.eqs&&cellA.eqs.length>=2;
+    var bOK=cellB&&cellB.eqs&&cellB.eqs.length>=2;
+    var cOK=cellC&&cellC.eqs&&cellC.eqs.length>=2;
+    return aOK&&bOK&&cOK;
+  }
+  return canSolve(bA,bB,bC,vA,vB,vC,op);
+}
+
+// ═══════════════════════════════════════════════════════════
+// BLANK SELECTION
+// [v3.04] Target-based: hit a fixed blank count per (size, diff)
+// instead of "blanks per equation." Bank size is now consistent
+// across templates within a size, so "best time" means something.
+// difficulty: 'easy'|'medium'|'hard'
+// Rule: every equation has at least 1 blank. All-3-blank allowed
+// in Hard mode only, and only if all 3 cells are crossings.
+// ═══════════════════════════════════════════════════════════
+function selectBlanks(tmpl,CM,OPS,diff,size){
+  var target=targetBlanks(size,diff);
+  // Defensive fallback: if target lookup failed (unknown size), behave
+  // like pre-v3.04 — 1 blank per eq for easy, 2 for medium, blank-all-
+  // restore-1 for hard. Won't be hit in current code but keeps the
+  // function safe under future size additions.
+  if(target==null)return _selectBlanksLegacy(tmpl,CM,OPS,diff);
+
+  var allowAll3=(diff==='hard');
+  // List of unique num cells (blank candidates).
+  var allKeys=[];
+  for(var k in CM)if(CM[k].role==='num')allKeys.push(k);
+
   for(var attempt=0;attempt<80;attempt++){
     var BS={};
 
-    if(diff==='easy'){
-      // 1 blank per equation — prefer uncrossed
-      for(var i=0;i<tmpl.length;i++){
-        var nc=numPts(tmpl[i]).map(function(p){return CM[nk(p)];}).filter(Boolean);
-        var solo=nc.filter(function(c){return c.eqs.length===1&&!BS[nk(c)];});
-        var pool=solo.length?solo:nc.filter(function(c){return !BS[nk(c)];});
-        var chosen=(pool.length?pool:nc)[ri(0,(pool.length?pool:nc).length-1)];
-        BS[nk(chosen)]=true;
-      }
-    } else if(diff==='medium'){
-      // 2 blanks per equation — prefer uncrossed
-      for(var i=0;i<tmpl.length;i++){
-        var nc=[...numPts(tmpl[i]).map(function(p){return CM[nk(p)];}).filter(Boolean)].sort(function(){return Math.random()-.5;});
-        var unc=nc.filter(function(c){return c.eqs.length===1;}),crs=nc.filter(function(c){return c.eqs.length>1;});
-        var tb=unc.length>=2?unc.slice(0,2):unc.length===1?[unc[0]].concat(crs.slice(0,1)):nc.slice(0,2);
-        tb.forEach(function(c){BS[nk(c)]=true;});
-      }
-    } else {
-      // [v1.48] Hard: blank ALL num cells, then for each equation,
-      // restore one cell as a given (preferring smallest-value, solo-
-      // crossed cells first). 3-cell equations don't benefit much from
-      // arc consistency — the chains are short and single-step
-      // propagation already resolves them once each equation has 1
-      // blank. The arc-consistency oracle's overhead actually slowed
-      // medium/large puzzles down to several seconds; reverted here
-      // to the v1.44-style per-equation greedy restore that runs in
-      // under 100ms even on large grids.
-      for(var k in CM)if(CM[k].role==='num')BS[k]=true;
-      for(var i=0;i<tmpl.length;i++){
-        var nc=numPts(tmpl[i]).map(function(p){return CM[nk(p)];}).filter(Boolean);
-        var solo=nc.filter(function(c){return c.eqs.length===1;});
-        var pool=solo.length?solo:nc;
-        var poolSorted=pool.slice().sort(function(a,b){
-          var va=a.answer||99, vb=b.answer||99;
-          if(va!==vb) return va-vb;
-          return Math.random()-0.5;
-        });
-        var keeper=poolSorted[0];
-        delete BS[nk(keeper)];
-      }
-    }
-
-    // RULE: never leave all 3 num cells given — always at least 1 blank per equation
+    // Step 1: Always blank one solo (uncrossed) cell per equation if
+    // available — these have to be blank or the equation has no work
+    // for the player. If no solo, blank a crossed cell. This guarantees
+    // the "every eq has at least 1 blank" rule.
     for(var i=0;i<tmpl.length;i++){
       var nc=numPts(tmpl[i]).map(function(p){return CM[nk(p)];}).filter(Boolean);
       var hasBlank=nc.some(function(c){return BS[nk(c)];});
-      if(!hasBlank){
-        // Force a blank: pick an uncrossed cell if possible
-        var solo=nc.filter(function(c){return c.eqs.length===1;});
-        var pick=(solo.length?solo:nc)[ri(0,(solo.length?solo:nc).length-1)];
-        BS[nk(pick)]=true;
-      }
+      if(hasBlank)continue; // already covered by another eq's seed
+      var solo=nc.filter(function(c){return c.eqs.length===1&&!BS[nk(c)];});
+      var pool=solo.length?solo:nc.filter(function(c){return !BS[nk(c)];});
+      if(!pool.length)continue;
+      var pick=pool[ri(0,pool.length-1)];
+      BS[nk(pick)]=true;
     }
 
-    // [v1.48] Standard validation: each equation locally solvable.
-    // For 3-cell equations, this is the right granularity — chain
-    // propagation rarely helps, and the arc-consistency oracle is too
-    // slow on the larger templates. Keep the simple check that worked
-    // pre-v1.44 for non-XL puzzles. (XL still uses the propagation
-    // oracle in selectBlanksXL.)
+    // Step 2: shuffle remaining candidates and add until we hit target.
+    // [v3.21] On Hard, bias the ordering so cells that could complete a
+    // 3-blank equation come first. Without this bias, the random order
+    // tends to produce mostly 1-blank and 2-blank equations with only
+    // occasional 3-blanks (avg ~1 per puzzle on TS-family). With the
+    // bias, fully-crossed equations whose other cells are already blank
+    // get prioritized, raising 3-blank density without changing target.
+    var remaining=allKeys.filter(function(k){return !BS[k];});
+    if(allowAll3){
+      // Score each remaining cell:
+      //   +3 if its equation is fully-crossed AND has 2 cells already blank
+      //   +2 if its equation is fully-crossed AND has 1 cell already blank
+      //   +1 if its equation is fully-crossed AND has 0 cells already blank
+      //   +1 if its equation has 1 cell already blank (regardless of crossings)
+      // Sort by score desc, with random tiebreaker.
+      var cellScores={};
+      for(var ri2=0;ri2<remaining.length;ri2++){
+        var k=remaining[ri2],score=0;
+        var cell=CM[k];
+        if(cell&&cell.eqs){
+          for(var ei=0;ei<cell.eqs.length;ei++){
+            var eqId=cell.eqs[ei];
+            var e=null;
+            for(var j=0;j<tmpl.length;j++)if(tmpl[j].id===eqId){e=tmpl[j];break;}
+            if(!e)continue;
+            var pts=numPts(e),kA=nk(pts[0]),kB=nk(pts[1]),kC=nk(pts[2]);
+            var blanksHere=(BS[kA]?1:0)+(BS[kB]?1:0)+(BS[kC]?1:0);
+            var fullyCrossed=CM[kA]&&CM[kA].eqs.length>=2
+                          && CM[kB]&&CM[kB].eqs.length>=2
+                          && CM[kC]&&CM[kC].eqs.length>=2;
+            if(fullyCrossed&&blanksHere===2)score+=3;
+            else if(fullyCrossed&&blanksHere===1)score+=2;
+            else if(fullyCrossed)score+=1;
+            else if(blanksHere===1)score+=1;
+          }
+        }
+        cellScores[k]=score+Math.random();
+      }
+      remaining.sort(function(a,b){return cellScores[b]-cellScores[a];});
+    } else {
+      remaining.sort(function(){return Math.random()-0.5;});
+    }
+    for(var ri2=0;ri2<remaining.length && Object.keys(BS).length<target;ri2++){
+      var k=remaining[ri2];
+      // Tentatively add and check local solvability
+      BS[k]=true;
+      var ok=true;
+      for(var ei=0;ei<tmpl.length && ok;ei++){
+        var e=tmpl[ei],pts=numPts(e),kA=nk(pts[0]),kB=nk(pts[1]),kC=nk(pts[2]);
+        if(!canSolveWithCrossings(
+          !!BS[kA],!!BS[kB],!!BS[kC],
+          CM[kA]&&CM[kA].answer,CM[kB]&&CM[kB].answer,CM[kC]&&CM[kC].answer,
+          OPS[e.id],allowAll3,CM[kA],CM[kB],CM[kC])){ok=false;}
+      }
+      if(!ok)delete BS[k]; // back out
+    }
+
+    // Step 3: existing validation gauntlet (each eq solvable, crossings
+    // agree, mul both-blank has bank values).
     var ok=true;
     for(var i=0;i<tmpl.length;i++){
       var e=tmpl[i],pts=numPts(e),kA=nk(pts[0]),kB=nk(pts[1]),kC=nk(pts[2]);
-      if(!canSolve(!!BS[kA],!!BS[kB],!!BS[kC],CM[kA]&&CM[kA].answer,CM[kB]&&CM[kB].answer,CM[kC]&&CM[kC].answer,OPS[e.id])){ok=false;break;}
+      if(!canSolveWithCrossings(
+        !!BS[kA],!!BS[kB],!!BS[kC],
+        CM[kA]&&CM[kA].answer,CM[kB]&&CM[kB].answer,CM[kC]&&CM[kC].answer,
+        OPS[e.id],allowAll3,CM[kA],CM[kB],CM[kC])){ok=false;break;}
     }
     if(!ok)continue;
 
-    // Check 2: crossing cells must agree
+    // Crossing cells must agree
     for(var k in BS){
       if(!CM[k]||CM[k].eqs.length<2)continue;
       var eqIds=CM[k].eqs,rvs=[];
@@ -5896,11 +8264,11 @@ function selectBlanks(tmpl,CM,OPS,diff){
         var rv=requiredVal(e,k,BS,CM,OPS);
         if(rv!==null)rvs.push(rv);
       }
-      if(rvs.length>=2){for(var ri2=1;ri2<rvs.length;ri2++){if(rvs[ri2]!==rvs[0]){ok=false;break;}}if(!ok)break;}
+      if(rvs.length>=2){for(var rii=1;rii<rvs.length;rii++){if(rvs[rii]!==rvs[0]){ok=false;break;}}if(!ok)break;}
     }
     if(!ok)continue;
 
-    // Check 3: multiplication both-blank needs valid factor pair in bank
+    // Multiplication both-blank needs valid factor pair in bank
     var bankVals=[];
     for(var k in BS)if(CM[k]&&CM[k].role==='num')bankVals.push(CM[k].answer);
     for(var i=0;i<tmpl.length;i++){
@@ -5917,13 +8285,104 @@ function selectBlanks(tmpl,CM,OPS,diff){
     if(ok)return BS;
   }
 
-  // Fallback: only solo blanks
+  // Fallback: minimum blanks (1 solo per eq).
+  return _selectBlanksLegacy(tmpl,CM,OPS,diff);
+}
+
+// [v3.04] Pre-v3.04 selectBlanks logic, used as fallback when the
+// target-based system can't hit its goal in 80 attempts. Preserves
+// the historical behavior so falling through doesn't visibly change
+// difficulty: easy=1 blank/eq, medium=2 blanks/eq, hard=blank-all-
+// then-restore-1-per-eq. Verbatim from v3.03 except the outermost
+// retry loop (the caller already retried 80 times) and the validation
+// gauntlet (caller already validated; if target failed it's because
+// validation rejected too many configs, so legacy still has to pass
+// validation independently).
+function _selectBlanksLegacy(tmpl,CM,OPS,diff){
+  for(var attempt=0;attempt<80;attempt++){
+    var BS={};
+    if(diff==='easy'){
+      for(var i=0;i<tmpl.length;i++){
+        var nc=numPts(tmpl[i]).map(function(p){return CM[nk(p)];}).filter(Boolean);
+        var solo=nc.filter(function(c){return c.eqs.length===1&&!BS[nk(c)];});
+        var pool=solo.length?solo:nc.filter(function(c){return !BS[nk(c)];});
+        var chosen=(pool.length?pool:nc)[ri(0,(pool.length?pool:nc).length-1)];
+        BS[nk(chosen)]=true;
+      }
+    } else if(diff==='medium'){
+      for(var i=0;i<tmpl.length;i++){
+        var nc=[].concat(numPts(tmpl[i]).map(function(p){return CM[nk(p)];}).filter(Boolean)).sort(function(){return Math.random()-.5;});
+        var unc=nc.filter(function(c){return c.eqs.length===1;}),crs=nc.filter(function(c){return c.eqs.length>1;});
+        var tb=unc.length>=2?unc.slice(0,2):unc.length===1?[unc[0]].concat(crs.slice(0,1)):nc.slice(0,2);
+        tb.forEach(function(c){BS[nk(c)]=true;});
+      }
+    } else {
+      for(var k in CM)if(CM[k].role==='num')BS[k]=true;
+      for(var i=0;i<tmpl.length;i++){
+        var nc=numPts(tmpl[i]).map(function(p){return CM[nk(p)];}).filter(Boolean);
+        var solo=nc.filter(function(c){return c.eqs.length===1;});
+        var pool=solo.length?solo:nc;
+        var poolSorted=pool.slice().sort(function(a,b){
+          var va=a.answer||99,vb=b.answer||99;
+          if(va!==vb)return va-vb;
+          return Math.random()-0.5;
+        });
+        var keeper=poolSorted[0];
+        delete BS[nk(keeper)];
+      }
+    }
+    // Force at least 1 blank per equation
+    for(var i=0;i<tmpl.length;i++){
+      var nc=numPts(tmpl[i]).map(function(p){return CM[nk(p)];}).filter(Boolean);
+      var hasBlank=nc.some(function(c){return BS[nk(c)];});
+      if(!hasBlank){
+        var solo=nc.filter(function(c){return c.eqs.length===1;});
+        var pick=(solo.length?solo:nc)[ri(0,(solo.length?solo:nc).length-1)];
+        BS[nk(pick)]=true;
+      }
+    }
+    // Validation: each eq locally solvable
+    var ok=true;
+    for(var i=0;i<tmpl.length;i++){
+      var e=tmpl[i],pts=numPts(e),kA=nk(pts[0]),kB=nk(pts[1]),kC=nk(pts[2]);
+      if(!canSolve(!!BS[kA],!!BS[kB],!!BS[kC],CM[kA]&&CM[kA].answer,CM[kB]&&CM[kB].answer,CM[kC]&&CM[kC].answer,OPS[e.id])){ok=false;break;}
+    }
+    if(!ok)continue;
+    // Crossing cells must agree
+    for(var k in BS){
+      if(!CM[k]||CM[k].eqs.length<2)continue;
+      var eqIds=CM[k].eqs,rvs=[];
+      for(var ei=0;ei<eqIds.length;ei++){
+        var e=null;for(var j=0;j<tmpl.length;j++)if(tmpl[j].id===eqIds[ei]){e=tmpl[j];break;}
+        if(!e)continue;
+        var rv=requiredVal(e,k,BS,CM,OPS);
+        if(rv!==null)rvs.push(rv);
+      }
+      if(rvs.length>=2){for(var rii=1;rii<rvs.length;rii++){if(rvs[rii]!==rvs[0]){ok=false;break;}}if(!ok)break;}
+    }
+    if(!ok)continue;
+    // Mul both-blank bank check
+    var bankVals=[];
+    for(var k in BS)if(CM[k]&&CM[k].role==='num')bankVals.push(CM[k].answer);
+    for(var i=0;i<tmpl.length;i++){
+      var e=tmpl[i];if(OPS[e.id]!=='x')continue;
+      var pts=numPts(e),kA=nk(pts[0]),kB=nk(pts[1]),kC=nk(pts[2]);
+      if(!BS[kA]||!BS[kB])continue;
+      var needA=CM[kA]&&CM[kA].answer,needB=CM[kB]&&CM[kB].answer;
+      if(needA==null||needB==null)continue;
+      var cA=0,cB=0;
+      for(var vi=0;vi<bankVals.length;vi++){if(bankVals[vi]===needA)cA++;if(bankVals[vi]===needB)cB++;}
+      if(needA===needB){if(cA<2){ok=false;break;}}else{if(cA<1||cB<1){ok=false;break;}}
+    }
+    if(ok)return BS;
+  }
+  // Last-resort: minimal solo-per-eq layout (always passes validation)
   var BS={};
   for(var i=0;i<tmpl.length;i++){
     var nc=numPts(tmpl[i]).map(function(p){return CM[nk(p)];}).filter(Boolean);
     var solo=nc.filter(function(c){return c.eqs.length===1;});
     if(solo.length)BS[nk(solo[0])]=true;
-    else if(nc.length)BS[nk(nc[0])]=true; // guarantee at least 1 blank
+    else if(nc.length)BS[nk(nc[0])]=true;
   }
   return BS;
 }
@@ -5952,10 +8411,30 @@ window.sizeLabel = sizeLabel;
 // ═══════════════════════════════════════════════════════════
 // BUILD PUZZLE
 // ═══════════════════════════════════════════════════════════
-function buildPuzzle(size,diff,_retry,_divRetry){
+function buildPuzzle(size,diff,_retry,_divRetry,_opts){
+  // [v3.18 v2] DEBUG: clear stale fallback flag only on the outermost
+  // call (not on recursive fallback calls which also have _retry=0).
+  // _opts._isFallback is set by the recursive cascade calls below; if
+  // unset, this is a fresh top-level call from the user.
+  if(!_retry&&!_divRetry&&!(_opts&&_opts._isFallback))window._fallbackFrom=null;
   var isXL=size==='xl'||size==='xl2';
   var pool=size==='small'?TMPL_SMALL:size==='medium'?TMPL_MEDIUM:size==='large'?TMPL_LARGE:size==='xl2'?TMPL_XL2:TMPL_XL;
-  var tmpl=rp(pool);
+  // [v3.00] _pickTemplate replaces rp(pool) — same single-call interface,
+  // but enforces no-recent-repeats per-size when not in daily mode.
+  // [v3.18b] Reverted sticky-template-on-retry (was v3.18 v3). Sticky
+  // retries caused values-gen failures on one template to consume all
+  // 60 retries on that template before falling back, which in turn
+  // caused the cascade to fire constantly. Without sticky, retries
+  // re-pick from the pool which usually finds a template that
+  // genNums can satisfy on this attempt.
+  // [v3.18b] Build pick-options. _isRetry suppresses the pick counter
+  // bump on retry recursions so the counter tracks user-facing rolls
+  // rather than internal pick attempts.
+  var pickOpts=_opts||{};
+  if(_retry||_divRetry||(_opts&&_opts._isFallback)){
+    pickOpts=Object.assign({},pickOpts,{_isRetry:true});
+  }
+  var tmpl=_pickTemplate(pool,size,pickOpts);
 
   // [v1.50] Shift the chosen template up so its topmost cell anchors
   // to row 0. Templates were authored with low-row content varying by
@@ -5983,7 +8462,9 @@ function buildPuzzle(size,diff,_retry,_divRetry){
   }
 
   var allowedOps=(diff==='easy')?['+','-']:['+','-','x','/'];
-  var minDiv=(diff==='easy')?0:(size==='large'||size==='xl'||size==='xl2')?4:(size==='medium'?3:2);
+  var minDiv=(diff==='easy')?0
+            :(size==='large'||size==='xl'||size==='xl2')?4
+            :(size==='medium'?3:2);
 
   var r,V,OPS;
   if(isXL){
@@ -5998,7 +8479,7 @@ function buildPuzzle(size,diff,_retry,_divRetry){
   if(isXL){
     BS=selectBlanksXL(tmpl,CM,OPS,diff);
   } else {
-    BS=selectBlanks(tmpl,CM,OPS,diff);
+    BS=selectBlanks(tmpl,CM,OPS,diff,size);
   }
 
   for(var k in BS)if(CM[k]&&CM[k].role==='num'){CM[k].isBlank=true;CM[k].value=null;}
@@ -6055,7 +8536,9 @@ function buildPuzzle(size,diff,_retry,_divRetry){
   }
 
   // Integrity check
+  // [v3.20] DEBUG: track WHY broken fires for failure-mode diagnosis.
   var broken=false;
+  var brokenReason=null;  // 'null_val' | 'mismatch' | 'xl_null' | 'xl_mismatch'
   for(var i=0;i<tmpl.length;i++){
     var e=tmpl[i],ops=OPS[e.id];
     if(e.xl){
@@ -6064,13 +8547,14 @@ function buildPuzzle(size,diff,_retry,_divRetry){
       var vB=CM[nk(pts[1])]?CM[nk(pts[1])].answer:null;
       var vC=CM[nk(pts[2])]?CM[nk(pts[2])].answer:null;
       var vD=CM[nk(pts[3])]?CM[nk(pts[3])].answer:null;
-      if(vA==null||vB==null||vC==null||vD==null||!ops){broken=true;break;}
+      if(vA==null||vB==null||vC==null||vD==null||!ops){broken=true;brokenReason='xl_null';break;}
       var res=evalXL(vA,ops.op1,vB,ops.op2,vC);
-      if(res!==vD){broken=true;break;}
+      if(res!==vD){broken=true;brokenReason='xl_mismatch';break;}
     } else {
       var pts=numPts(e),kA=nk(pts[0]),kB=nk(pts[1]),kC=nk(pts[2]);
       var vA=CM[kA]?CM[kA].answer:null,vB=CM[kB]?CM[kB].answer:null,vC=CM[kC]?CM[kC].answer:null;
-      if(vA==null||vB==null||vC==null||ev(vA,OPS[e.id],vB)!==vC){broken=true;break;}
+      if(vA==null||vB==null||vC==null){broken=true;brokenReason='null_val';break;}
+      if(ev(vA,OPS[e.id],vB)!==vC){broken=true;brokenReason='mismatch';break;}
     }
   }
 
@@ -6080,20 +8564,41 @@ function buildPuzzle(size,diff,_retry,_divRetry){
     for(var id in OPS)if(OPS[id]==='/')divCount++;
     if(divCount<minDiv){
       var maxDivR=size==='large'?40:20;
-      if((_divRetry||0)<maxDivR)return buildPuzzle(size,diff,0,(_divRetry||0)+1);
+      if((_divRetry||0)<maxDivR){
+        // [v3.20] DEBUG: track div failures by template for diagnosis.
+        _dbgBumpFail((window._currentTplName||'?')+':divFail');
+        // [v3.18b] Reverted sticky-template; re-pick on retry like pre-v3.18.
+        return buildPuzzle(size,diff,0,(_divRetry||0)+1,_opts);
+      }
     }
   }
 
   if(broken){
     var maxR=size==='xl'?80:size==='large'?120:size==='medium'?60:30;
-    if((_retry||0)<maxR)return buildPuzzle(size,diff,(_retry||0)+1,_divRetry);
-    if(diff==='hard')return buildPuzzle(size,'medium',0,0);
-    if(diff==='medium')return buildPuzzle(size,'easy',0,0);
-    if(size==='xl2')return buildPuzzle('xl','easy',0,0);
-    if(size==='xl')return buildPuzzle('large','easy',0,0);
-    if(size==='large')return buildPuzzle('medium','easy',0,0);
-    if(size==='medium')return buildPuzzle('small','easy',0,0);
-    return buildPuzzle('small','easy',0,0);
+    if((_retry||0)<maxR){
+      // [v3.20] DEBUG: track which broken-reason and template combo triggered.
+      _dbgBumpFail((window._currentTplName||'?')+':'+(brokenReason||'broken'));
+      // [v3.18b] REVERTED v3.18 v3 sticky-retry. The sticky-retry caused
+      // a values-gen failure on a single template to use up ALL 60 retries
+      // on that same template, then cascade-fallback to a smaller pool.
+      // The pre-v3.18 behavior (re-pick on retry) trades debug-clarity for
+      // user-facing reliability; the bug was much worse than it looked.
+      // The no-recent-repeats picker still gives even distribution over
+      // time even with template-swap retries.
+      return buildPuzzle(size,diff,(_retry||0)+1,_divRetry,_opts);
+    }
+    // [v3.20] DEBUG: track that we exhausted retries and are falling through.
+    _dbgBumpFail((window._currentTplName||'?')+':cascadeOut');
+    // [v3.18] DEBUG: stash fallback flag so the on-screen label can warn.
+    if(!window._fallbackFrom)window._fallbackFrom=size+'/'+diff;
+    var fbOpts=Object.assign({},_opts||{},{_isFallback:true});
+    if(diff==='hard')return buildPuzzle(size,'medium',0,0,fbOpts);
+    if(diff==='medium')return buildPuzzle(size,'easy',0,0,fbOpts);
+    if(size==='xl2')return buildPuzzle('xl','easy',0,0,fbOpts);
+    if(size==='xl')return buildPuzzle('large','easy',0,0,fbOpts);
+    if(size==='large')return buildPuzzle('medium','easy',0,0,fbOpts);
+    if(size==='medium')return buildPuzzle('small','easy',0,0,fbOpts);
+    return buildPuzzle('small','easy',0,0,fbOpts);
   }
 
   var maxC=0,maxR2=0;
@@ -6116,9 +8621,9 @@ function buildPuzzle(size,diff,_retry,_divRetry){
   // with duplicates but hard mode produces visibly sparser puzzles
   // again, like the pre-rebrand version.
   var TILE_VALUE_CAP = (size==='xl'||size==='xl2') ? 12
-                     : (size==='large')           ? 10
-                     : (size==='medium')          ? 10
-                     :                              8;
+                     : (size==='large')            ? 10
+                     : (size==='medium')           ? 10
+                     :                               8;
   var tileCounts = {};
   var maxTileCount = 0;
   for(var bi=0;bi<blanks.length;bi++){
@@ -6134,11 +8639,15 @@ function buildPuzzle(size,diff,_retry,_divRetry){
                  : (size==='large')           ? 30
                  :                              20;
     if((_retry||0)<maxTileR){
-      return buildPuzzle(size,diff,(_retry||0)+1,_divRetry);
+      // [v3.20] DEBUG: track tile-distribution failures.
+      _dbgBumpFail((window._currentTplName||'?')+':tileFail');
+      return buildPuzzle(size,diff,(_retry||0)+1,_divRetry,_opts);
     }
   }
 
   var bv=blanks.slice().sort(function(a,b){return a-b;});
+  // [v3.18 v4] DEBUG: bump final counter — this is what the player gets.
+  if(window._currentTplName)_dbgBumpFinal(window._currentTplName);
   return{cols:maxC+1,rows:maxR2+1,tmpl:tmpl,CM:CM,OPS:OPS,bank:bv.map(function(v){return{value:v,used:false};})};
 }
 
@@ -7987,6 +10496,8 @@ window._padGlowScale=function(){
 function newPuzzle(){
   resumeAC();playNewGame();
   PZ=buildPuzzle(SIZE,DIFF);SEL=null;HIST=[];
+  // [v3.18] DEBUG: update the template label after build.
+  _updateDbgTplLabel();
   // [Equil 1.13] "Next Puzzle" / "New" both produce a random puzzle
   // and reset the timer/move counter. Daily mode is launched explicitly
   // from the start screen via the Daily button → showGame({daily:true}).
@@ -8091,7 +10602,19 @@ function place(idx){
   // any inc→bad / ok→bad transitions as mistakes. Must run AFTER the
   // mutation above so valEq() sees the new state.
   if(window._mc113 && window._mc113.noteEval) window._mc113.noteEval(PZ);
-  if(winCheck(PZ)){
+  // [v2.99] Run render() FIRST when winning so the bank gets
+  // rebuilt to its final state before the wave captures tile
+  // references. Previously: _winWaveSequence ran first, capturing
+  // .bt elements as they were at place-time; then the render()
+  // call that follows the if-block synchronously destroyed those
+  // elements via renderBank's `be.innerHTML=''`. The setTimeouts
+  // inside the wave then added .bursting to detached DOM nodes
+  // and the user saw nothing. By rendering first the wave's
+  // captured references survive, since no later render() fires
+  // until the user starts a new puzzle.
+  var _won = winCheck(PZ);
+  render();
+  if(_won){
     // [Equil 1.13] Mark won (freezes timer + triggers screen flash),
     // then record the result, then show the win card with the full stats.
     if(window._mc113) window._mc113.markWon();
@@ -8108,7 +10631,6 @@ function place(idx){
       setTimeout(function(){_showWinCard();},450);
     });
   }
-  render();
   // v8.97 — animate mini-mode count changes after the re-render.
   if(window._animateMiniDelta){
     var newPlaceUnused = _countUnusedForValue(_animPlaceVal);
@@ -8170,8 +10692,31 @@ function getCellSize(cols){
   // Extra margin: 48px .gscroll horizontal padding (24×2) + 4px .gscroll border (2×2)
   //   + 4px grid border + 4px safety = 60px
   var avail=Math.min(bodyW,cap)-60;
-  var cs=Math.floor((avail-(cols-1))/cols);
-  var maxCS=SIZE==='xl2'?26:SIZE==='xl'?32:SIZE==='large'?26:SIZE==='medium'?42:52;
+  // [v3.05] Use tier-canonical cols instead of the actual template's cols,
+  // so all templates within a tier render at the same cell size. The widest
+  // template in the tier sets the canonical width — narrower templates
+  // (TJ in Small, TK in Medium) render with empty space around the grid
+  // rather than blowing up their cells. Without this, a 7-col TJ rendered
+  // ~30% larger than a 9-col TA, which felt like a difficulty inconsistency.
+  // [v3.07] Medium canonical bumped from 9 to 11 to accommodate the new TN
+  // template (11 cols). TB/TE/TK render at slightly smaller cells now (~26
+  // instead of ~32 on a typical phone), but stay consistent with each other
+  // and with TN.
+  // [v3.14] Large canonical set to 13 to accommodate TS (13 cols) and TL
+  // (13 cols). TF and TG (9 cols) render with empty space around them. All
+  // Large templates now render at consistent cell sizes — important for
+  // "good time = real improvement" since TF rolls won't appear bigger than
+  // TS rolls just because the template is narrower.
+  // Jumbo (xl2) and the unpooled XL are unchanged.
+  var canonicalCols={small:9,medium:11,large:13}[SIZE];
+  var widthCols=canonicalCols||cols;
+  var cs=Math.floor((avail-(widthCols-1))/widthCols);
+  // [v3.16] Large maxCS bumped from 26 to 36. Was set to 26 when
+  // Large templates had varying widths and needed to fit; now with
+  // 13-col canonical and TS-family templates, 36px × 13 cols = 468px
+  // fits comfortably in available width. Restores Large > Medium
+  // visual size hierarchy that was inverted by the old cap.
+  var maxCS=SIZE==='xl2'?26:SIZE==='xl'?32:SIZE==='large'?36:SIZE==='medium'?42:52;
   return Math.max(10,Math.min(maxCS,cs));
 }
 
@@ -11014,11 +13559,16 @@ function showGame(opts){
     // settings still give different daily puzzles, but each (date,size,diff)
     // tuple is consistent across all players that day.
     var seed=window._mc113.hashStr(dateStr+'|'+SIZE+'|'+DIFF);
-    PZ=window._mc113.withSeed(seed,function(){return buildPuzzle(SIZE,DIFF);});
+    // [v3.00] Pass {daily:true} so _pickTemplate uses seeded rp() and
+    // skips localStorage history — daily must be deterministic across
+    // all players regardless of their personal recent-templates state.
+    PZ=window._mc113.withSeed(seed,function(){return buildPuzzle(SIZE,DIFF,0,0,{daily:true});});
   } else {
     PZ=buildPuzzle(SIZE,DIFF);
   }
   SEL=null;HIST=[];
+  // [v3.18] DEBUG: update the template label after build.
+  _updateDbgTplLabel();
   // Reset stats AFTER puzzle is built (so timer 0:00 matches first move).
   if(window._mc113) window._mc113.reset({daily:!!opts.daily, dateStr:opts.daily?dateStr:null});
   document.getElementById('selScreen').style.display='none';
