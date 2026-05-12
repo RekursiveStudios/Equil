@@ -1,6 +1,561 @@
-<!-- Equil v3.48 | Built: 2026-05-09 CT | github.com/Spamboni
-     v3.48: Ready overlay simplified — single blur, GO over grid,
-            scroll lock, no more morph (timer just glows).
+<!-- Equil v3.67 | Built: 2026-05-12 CT | github.com/Spamboni
+     v3.67: PLAY button — divider aligned with triangle tip,
+            PLAY/RESUME centered.
+
+     Two small refinements:
+       1. Divider y-position moved from 28px → 25px so it lines up
+          horizontally with the triangle's tip (the triangle's
+          geometric center sits at half of stack-height ≈ 25.5px).
+          Width unchanged — still spans the full stack.
+       2. PLAY and RESUME both now centered horizontally within
+          the stack (text-align:center on each, left:0 right:0)
+          rather than sharing a left edge. RESUME (narrower than
+          PLAY) is no longer aligned with PLAY's left; both center
+          on the same vertical axis through the divider midpoint.
+
+     Triangle, button height, animation behavior all unchanged.
+
+     v3.66: only PLAY moves.
+     v3.65: tried height-collapse.
+     v3.64: triangle separated.
+
+     v3.66: PLAY button — ONLY the PLAY word moves.
+
+     v3.65 changed the button height and moved the triangle along
+     with PLAY. Sam wanted JUST the PLAY word to animate; everything
+     else stays put.
+
+     Restructured the .play-stack as a fixed-height (51px) relative
+     container with PLAY, divider, and RESUME absolutely positioned
+     inside. PLAY translates between two positions:
+       - No save: translateY(13px) — PLAY sits centered, aligned
+         vertically with the triangle.
+       - Has save: translateY(0) — PLAY sits at top of stack so
+         RESUME has room below.
+     Divider and RESUME fade via opacity only (no layout shift).
+     Triangle is unchanged in all states. Button height is constant.
+
+     Transitions 150ms on transform, 120ms on opacity.
+
+     v3.65: tried height-collapse (button got bigger, triangle moved).
+     v3.64: triangle separated.
+     v3.63: same-font + left-align + divider.
+
+     v3.65: PLAY button — animated reveal of RESUME slot.
+
+     v3.63/3.64 used visibility:hidden to keep RESUME's space
+     reserved at all times, so the button was always tall. Sam
+     wanted the button to be compact when there's no save, and
+     to smoothly grow when there is.
+
+     Wrapped the divider + RESUME in a new .play-extra block with
+     max-height:0 / opacity:0 by default. .has-save expands
+     max-height to 60px and opacity to 1, with a 150ms ease
+     transition on both. Because the triangle uses
+     align-items:center against the stack, as the stack shrinks
+     the triangle re-centers vertically — so PLAY appears to
+     animate down to center on collapse and back up on expand.
+     overflow:hidden on .play-extra prevents flash during the
+     transition.
+
+     v3.64: triangle separated, RESUME aligned with P.
+     v3.63: same-font + left-align + divider.
+     v3.62: RESUME sub-label first cut.
+
+     v3.64: PLAY button — triangle separated for RESUME alignment.
+
+     v3.63 left-aligned both PLAY and RESUME within the button,
+     which meant RESUME aligned with the triangle's left edge,
+     not with the P of PLAY. Sam wanted RESUME's left edge under
+     the P specifically.
+
+     Restructured:
+       .play-row    flex-row: triangle on left, stack on right
+         .play-tri  the ▶ glyph, centered vertically against stack
+         .play-stack flex-column: PLAY, divider, RESUME
+       Outer button centers .play-row as a unit, so the whole
+       triangle+stack group sits centered, but RESUME aligns under
+       PLAY (not under the triangle).
+
+     Divider stretches to PLAY's width via align-self:stretch on
+     the stack column, since PLAY is wider than RESUME at the
+     current font sizes.
+
+     v3.63: same-font + left-align + divider.
+     v3.62: RESUME sub-label first cut.
+     v3.61: ready overlay — only GO dismisses.
+
+     v3.63: PLAY button refinements.
+
+       - Button is now a constant size whether or not RESUME shows.
+         Previously the button grew taller when a save existed.
+         Now the RESUME row and divider are always present in the
+         layout; their visibility is hidden when there's no save
+         so the ink disappears but the slot remains, keeping the
+         button height stable.
+       - Both labels use the same font (Abril Fatface) instead of
+         the serif/mono mix.
+       - Left-aligned instead of centered (align-items:stretch +
+         text-align:left).
+       - Horizontal cyan divider between the two lines, also
+         visibility-toggled with the save state.
+
+     v3.62: RESUME sub-label first cut.
+     v3.61: ready overlay — only GO dismisses.
+     v3.60: grid-clip outline removed.
+     v3.59: grid edge-to-edge.
+
+     v3.62: PLAY button shows "RESUME" sub-label when a save exists.
+
+     Visual cue for per-mode save slots: when the currently-selected
+     (size, diff) combination has a saved in-progress game, the PLAY
+     button now shows a small "RESUME" line under "▶ PLAY".
+       - Main label: "▶ PLAY" (Abril Fatface, 20px)
+       - Sub-label: "RESUME" (IBM Plex Mono, 11px, 0.75 opacity)
+     Stacked vertically with a small gap. Hidden by default;
+     toggled via the .has-save class on the button.
+
+     Triggered:
+       - Whenever a size button is tapped
+       - Whenever a difficulty button is tapped
+       - On showMenu (so returning from a just-exited puzzle shows
+         the cue immediately)
+       - At page load (so a save from a previous session shows
+         the cue)
+
+     Tapping PLAY still routes through the existing v3.50 prompt
+     flow (Resume vs Start New) — the sub-label just gives advance
+     notice that a save is there, so the player doesn't have to
+     tap PLAY and wait for the modal to find out.
+
+     v3.61: ready overlay — only GO dismisses.
+     v3.60: grid-clip outline removed + cells bigger.
+     v3.59: grid edge-to-edge.
+     v3.58: actually boosted return sound.
+     v3.56: resume-clock drift fix.
+     v3.50: per-mode save slots.
+     v3.52: pulse on placed tiles.
+
+     v3.61: Ready overlay — only GO dismisses + masthead stays
+     tappable while ready is up.
+
+     Previously: tapping ANYWHERE on the ready overlay would
+     dismiss it and start the timer. This meant:
+       - Tapping NEW to roll a new puzzle accidentally triggered
+         GO on the in-flight overlay before the new puzzle's
+         overlay appeared.
+       - Tapping anywhere on the masthead (settings, pause, back)
+         had similar issues.
+
+     Now: pointer-events:none on the overlay container so taps fall
+     through to underlying elements. The blur pane gets
+     pointer-events:auto, swallowing taps on the puzzle and bank
+     area (so the player can't place tiles or select cells while
+     ready is up). The GO button also has pointer-events:auto and
+     is the only thing that dismisses.
+
+     Net effect: tapping NEW now actually gives you a new puzzle.
+     Settings, pause, back also work normally. Only the puzzle/
+     bank area is locked, and only GO triggers the timer start.
+
+     v3.60: grid-clip outline removed + cells bigger.
+     v3.59: grid edge-to-edge.
+     v3.58: actually boosted return sound.
+     v3.56: resume-clock drift fix.
+     v3.50: per-mode save slots.
+     v3.52: pulse on placed tiles.
+
+     v3.60: Remove grid-clip outline + reclaim horizontal margin.
+
+     1. GRID-CLIP OUTLINE REMOVED. The 1px cyan outline that drew
+        around the puzzle grid is gone. The grid cells themselves
+        delineate the puzzle area; the extra outline was redundant
+        now that .gscroll's left/right borders are also gone
+        (v3.59). Cleaner look.
+
+     2. CELLS BIGGER ON SMALL SCREENS. The getCellSize "extra
+        margin" calc still assumed v3.58's 48px horizontal padding
+        + 4px side borders even after v3.59 zeroed those out. The
+        60px reservation was eating into available width and
+        keeping cells smaller than necessary. Reduced to 10px
+        (just grid border + small safety margin).
+
+        On a 360px-wide phone with a Large puzzle (13 col canonical):
+          - Before: (360 - 60) / 13 ≈ 23px cells, grid ≈ 299px wide.
+          - After:  (360 - 10) / 13 ≈ 26.9px cells, grid ≈ 350px wide.
+        That's about 17% more grid width, capped at the existing
+        per-tier maxCS (36px for Large, etc) so it doesn't blow up
+        on tablets.
+
+     v3.59: grid area edge-to-edge.
+     v3.58: actually boosted placed-tile-tap return sound.
+     v3.56: resume-clock drift fix.
+     v3.50: per-mode save slots.
+     v3.52: pulse on placed tiles.
+
+     v3.59: Grid area extends to screen edges.
+
+     .gscroll (the cyan-bordered region containing the puzzle grid)
+     was constrained to max-width:520px with 24px horizontal
+     padding. Removed both — now spans full screen width with zero
+     horizontal padding. Top/bottom padding kept at 16px for
+     breathing room.
+
+     The grid itself stays horizontally centered via the existing
+     justify-content:center, so on wider screens (tablets, desktop)
+     the grid sits centered in the surrounding cyan area instead
+     of pinning to a side.
+
+     Cyan border trimmed to top + bottom only. Left/right vertical
+     borders against a screen edge would look pinched without
+     padding to give them visual room. The horizontal lines plus
+     the grid-clip outline still delineate the puzzle area
+     cleanly.
+
+     Corner accents (Jumbo-only per v2.98) recalibrate
+     automatically — they're positioned relative to gscroll's
+     bounding rect, so they still land at the corners after this
+     change.
+
+     v3.58: actually boosted placed-tile-tap return sound.
+     v3.57: back arrow centered.
+     v3.56: resume-clock drift fix.
+     v3.50: per-mode save slots.
+     v3.52: pulse on placed tiles.
+
+     v3.58: Actually boost the placed-tile-tap return sound.
+
+     v3.55→v3.57 boosted the wrong function. There are two return
+     sounds:
+       - playTileReturn() fires when a dragged tile is RELEASED
+         without dropping on a cell — it bounces back to the bank.
+         This is what I'd been bumping.
+       - playReturn() → playSA_Return() (style A) fires when a
+         PLACED tile is TAPPED to send it home. THIS is the sound
+         Sam meant.
+
+     playSA_Return changes:
+       - Peak gain 0.14 → 0.55 (~4x).
+       - Duration 60ms → 110ms.
+       - Frequency 175 Hz → 220 Hz. Low F3 sines get masked easily
+         by HVAC hum / dehumidifier / fan noise; lifting to mid-A3
+         pulls it into a frequency range that cuts through.
+
+     playTileReturn restored to original 0.18 — that path was fine,
+     it just wasn't the one being heard.
+
+     v3.57: back arrow translateY -2 → -3.
+     v3.56: resume-clock drift fix.
+     v3.55: section state persisted.
+     v3.54: pulse speed slider.
+     v3.53: collapsible sections + pulse controls.
+     v3.52: pulse on placed tiles.
+     v3.50: per-mode save slots.
+
+     v3.57: Back arrow centered properly + return sound louder again.
+
+     1. BACK ARROW translateY bumped from -2px to -3px. The 2px
+        wasn't quite enough — the ← glyph's visible shaft was still
+        landing slightly below the button's geometric center.
+
+     2. TILE-RETURN SOUND from 0.55 → 0.85. Now at the loud end of
+        the SFX range without clipping.
+
+     v3.56: resume-clock drift fix + return 0.32→0.55.
+     v3.55: section state persisted + return 0.18→0.32.
+     v3.54: pulse speed slider + sections all closed.
+     v3.53: collapsible sections + pulse controls.
+     v3.52: pulse on dimmed-green placed tiles.
+     v3.50: per-mode save slots.
+
+     v3.56: Resume-clock drift fix + tile-return sound louder again.
+
+     1. RESUMED-GAME CLOCK DRIFT. Bug: exit a puzzle at 6:00, sit on
+        menu for 5 min, resume — clock reads 11:00 instead of 6:00.
+        The 5 min "wait time" leaked into the resumed elapsed.
+
+        Root cause: showMenu() saved the elapsed correctly before
+        switching screens, but did NOT pause the timer. startTs
+        remained pointing at a wall-clock anchor while the player
+        was on the menu screen. If a visibilitychange event then
+        fired (e.g. screen lock, app switch, Claude in-app
+        backgrounding), the saveIfActive listener called
+        _saveProgress() — which read (Date.now() - startTs) and
+        wrote that wall-clock-inflated elapsed over the good save.
+        On resume, the inflated elapsed became the new starting
+        point.
+
+        Fix: showMenu() now calls mc113.pause() after saveProgress.
+        Pause sets paused=true, captures pauseStartElapsed, cancels
+        the rAF tick. After pause, both _curMs and _saveProgress
+        return the frozen pauseStartElapsed regardless of how much
+        wall-clock time passes. restoreState already sets
+        paused=false on resume, so the resume flow is unaffected.
+
+        First-play case is fine: if no moves have been made,
+        startTs is null and pause() early-returns. saveProgress
+        also early-returns on moves===0.
+
+     2. TILE-RETURN SOUND LOUDER. Bumped from 0.32 → 0.55. Still
+        below the place sound's volume but now clearly audible.
+
+     v3.55: section state persisted + tile-return 0.18→0.32.
+     v3.54: pulse speed slider + all sections closed.
+     v3.53: collapsible sections + pulse controls.
+     v3.52: subtle pulse on dimmed-green placed tiles.
+     v3.50: per-mode save slots.
+     v3.42: READY overlay.
+
+     v3.55: Sections remember their state + louder tile-return sound.
+
+     1. SECTION OPEN/CLOSED STATE PERSISTED. The OPTIONS panel
+        sections now remember their open/closed state across panel
+        opens via a new localStorage key 'equil_opt_sections' (a
+        map of title → boolean). _mkSection reads this on each
+        build; the section's click handler writes the new state on
+        each toggle. Falls back to opts.defaultOpen on first run.
+
+        Reset-to-defaults wipes this key alongside the other
+        settings, so the panel returns to all-closed after a reset.
+
+     2. TILE-RETURN SOUND VOLUME bumped from gain 0.18 → 0.32
+        (roughly 78% louder). The return sound was too quiet
+        relative to place and snap and was easy to miss — players
+        couldn't always tell that a tap on a placed tile had
+        registered as a return. Still under the place sound so
+        it doesn't become the dominant tile-action sfx.
+
+     v3.54: pulse speed slider + all sections closed by default.
+     v3.53: collapsible sections + pulse controls.
+     v3.52: subtle pulse on dimmed-green placed tiles.
+     v3.50: per-mode save slots.
+     v3.42: READY overlay.
+
+     v3.54: All sections default closed + pulse speed slider.
+
+     1. ALL OPTIONS SECTIONS NOW DEFAULT CLOSED. Visual effects was
+        previously default-open; now it matches the others. Player
+        opens just the section they want to tweak, no scrolling
+        past expanded content they don't care about.
+
+     2. PULSE SPEED SLIDER. New control under Placed-tile pulse:
+        seconds per full breath cycle, range 1.2s → 7.0s, default
+        3.6s (matches v3.52/v3.53).
+          - 1.2s = quick attention-getter, almost a heartbeat
+          - 3.6s = the original gentle breath
+          - 7.0s = very slow, almost imperceptible background motion
+
+        Implementation note: the static .ok-breath CSS rule with
+        its hardcoded "3.6s" duration was removed. _writePulseKeyframes
+        now emits BOTH the @keyframes okBreath block AND the
+        .ok-breath { animation: ... } rule, so the duration is
+        injected dynamically alongside the peak brightness.
+
+        The per-cell hash phase was also rescaled. Previously the
+        phase was `(hash % 360) / 100` which produced 0.00..3.60
+        seconds — a hardcoded fraction of 3.6s. Now it's
+        `(hash % 1000) / 1000 * duration` so phases stay spread
+        across one full cycle regardless of the duration. Without
+        this, a 7s pulse with the old formula would have all tiles
+        bunched into the first half of the cycle.
+
+     v3.53: collapsible sections + pulse controls.
+     v3.52: subtle pulse on dimmed-green placed tiles.
+     v3.50: per-mode save slots.
+     v3.42: READY overlay.
+     v3.33: trivial-equation crackdown.
+
+     v3.53: Options panel — collapsible sections + pulse controls.
+
+     1. COLLAPSIBLE SECTIONS. The options panel is now organized into
+        four labeled drawers with chevron toggles:
+          - Visual effects (open by default)
+          - Placed-tile pulse (closed by default — new)
+          - Tile interaction (closed by default)
+          - Debug — snap tuning (closed by default)
+        Each section has a header strip with the section title and
+        a ▾ chevron. Tapping the header expands or collapses the
+        drawer with a 220ms max-height transition. Default open/
+        closed state is reapplied each time the panel opens — not
+        persisted, since reopening a section is one tap and tracking
+        per-section state is unwarranted complexity.
+
+        Helper added: _mkSection(title, builders, {defaultOpen}).
+        The builders array is a list of fns that return DOM elements
+        for the drawer body. Lazy build: section contents are only
+        constructed when the section first opens, so closed sections
+        don't pay any DOM cost.
+
+     2. PLACED-TILE PULSE controls. The pulse introduced in v3.52
+        now has three tunable settings under its own section:
+          - Enabled (toggle): when off, dim-green tiles render
+            static like pre-v3.52. The render path checks
+            window._pulseEnabled before applying the .ok-breath
+            class.
+          - Max brightness (slider, 0.35 → 1.0): peak alpha at the
+            midpoint of the breath cycle. 0.9 is v3.52's hardcoded
+            peak; 0.35 = base (no pulse); in between dims the
+            effect. Glow intensity scales proportionally with peak
+            so dimmer pulses also have weaker glow.
+          - Synchronize pulses (toggle): when on, every tile shares
+            phase 0 so the board pulses in unison. When off (default),
+            each tile uses its cell-key-derived hash phase so they
+            breathe irregularly (v3.52 behavior).
+
+        Implementation note: CSS @keyframes can't read JS variables,
+        so the brightness slider is implemented by injecting a
+        runtime <style> element with a regenerated @keyframes rule
+        whenever the slider value changes. The runtime rule wins
+        the cascade over the static one in the main <style> block.
+
+     3. PULSE SETTINGS PERSISTED. _optPulseEnabled, _optPulsePeak,
+        and _optPulseSync are now serialized to localStorage under
+        the existing equil_opts_v2 key so settings survive reloads.
+        Reset-to-defaults button resets them along with everything
+        else.
+
+     v3.52: subtle pulse on dimmed-green placed tiles.
+     v3.51: orphaned-comment leak fix.
+     v3.50: per-mode save slots.
+     v3.42: READY overlay.
+     v3.33: trivial-equation crackdown.
+
+     v3.52: Subtle pulse on dimmed-green placed tiles.
+
+     When a player completes an equation, the placed tiles dim to a
+     muted green to indicate "this equation is done." Those tiles
+     can still be tapped to return them to the bank — useful if the
+     player later realizes a placement was wrong despite the equation
+     being locally valid (the value fits one equation but breaks
+     another that crosses it).
+
+     New @keyframes okBreath gently animates color from the muted
+     base to a brighter green and back over 3.6s, with a soft text-
+     shadow glow at peak. Applied via the .ok-breath class to dim-
+     green blanks in the render path.
+
+     Phase per cell is derived from the cell key (c,r string) so:
+       1. Each tile stays at a consistent phase across re-renders.
+          render() wipes the grid on every move and rebuilds each
+          tile from scratch — without a stable per-tile phase, all
+          dim-green tiles would restart animation at 0% on each
+          move and stutter instead of breathing continuously.
+       2. Different tiles land at different phases so they don't
+          pulse in lockstep (which would look like a stutter on
+          board-wide moves).
+
+     v3.51: orphaned-comment leak fix.
+     v3.50: per-mode save slots.
+     v3.42: READY overlay.
+     v3.33: trivial-equation crackdown.
+
+     v3.51: Orphaned-comment leak fix.
+
+     When v3.50 added the resume prompt modal HTML, the str_replace
+     ate the opening dash-marker of the original v3.42 READY-overlay
+     comment block while leaving the body and closing marker intact.
+     The parser then rendered all that body text as visible page
+     content — Sam noticed it underneath the menu screen ("Shown
+     after a puzzle builds (entry from menu, or New tap)...").
+
+     Fix: deleted the orphaned text. The replacement v3.48 comment
+     describing the current single-blur design stays.
+
+     v3.50: per-mode save slots.
+     v3.49: scrollable stats + single-slot resume.
+     v3.42: READY overlay.
+
+     v3.50: Per-mode resume slots + save bug fixes.
+
+     1. PER-(SIZE,DIFF) SAVE SLOTS. Storage changed from a single
+        '_equilProgress' key to '_equilProgressMap' — an object
+        keyed by 'size|diff'. The player can now have multiple
+        in-progress puzzles, one per mode: small-hard, large-medium,
+        jumbo-easy, etc. all paused independently.
+
+        One-time migration from v3.49's single-slot format runs on
+        first read of _readMap — slurps the legacy key into the new
+        map at its (size, diff) slot, removes the old key. Harmless
+        if absent.
+
+     2. RESUME PROMPT MOVED FROM MENU TO PLAY. The menu-screen
+        Resume banner is removed. Instead, when the player taps
+        Play with a saved game for the chosen mode, a modal
+        appears: "Resume?" with elapsed time + move count, plus
+        RESUME and START NEW buttons. START NEW clears that
+        mode's slot and builds a fresh puzzle.
+
+        Discoverability is fine because the prompt only appears
+        when relevant (the player just chose the matching mode).
+        Cleaner than always-on banners.
+
+     3. SAVE BUG FIX #1: No-move saves suppressed. The previous
+        version saved an "empty" puzzle (moves=0, startTs=null)
+        every time _saveProgress was called for a freshly-built
+        puzzle the player hadn't touched. Now skipped — no point
+        offering to resume a zero-progress puzzle.
+
+     4. SAVE BUG FIX #2: Menu button now triggers explicit save.
+        Previously, only pagehide/visibilitychange/beforeunload
+        events captured exits — the in-app Menu button bypassed
+        all of these, so the very last moves before exit weren't
+        persisting. showMenu() now calls saveProgress() up front
+        so the latest state is always preserved. This addresses
+        the v3.49 bug where resumed games kept reverting to the
+        first save's state instead of the latest.
+
+        (Note: noteMove also saves on every move, so this is
+        belt-and-suspenders. The Menu-button save catches edge
+        cases where the player makes a move and exits before the
+        save write completes, or where a buggy save earlier in
+        the session might have been the last successful write.)
+
+     v3.49: stats scrollable + single-slot save.
+     v3.48: ready overlay simplified.
+     v3.42: READY overlay.
+     v3.33: trivial-equation crackdown.
+
+     v3.49: Scrollable stats + resume-in-progress puzzle.
+
+     1. STATS SCREEN scrollable. Modal inner panel now flex-column
+        with max-height:90vh; #statsBody gets overflow-y:auto so
+        long lists scroll instead of getting clipped. Title and
+        RESET/CLOSE buttons stay pinned, only the data scrolls.
+
+     2. RESUME IN-PROGRESS PUZZLE. The full puzzle state (PZ object
+        + mc113 timer/moves/mistakes) is now auto-saved to
+        localStorage on every move, on pause, and when the app
+        backgrounds (visibilitychange/pagehide). On the menu screen,
+        a Resume banner appears if a saved puzzle exists with
+        elapsed > 30s and not yet won. Banner shows size, difficulty,
+        elapsed time, and move count. Tap to resume; small ✕
+        discards.
+
+        Resume flow:
+          - showGame({resume: payload}) skips buildPuzzle (uses saved
+            PZ), skips _dbgRecordPuzzle (already recorded), skips
+            READY overlay (player already committed).
+          - mc113.restoreState() back-dates startTs so (Date.now -
+            startTs) equals the saved elapsed; timer continues
+            from where it left off.
+          - mc113.reset({skipClearProgress:true}) avoids wiping
+            the save before restore reads from it.
+
+        30s threshold: below this, starting fresh is less friction
+        than dealing with a Resume choice. Configurable as
+        RESUME_MIN_MS in the banner IIFE.
+
+        The save is cleared automatically on win, on RESET COUNTS-
+        style menu actions, and on every fresh puzzle build via the
+        existing reset() path.
+
+     v3.48: single blur pane, GO over grid, scroll lock, glow burst.
+     v3.47: gray-rectangle fix.
+     v3.42: READY overlay.
+     v3.41: expanded per-solve data capture.
+     v3.33: trivial-equation crackdown.
+
+     v3.48: Ready overlay simplified.
 
      1. SINGLE BLUR PANE. Two-pane setup left a visible seam between
         grid and bank where you could see numbers when scrolling.
@@ -4668,7 +5223,33 @@ body{font-family:'IBM Plex Mono',monospace;background:var(--bg);color:var(--text
    width, with a 28px radius that gets the rounded ends to nearly
    full semi-circles at the current ~52px tall computed height.
    Centering is achieved by wrapping in a flex row (#playRow). */
-.sel-play{margin-top:8px;padding:16px 36px;background:transparent;border:2px solid var(--cyan);border-radius:28px;font-family:'Abril Fatface',serif;font-size:20px;letter-spacing:2px;color:var(--cyan);cursor:pointer;transition:all .15s;box-shadow:0 0 16px rgba(0,217,255,0.4);}
+/* [v3.66/v3.67] sel-play — only the PLAY word moves between states.
+   [v3.67] Divider y-position moved up from 28px → 25px to align
+   horizontally with the triangle's tip (triangle's geometric
+   center sits at stack-height/2 = 25.5px from stack top). PLAY
+   and RESUME now centered within the stack width via
+   text-align:center, so they're each centered over the divider
+   rather than sharing a left edge. RESUME (narrower than PLAY)
+   no longer aligns with PLAY's left edge — both center on the
+   same vertical axis through the divider's midpoint. */
+.sel-play{margin-top:8px;padding:14px 28px;background:transparent;border:2px solid var(--cyan);border-radius:28px;font-family:'Abril Fatface',serif;letter-spacing:2px;color:var(--cyan);cursor:pointer;transition:all .15s;box-shadow:0 0 16px rgba(0,217,255,0.4);display:flex;align-items:center;justify-content:center;line-height:1.05;min-width:200px;}
+.sel-play .play-row{display:inline-flex;align-items:center;gap:14px;}
+.sel-play .play-tri{display:inline-block;font-size:20px;line-height:1;flex-shrink:0;}
+/* Fixed-height stack so the button stays the same size whether or
+   not RESUME is showing. Height = PLAY(~22) + divider(~13) + RESUME(~16). */
+.sel-play .play-stack{position:relative;display:inline-block;width:auto;min-width:96px;height:51px;}
+/* PLAY centered horizontally within stack; translates vertically
+   to align with triangle when no save, or sits at top when has-save. */
+.sel-play .play-main{position:absolute;top:0;left:0;right:0;text-align:center;font-size:20px;line-height:1.05;transform:translateY(13px);transition:transform 0.15s ease;}
+.sel-play.has-save .play-main{transform:translateY(0);}
+/* Divider: positioned to align horizontally with the triangle's
+   geometric center (its tip), not at PLAY's baseline. Stays the
+   same width (full stack). */
+.sel-play .play-divider{position:absolute;top:25px;left:0;right:0;height:1px;background:rgba(0,217,255,0.35);opacity:0;transition:opacity 0.12s ease;}
+.sel-play.has-save .play-divider{opacity:1;}
+/* RESUME centered horizontally within stack, below the divider. */
+.sel-play .play-resume{position:absolute;top:35px;left:0;right:0;text-align:center;font-size:14px;letter-spacing:3px;opacity:0;line-height:1.05;transition:opacity 0.12s ease;}
+.sel-play.has-save .play-resume{opacity:0.85;}
 .sel-play:active{opacity:.85;background:rgba(0,217,255,0.1);}
 /* Centered row wrapper so the auto-width Play / Stats buttons sit
    in the middle of the column instead of left-aligned. */
@@ -4701,7 +5282,22 @@ body{font-family:'IBM Plex Mono',monospace;background:var(--bg);color:var(--text
    a square aspect via min-width=height so it reads as a circle
    not a long pill. */
 .mast-back{background:none;border:1.5px solid var(--br);border-radius:999px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--cyan);padding:6px 14px;cursor:pointer;}
-.gscroll{width:100%;max-width:520px;padding:16px 24px;display:flex;justify-content:center;flex-shrink:0;overflow:hidden;touch-action:pan-y;position:relative;background:var(--bg);border:2px solid rgba(0,217,255,0.5);box-shadow:0 0 4px rgba(0,217,255,0.12), inset 0 0 3px rgba(0,217,255,0.04);}
+/* [v3.59] gscroll now spans the full screen width on all sizes.
+   Removed max-width:520px and dropped horizontal padding from
+   24px to 0 so the cyan-bordered grid area extends edge-to-edge.
+   Top/bottom padding kept at 16px for breathing room from the
+   masthead above and bank below. The grid itself stays
+   horizontally centered via justify-content:center, so on wide
+   screens (tablets) the grid will sit centered in a wider
+   surround rather than awkwardly stuck to one side.
+   Note: corner accents only render in xl2-mode (Jumbo) per
+   v2.98; they're calibrated to gscroll's actual rect and still
+   land on the corners after this change.
+   Bordering trimmed to top/bottom only — left/right cyan borders
+   would awkwardly hug the screen edge without symmetric padding
+   to give them visual room. The horizontal lines plus the grid-
+   clip outline are sufficient to delineate the puzzle area. */
+.gscroll{width:100%;padding:16px 0;display:flex;justify-content:center;flex-shrink:0;overflow:hidden;touch-action:pan-y;position:relative;background:var(--bg);border-top:2px solid rgba(0,217,255,0.5);border-bottom:2px solid rgba(0,217,255,0.5);box-shadow:0 0 4px rgba(0,217,255,0.12), inset 0 0 3px rgba(0,217,255,0.04);}
 /* [v1.56] Diagonal corner accents on the .gscroll outer container.
    Switched from one stretched 100×100 SVG to four small per-corner
    SVGs stacked via multi-background, each sized to the exact pixel
@@ -4774,11 +5370,19 @@ body.xl2-mode .gscroll::before{ display:block; }
    take up layout space the way border does, and outline-offset pushes
    it the few pixels beyond the grid edge that the user wanted. Sits
    inside .gscroll's 16/24px padding so it doesn't get clipped. */
-.grid-clip{outline:1px solid rgba(0,80,95,0.75);outline-offset:4px;overflow:hidden;flex-shrink:0;}
+.grid-clip{overflow:hidden;flex-shrink:0;}
 @keyframes shk{0%,100%{transform:translateX(0)}30%{transform:translateX(-3px)}70%{transform:translateX(3px)}}
 @keyframes vib{0%,100%{transform:translateX(0)}15%{transform:translateX(-2px)}35%{transform:translateX(2px)}55%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
 @keyframes eqpop{0%{transform:scale(1)}40%{transform:scale(1.18)}70%{transform:scale(0.95)}100%{transform:scale(1)}}
 @keyframes givenpop{0%{transform:scale(1);background:rgba(0,217,255,0.05)}50%{transform:scale(1.15);background:rgba(0,217,255,0.3);color:#00ffff}100%{transform:scale(1);background:rgba(0,217,255,0.2);color:#00d9ff}}
+/* [v3.53] .ok-breath rule + @keyframes okBreath are written to a
+   runtime <style> element by _writePulseKeyframes (in the OPTIONS-
+   panel IIFE) so the user-tunable peak brightness AND animation
+   duration can be applied dynamically. CSS keyframes/duration can't
+   read JS variables, and an inline animation-duration would break
+   the per-tile phase-delay math (the phase derives from a fraction
+   of the duration). Keep this comment so anyone grepping for
+   .ok-breath finds the actual definition site. */
 .bank{flex:1;min-width:0;background:var(--bg-secondary);touch-action:pan-y;}
 .blbl{font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--cyan);}
 .btiles{display:flex;flex-wrap:wrap;gap:6px;padding:4px 40px;flex:1;touch-action:pan-y;justify-content:center;}
@@ -5766,6 +6370,21 @@ window.onerror=function(msg,src,line,col,err){
     <p>A math crossword puzzle for humans</p>
   </div>
 
+  <!-- [v3.49] Resume banner — populated and shown on menu reveal if
+       a saved in-progress puzzle exists with elapsed > 30s and !won.
+       Tapping the banner resumes the puzzle (skips the READY overlay
+       since the player already started). The small ✕ on the right
+       discards the save and starts fresh. -->
+  <div id="resumeBanner" style="display:none;margin:6px auto 18px;width:90%;max-width:480px;font-family:'IBM Plex Mono',monospace;">
+    <div style="display:flex;align-items:stretch;gap:0;border:1.5px solid var(--cyan);border-radius:14px;background:rgba(0,217,255,0.10);box-shadow:0 0 12px rgba(0,217,255,0.25);overflow:hidden;">
+      <button id="resumeBannerBtn" style="flex:1;background:transparent;border:0;color:var(--cyan);font-family:inherit;font-size:12px;font-weight:700;letter-spacing:1.5px;padding:12px 18px;cursor:pointer;text-align:left;display:flex;flex-direction:column;align-items:flex-start;gap:3px;">
+        <span style="font-size:13px;letter-spacing:2px;">▶ RESUME</span>
+        <span id="resumeBannerInfo" style="font-size:9px;font-weight:400;letter-spacing:1px;opacity:0.75;color:var(--text-secondary);">— · — · — moves</span>
+      </button>
+      <button id="resumeBannerDismiss" title="Discard" style="background:transparent;border:0;border-left:1px solid rgba(0,217,255,0.3);color:var(--cyan);font-family:inherit;font-size:14px;font-weight:700;padding:0 16px;cursor:pointer;opacity:0.6;">✕</button>
+    </div>
+  </div>
+
   <!-- [v2.70] Daily Puzzle button removed for now. Reason: with no
        established player community there's no social loop around a
        shared daily — the slot was competing with PLAY for attention
@@ -5799,9 +6418,9 @@ window.onerror=function(msg,src,line,col,err){
        width:auto, generous horizontal padding, and an 18px radius
        which is half the ~36px computed button height — so its ends
        go nearly fully semi-circular like Play does. -->
-  <div class="sel-cta-row"><button class="sel-play" id="playBtn">▶ PLAY</button></div>
+  <div class="sel-cta-row"><button class="sel-play" id="playBtn"><span class="play-row"><span class="play-tri">▶</span><span class="play-stack"><span class="play-main">PLAY</span><span class="play-divider"></span><span class="play-resume" id="playResumeLbl">RESUME</span></span></span></button></div>
   <div class="sel-cta-row"><button id="statsBtn" style="margin-top:10px;width:auto;padding:10px 28px;background:transparent;border:1.5px solid rgba(0,217,255,0.4);border-radius:18px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;font-weight:700;">📊 Stats</button></div>
-  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v3.48</div>
+  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v3.67</div>
 </div>
 
 <!-- GAME SCREEN -->
@@ -5817,10 +6436,13 @@ window.onerror=function(msg,src,line,col,err){
     <div class="mast-side left">
       <!-- [v3.47] Back arrow optical-centering fix. line-height:1 was
            still placing the ← visually low because the glyph's ink
-           sits in the upper-middle of its em-box, so its bounding
-           box centers fine but the visual mass lands below center.
-           A 2px upward translate corrects it. -->
-      <button class="mast-back" id="backBtn" style="height:28px;padding:0 12px;font-size:24px;line-height:1;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;" title="Menu"><span style="display:inline-block;transform:translateY(-2px);">←</span></button>
+           sits in the upper-middle of its em-box.
+           [v3.57] 2px wasn't enough — bumped to 3px. The IBM Plex
+           Mono ← glyph's visible shaft lands slightly above the em-
+           box midline, so a 3px lift gets the visual center of the
+           arrow shape (not its bounding box) onto the button's
+           geometric center. -->
+      <button class="mast-back" id="backBtn" style="height:28px;padding:0 12px;font-size:24px;line-height:1;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;" title="Menu"><span style="display:inline-block;transform:translateY(-3px);">←</span></button>
       <!-- [v3.46] Pause locked to 28px to match. Vertical bars sized
            proportionally — 12px tall x 3px wide, slightly smaller
            than the previous 14px so they fit cleanly inside a 28px
@@ -6313,48 +6935,37 @@ window.onerror=function(msg,src,line,col,err){
 </div>
 
 <!-- Stats overlay -->
-<div id="statsOverlay" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.87);align-items:center;justify-content:center;">
-  <!-- [v2.95] Panel border-radius bumped 0 → 18px to match the win
-       card and other rounded panels in the app. Buttons rounded
-       3px → 999px for full pill ends matching the menu screen,
-       masthead, and tile-controls-row buttons. -->
-  <div style="background:var(--bg-secondary);border:2px solid var(--cyan);border-radius:18px;padding:24px 28px;text-align:center;box-shadow:0 0 30px rgba(0,217,255,0.4);max-width:380px;width:90vw;font-family:'IBM Plex Mono',monospace;">
-    <div style="font-family:'Abril Fatface',serif;font-size:24px;color:var(--cyan);margin-bottom:14px;">Stats</div>
-    <div id="statsBody" style="color:var(--text-secondary);font-size:11px;letter-spacing:1px;line-height:1.7;text-align:left;"></div>
-    <div style="display:flex;gap:8px;margin-top:18px;justify-content:center;">
+<div id="statsOverlay" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.87);align-items:center;justify-content:center;padding:18px;box-sizing:border-box;">
+  <!-- [v3.49] Inner panel now flex-column with max-height:90vh and
+       overflow-y:auto on statsBody so long stats lists scroll instead
+       of getting clipped off-screen. Title/RESET/CLOSE stay pinned
+       top/bottom while only the data scrolls. -->
+  <div style="background:var(--bg-secondary);border:2px solid var(--cyan);border-radius:18px;padding:24px 28px;text-align:center;box-shadow:0 0 30px rgba(0,217,255,0.4);max-width:380px;width:90vw;max-height:90vh;display:flex;flex-direction:column;font-family:'IBM Plex Mono',monospace;box-sizing:border-box;">
+    <div style="font-family:'Abril Fatface',serif;font-size:24px;color:var(--cyan);margin-bottom:14px;flex-shrink:0;">Stats</div>
+    <div id="statsBody" style="color:var(--text-secondary);font-size:11px;letter-spacing:1px;line-height:1.7;text-align:left;overflow-y:auto;flex:1 1 auto;min-height:0;padding-right:4px;"></div>
+    <div style="display:flex;gap:8px;margin-top:18px;justify-content:center;flex-shrink:0;">
       <button id="statsClearBtn" style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:8px 18px;border:1.5px solid rgba(255,107,107,0.5);border-radius:999px;background:transparent;color:#ff6b6b;cursor:pointer;letter-spacing:1px;font-weight:700;">RESET</button>
       <button id="statsCloseBtn" style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:8px 22px;border:1.5px solid var(--cyan);border-radius:999px;background:rgba(0,217,255,0.15);color:var(--cyan);cursor:pointer;letter-spacing:1px;font-weight:700;">CLOSE</button>
     </div>
   </div>
 </div>
 
-<!-- [v3.42] READY overlay — full-screen with backdrop-filter blur.
-     Shown after a puzzle builds (entry from menu, or New tap). The
-     blur lets the user see the puzzle is loaded and ready behind it,
-     but everything's softened so they can't actually start solving.
-     The timer doesn't start until GO is tapped, which calls
-     mc113.startTimer() to kick the clock off.
+<!-- [v3.50] Resume prompt modal. Appears when the player taps Play
+     and there's a saved in-progress puzzle for the chosen (size,
+     diff). Shows the saved elapsed time + move count, with two
+     choices: RESUME (continue where you left off) or START NEW
+     (discard the save and build a fresh puzzle). -->
+<div id="resumeOverlay" style="display:none;position:fixed;inset:0;z-index:410;background:rgba(0,0,0,.87);align-items:center;justify-content:center;padding:18px;box-sizing:border-box;">
+  <div style="background:var(--bg-secondary);border:2px solid var(--cyan);border-radius:18px;padding:24px 28px;text-align:center;box-shadow:0 0 30px rgba(0,217,255,0.4);max-width:360px;width:90vw;font-family:'IBM Plex Mono',monospace;">
+    <div style="font-family:'Abril Fatface',serif;font-size:24px;color:var(--cyan);margin-bottom:6px;">Resume?</div>
+    <div id="resumePromptInfo" style="color:var(--text-secondary);font-size:11px;letter-spacing:1px;line-height:1.7;margin-bottom:18px;">— · — · — moves</div>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+      <button id="resumeNewBtn" style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:9px 18px;border:1.5px solid rgba(255,107,107,0.5);border-radius:999px;background:transparent;color:#ff6b6b;cursor:pointer;letter-spacing:1px;font-weight:700;">START NEW</button>
+      <button id="resumeResumeBtn" style="font-family:'IBM Plex Mono',monospace;font-size:10px;padding:9px 22px;border:1.5px solid var(--cyan);border-radius:999px;background:rgba(0,217,255,0.15);color:var(--cyan);cursor:pointer;letter-spacing:1px;font-weight:700;">▶ RESUME</button>
+    </div>
+  </div>
+</div>
 
-     This stops timing data from being polluted by pre-first-move
-     thinking time — on harder puzzles with only 3-4 given numbers,
-     the player can spend a minute or two figuring out where to
-     start before making a move, which used to skew the recorded
-     time downward (timer didn't start until first move).
-
-     z-index 320 — above the pause overlay (350) would be wrong since
-     pause should never be reachable while ready is up. Putting ready
-     above gameScreen but below pause: 320 is between gameScreen (~1)
-     and the pause overlay (350). Wait actually — pause needs to be
-     above ready if both could ever coexist. They can't (ready dismisses
-     before any move can be made, and pause is only reachable after
-     first move). So either ordering works. Use 320 — comfortably above
-     content, below the win card's 300... hmm but win is z-300 and
-     ready needs to be reachable before win could fire (impossible mid-
-     ready, but defensive). Use 320, which is above win.
-
-     Actually — none of this matters because ready is shown immediately
-     after build and dismissed immediately on GO, with no other overlays
-     in flight. z-index 320 is fine. -->
 <!-- [v3.48] READY overlay — single blur pane that covers grid +
      bank as one continuous region, eliminating the seam where you
      could see through between two separate panes. The pane is
@@ -6366,12 +6977,23 @@ window.onerror=function(msg,src,line,col,err){
      center, so it sits inside the blurred zone at a comfortable
      reading height.
      The overlay also locks body scroll while shown so the player
-     can't peek at the bank by scrolling. -->
-<div id="readyOverlay" style="display:none;position:fixed;inset:0;z-index:320;background:transparent;font-family:'IBM Plex Mono',monospace;color:var(--cyan);pointer-events:auto;">
-  <!-- Single blur pane spanning grid → bank. Position computed in JS. -->
-  <div id="readyBlurPane" style="position:fixed;background:rgba(0,0,0,0.05);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);pointer-events:none;"></div>
+     can't peek at the bank by scrolling.
+     [v3.61] The overlay itself is pointer-events:none so taps fall
+     through to underlying elements — this lets the masthead buttons
+     (NEW, settings, pause, back) stay tappable while ready is up.
+     The blur pane sets pointer-events:auto to swallow taps on the
+     grid+bank area (so the player can't place tiles or select cells
+     while the overlay is showing). The GO button also gets
+     pointer-events:auto via its own positioning. Net effect: only
+     GO and the masthead buttons respond to taps; the puzzle area
+     is locked. -->
+<div id="readyOverlay" style="display:none;position:fixed;inset:0;z-index:320;background:transparent;font-family:'IBM Plex Mono',monospace;color:var(--cyan);pointer-events:none;">
+  <!-- Single blur pane spanning grid → bank. Position computed in JS.
+       pointer-events:auto so the player can't tap-through onto cells
+       or bank tiles while the overlay is up. -->
+  <div id="readyBlurPane" style="position:fixed;background:rgba(0,0,0,0.05);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);pointer-events:auto;"></div>
   <!-- GO button positioned over grid center via JS in showReady. -->
-  <button id="readyGoBtn" style="font-family:'IBM Plex Mono',monospace;font-size:18px;padding:18px 56px;border:2px solid var(--cyan);border-radius:999px;background:rgba(0,217,255,0.20);color:var(--cyan);cursor:pointer;letter-spacing:6px;font-weight:700;box-shadow:0 0 32px rgba(0,217,255,0.5);text-shadow:0 0 12px rgba(0,217,255,0.6);position:fixed;z-index:1;">▶ GO</button>
+  <button id="readyGoBtn" style="font-family:'IBM Plex Mono',monospace;font-size:18px;padding:18px 56px;border:2px solid var(--cyan);border-radius:999px;background:rgba(0,217,255,0.20);color:var(--cyan);cursor:pointer;letter-spacing:6px;font-weight:700;box-shadow:0 0 32px rgba(0,217,255,0.5);text-shadow:0 0 12px rgba(0,217,255,0.6);position:fixed;z-index:1;pointer-events:auto;">▶ GO</button>
 </div>
 
 <!-- Cyan win flash overlay -->
@@ -11020,25 +11642,25 @@ function playSA_Place(){
 }
 function playSA_Return(){
   try{
-    // [v2.81] Replaced the v2.79 descending tritone (B4 → F4) with
-    // the "Muffled tap" candidate from the audition page. Single
-    // sine at F3 (175 Hz), 60ms, gain 0.14, with a slower attack
-    // (0.008s instead of the typical 0.002s) so it reads as a
-    // gentle press rather than a click. Originally designed as a
-    // FILLED-cell-tap candidate — the user wanted to try it for
-    // tile return instead, and they're right that the soft-press
-    // quality fits the "putting something back" gesture nicely.
-    // No melodic motion, no two-note phrase — much more in step
-    // with the minimalist double-tick place sound than the old
-    // tritone which felt busy by comparison.
+    // [v2.81] "Muffled tap" — single sine at F3 (175 Hz) with a
+    // gentle attack to read as a press rather than a click.
+    // [v3.58] Found by Sam that v3.55→v3.57's volume bumps were
+    // hitting the WRONG function (playTileReturn — fires on drag-
+    // release-to-bank, not tap-to-return). This is the actual
+    // sound that fires when a placed tile is tapped to send it
+    // home. Peak gain was 0.14; bumped to 0.55. Duration extended
+    // 60ms → 110ms so it sits longer in the mix. Frequency lifted
+    // slightly from 175 → 220 Hz to help it cut through ambient
+    // background noise (a low F3 sine gets masked easily by HVAC
+    // hum, fans, etc).
     var t0=AC.currentTime;
     var g=AC.createGain();g.connect(AC.destination);
     g.gain.setValueAtTime(0.0001,t0);
-    g.gain.exponentialRampToValueAtTime(0.14,t0+0.008);
-    g.gain.exponentialRampToValueAtTime(0.0001,t0+0.060);
+    g.gain.exponentialRampToValueAtTime(0.55,t0+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001,t0+0.110);
     var o=AC.createOscillator();o.type='sine';
-    o.frequency.setValueAtTime(175,t0);
-    o.connect(g);o.start(t0);o.stop(t0+0.080);
+    o.frequency.setValueAtTime(220,t0);
+    o.connect(g);o.start(t0);o.stop(t0+0.130);
   }catch(e){}
 }
 function playSA_Error(){
@@ -11850,6 +12472,13 @@ function playTileReturn(){
   try{
     var t = AC.currentTime;
     var g = AC.createGain();
+    // [v3.58] Reverted — turns out the v3.55-3.57 bumps were on
+    // the WRONG function. This one (playTileReturn) fires when a
+    // dragged tile bounces back to the bank, NOT when a placed
+    // tile is tapped to return. The tap-return sound is
+    // playSA_Return (style A) which IS now appropriately loud.
+    // Restored to original 0.18 since drag-bounce-return is a
+    // secondary action and was fine at the original level.
     g.gain.setValueAtTime(0.18, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
     g.connect(AC.destination);
@@ -12002,6 +12631,9 @@ window._mc113 = (function(){
     pauseStartElapsed=Date.now()-startTs;
     if(rafId){cancelAnimationFrame(rafId);rafId=null;}
     _renderTimer();
+    // [v3.49] Capture progress at pause so the saved elapsed matches
+    // what the player sees.
+    _saveProgress();
   }
   function resume(){
     if(!paused) return;
@@ -12014,6 +12646,169 @@ window._mc113 = (function(){
     if(!won) _tick();
   }
   function isPaused(){return paused;}
+
+  // [v3.49] In-progress puzzle save/restore.
+  // Persists the full puzzle state (PZ object + mc113 state vars) to
+  // localStorage so the player can exit and resume later. Saved on
+  // every move + pause + visibility-change, cleared on new puzzle
+  // and on win. On next launch, the menu screen offers to restore
+  // if a save exists with elapsed > 30s and !won (sub-30s puzzles
+  // aren't worth saving — easier to start fresh than to navigate
+  // a Resume prompt).
+  //
+  // Schema:
+  //   { ver: 1,
+  //     pz: <window.PZ> (full serializable object),
+  //     size, diff, tpl,
+  //     ts: { elapsed, moves, mistakes, badEqs, daily, dailyDate },
+  //     savedAt: ms-since-epoch }
+  // [v3.50] Per-(size,diff) save slots. Storage key '_equilProgressMap'
+  // is an object keyed by 'size|diff' so the player can have, e.g.,
+  // a small-hard game and a large-medium game both paused at once
+  // and resume the matching one when they pick that mode.
+  //
+  // Per-slot schema (unchanged from v3.49):
+  //   { ver: 1, pz, size, diff, tpl,
+  //     ts: { elapsed, moves, mistakes, badEqs, daily, dailyDate },
+  //     savedAt }
+  function _progressKey(size, diff){
+    return (size||'')+'|'+(diff||'');
+  }
+  function _readMap(){
+    try{
+      var raw=localStorage.getItem('_equilProgressMap');
+      if(raw){
+        var m=JSON.parse(raw);
+        if(m&&typeof m==='object')return m;
+      }
+    }catch(e){}
+    // [v3.50] One-time migration from the old single-slot v3.49 key.
+    // Slurps the old payload into the new map at its (size,diff) slot
+    // and removes the legacy key. Harmless if absent.
+    try{
+      var legacy=localStorage.getItem('_equilProgress');
+      if(legacy){
+        var p=JSON.parse(legacy);
+        if(p&&p.ver===1&&p.pz&&p.size&&p.diff){
+          var map={};
+          map[_progressKey(p.size,p.diff)]=p;
+          localStorage.setItem('_equilProgressMap', JSON.stringify(map));
+          localStorage.removeItem('_equilProgress');
+          return map;
+        }
+        localStorage.removeItem('_equilProgress');
+      }
+    }catch(e){}
+    return {};
+  }
+  function _writeMap(m){
+    try{localStorage.setItem('_equilProgressMap', JSON.stringify(m||{}));}catch(e){}
+  }
+
+  function _saveProgress(){
+    try{
+      if(!window.PZ||won)return;
+      // [v3.50] Don't save if the player hasn't made any moves yet.
+      // A "save" with moves=0 is just a fresh puzzle the player
+      // never touched — no value in offering to resume it, and it
+      // would prompt for resume on every Play tap until something
+      // overwrites it.
+      if(moves===0||!startTs)return;
+      var size=window.SIZE||null, diff=window.DIFF||null;
+      if(!size||!diff)return;
+      var elapsed=paused?pauseStartElapsed:Date.now()-startTs;
+      var payload={
+        ver:1,
+        pz:window.PZ,
+        size:size,
+        diff:diff,
+        tpl:(window._currentTplName||null),
+        ts:{
+          elapsed:elapsed,
+          moves:moves,
+          mistakes:mistakes,
+          badEqs:badEqs,
+          daily:dailyMode,
+          dailyDate:dailyDateStr
+        },
+        savedAt:Date.now()
+      };
+      var map=_readMap();
+      map[_progressKey(size,diff)]=payload;
+      _writeMap(map);
+    }catch(e){
+      // Quota / circular ref / etc — fail silently.
+    }
+  }
+  // [v3.50] _loadProgress now takes (size, diff) and returns the
+  // saved slot for that mode, or null. The legacy no-arg call still
+  // works for backwards compatibility — returns the current SIZE/DIFF
+  // slot if any, or null.
+  function _loadProgress(size, diff){
+    if(arguments.length===0){
+      size=window.SIZE; diff=window.DIFF;
+    }
+    try{
+      if(!size||!diff)return null;
+      var map=_readMap();
+      var p=map[_progressKey(size,diff)];
+      if(!p||p.ver!==1||!p.pz)return null;
+      return p;
+    }catch(e){return null;}
+  }
+  // [v3.50] _clearProgress now takes (size, diff). No-arg clears the
+  // current SIZE/DIFF slot, matching the old behavior.
+  function _clearProgress(size, diff){
+    if(arguments.length===0){
+      size=window.SIZE; diff=window.DIFF;
+    }
+    if(!size||!diff)return;
+    try{
+      var map=_readMap();
+      if(map[_progressKey(size,diff)]){
+        delete map[_progressKey(size,diff)];
+        _writeMap(map);
+      }
+    }catch(e){}
+  }
+  // List all (size,diff) slots that have a saved game. Useful for
+  // optional future UI ("you have 3 games in progress").
+  function _listProgress(){
+    var out=[];
+    try{
+      var map=_readMap();
+      for(var k in map){
+        if(Object.prototype.hasOwnProperty.call(map,k)){
+          var p=map[k];
+          if(p&&p.ver===1&&p.pz)out.push(p);
+        }
+      }
+    }catch(e){}
+    return out;
+  }
+  // Restore mc113 state from a previously-saved payload. The PZ
+  // object itself is assigned by the caller (showGame flow handles
+  // grid rendering); this just rehydrates the timer/move/mistake
+  // bookkeeping so when the player resumes, the timer continues
+  // from where it left off.
+  function _restoreState(saved){
+    if(!saved||!saved.ts)return;
+    var s=saved.ts;
+    // Set startTs to a back-dated time so (Date.now() - startTs) ==
+    // saved elapsed. The timer will tick forward from this point.
+    startTs=Date.now()-(s.elapsed||0);
+    elapsedMs=0;
+    won=false;
+    moves=s.moves||0;
+    mistakes=s.mistakes||0;
+    badEqs=s.badEqs||{};
+    dailyMode=!!s.daily;
+    dailyDateStr=s.dailyDate||null;
+    paused=false;
+    pauseStartElapsed=0;
+    _tick();
+    _renderTimer();
+  }
 
   function _renderTimer(){
     var t=document.getElementById('mastTimer');
@@ -12042,6 +12837,8 @@ window._mc113 = (function(){
   function reset(opts){
     // opts.daily = true means lock-in daily mode for this puzzle.
     // opts.dateStr = the day tag (YYYY-MM-DD) if daily.
+    // opts.skipClearProgress = true means we're about to restore a
+    //   saved puzzle and shouldn't wipe its localStorage entry first.
     if(rafId){cancelAnimationFrame(rafId);rafId=null;}
     startTs=null; elapsedMs=0; won=false; moves=0;
     // [v2.68] Reset mistake tracking on every new puzzle.
@@ -12051,6 +12848,10 @@ window._mc113 = (function(){
     dailyMode=!!(opts&&opts.daily);
     dailyDateStr=(opts&&opts.dateStr)||null;
     _renderTimer();
+    // [v3.49] Reset means we're starting fresh — discard any saved
+    // in-progress puzzle. Caller can pass skipClearProgress:true
+    // when about to restore (so save survives long enough to read).
+    if(!(opts&&opts.skipClearProgress))_clearProgress();
   }
 
   function noteMove(){
@@ -12059,6 +12860,8 @@ window._mc113 = (function(){
     if(!startTs){ startTs=Date.now(); _tick(); }
     moves++;
     _renderTimer();
+    // [v3.49] Auto-save progress so the puzzle can be resumed.
+    _saveProgress();
   }
 
   // [v3.42] Explicitly start the timer without incrementing moves.
@@ -12112,6 +12915,8 @@ window._mc113 = (function(){
     elapsedMs=startTs?(Date.now()-startTs):0;
     if(rafId){cancelAnimationFrame(rafId);rafId=null;}
     _renderTimer();
+    // [v3.49] Won — puzzle is done, drop the saved in-progress state.
+    _clearProgress();
     // Subtle screen flash on the final lock — pure CSS animation.
     // Note: the inline style="display:none" on #winFlash beats any
     // external CSS rule by specificity, so we set display directly via
@@ -12404,8 +13209,34 @@ window._mc113 = (function(){
     resume:resume,
     isPaused:isPaused,
     // [v3.42] Explicit timer start (used by READY overlay).
-    startTimer:startTimer
+    startTimer:startTimer,
+    // [v3.49] In-progress save/restore.
+    saveProgress:_saveProgress,
+    loadProgress:_loadProgress,
+    clearProgress:_clearProgress,
+    listProgress:_listProgress,
+    restoreState:_restoreState
   };
+})();
+
+// [v3.49] Save in-progress puzzle when the app backgrounds or page
+// hides. This catches the cases that noteMove() doesn't: idle time
+// after a placement, app-switching, screen lock. The pause path
+// already saves on every pause action.
+(function(){
+  function saveIfActive(){
+    try{
+      if(window._mc113&&window._mc113.saveProgress&&!window._mc113.isWon()){
+        window._mc113.saveProgress();
+      }
+    }catch(e){}
+  }
+  document.addEventListener('visibilitychange',function(){
+    if(document.visibilityState==='hidden')saveIfActive();
+  });
+  window.addEventListener('pagehide',saveIfActive);
+  // Also save when user navigates to menu — captures clean exit.
+  window.addEventListener('beforeunload',saveIfActive);
 })();
 
 
@@ -12710,9 +13541,14 @@ function undo(){
 function getCellSize(cols){
   var bodyW=document.body.clientWidth||window.innerWidth||360;
   var cap=SIZE==='xl2'?bodyW:520;
-  // Extra margin: 48px .gscroll horizontal padding (24×2) + 4px .gscroll border (2×2)
-  //   + 4px grid border + 4px safety = 60px
-  var avail=Math.min(bodyW,cap)-60;
+  // [v3.60] Updated margin calc to match v3.59's edge-to-edge
+  // .gscroll. Previous: 48px horizontal padding + 4px gscroll
+  // border + 4px grid border + 4px safety = 60px. After v3.59:
+  // padding is 0 horizontally and left/right gscroll borders are
+  // gone. Only the grid border (4px) and a small safety margin
+  // (6px) remain. Lets cells get noticeably bigger on smaller
+  // screens.
+  var avail=Math.min(bodyW,cap)-10;
   // [v3.05] Use tier-canonical cols instead of the actual template's cols,
   // so all templates within a tier render at the same cell size. The widest
   // template in the tier sets the canonical width — narrower templates
@@ -15213,7 +16049,42 @@ function render(){
         if(SEL===k){bg='rgba(168,85,247,0.35)';col='#a855f7';d.style.zIndex='3';d.style.boxShadow='0 0 6px rgba(168,85,247,0.5)';}
         var isSolvedBlank=doAnim&&!isNewly;
         var blankDim=isDim&&SEL!==k;
-        if(blankDim&&(isSolvedBlank||st==='ok')){bg='rgba(74,222,128,0.06)';col='rgba(74,222,128,0.35)';}
+        // [v3.52] Pulse class for dimmed-green placed tiles — gentle
+        // brightness breath as an affordance hint that they can be
+        // tapped to return home. Cleared on every render so it only
+        // applies when the dim-green condition is currently true.
+        // [v3.53] Honors three OPTIONS-panel settings:
+        //   _pulseEnabled: boolean — false skips the class entirely
+        //     so the tile renders with the static dim-green state.
+        //   _pulsePeak: number — peak alpha for the brightness; the
+        //     keyframes themselves are rewritten by _writePulseKeyframes
+        //     when this changes, so render() doesn't need to use it
+        //     directly.
+        //   _pulseSync: boolean — when true, all tiles share phase 0
+        //     and pulse in unison. When false, each tile uses a stable
+        //     hash-derived phase so they're staggered.
+        d.classList.remove('ok-breath');
+        d.style.animationDelay='';
+        if(blankDim&&(isSolvedBlank||st==='ok')){
+          bg='rgba(74,222,128,0.06)';col='rgba(74,222,128,0.35)';
+          if(window._pulseEnabled!==false){
+            d.classList.add('ok-breath');
+            if(window._pulseSync){
+              d.style.animationDelay='0s';
+            } else {
+              var keyHash=0;
+              for(var _ki=0;_ki<k.length;_ki++)keyHash=(keyHash*31+k.charCodeAt(_ki))|0;
+              // [v3.54] Phase is a fraction of the live animation
+              // duration. Hash → 0..1, then × duration → 0..dur sec.
+              // Without this scaling, fast-pulse settings would put
+              // tiles way past one full cycle out of phase.
+              var _dur=(typeof window._pulseSpeed==='number'&&window._pulseSpeed>0)?window._pulseSpeed:3.6;
+              var phaseFrac=(Math.abs(keyHash)%1000)/1000;
+              var phase=phaseFrac*_dur;
+              d.style.animationDelay='-'+phase.toFixed(2)+'s';
+            }
+          }
+        }
         else if(isSolvedBlank){bg='rgba(74,222,128,0.25)';col='#4ade80';}
         else if(st==='ok'){bg='rgba(74,222,128,0.20)';col='#4ade80';}
         else if(st==='bad'){bg='rgba(248,113,113,0.20)';col='#ff6b6b';d.style.animation='shk .25s ease';}
@@ -15570,12 +16441,21 @@ function render(){
 function showGame(opts){
   // [Equil 1.13] When opts.daily is true, the puzzle is generated with
   // a deterministic seed derived from today's date string so every player
-  // gets the same daily puzzle. Math.random is monkey-patched only for the
-  // duration of buildPuzzle (see _mc113.withSeed). Otherwise standard
-  // random generation is used.
+  // gets the same daily puzzle.
+  // [v3.49] When opts.resume is provided (a loadProgress() payload),
+  // the puzzle is restored from the save: no buildPuzzle, no record,
+  // no READY overlay. Timer continues from the saved elapsed.
   opts=opts||{};
   var dateStr=window._mc113?window._mc113.todayStr():'';
-  if(opts.daily && window._mc113){
+  var isResume=!!opts.resume;
+  if(isResume){
+    var saved=opts.resume;
+    // Restore size/diff/template from the save so HUD reads correctly.
+    if(saved.size)SIZE=saved.size;
+    if(saved.diff)DIFF=saved.diff;
+    if(saved.tpl)window._currentTplName=saved.tpl;
+    PZ=saved.pz;
+  } else if(opts.daily && window._mc113){
     // The seed mixes the date with size+diff so different size/difficulty
     // settings still give different daily puzzles, but each (date,size,diff)
     // tuple is consistent across all players that day.
@@ -15591,14 +16471,25 @@ function showGame(opts){
   // [v3.18] DEBUG: update the template label after build.
   _updateDbgTplLabel();
   // [v3.32] Record this puzzle's metrics for running averages.
-  if(window._dbgRecordPuzzle)window._dbgRecordPuzzle();
+  // [v3.49] Skip recording on resume — the puzzle was already
+  // recorded when it was originally built.
+  if(!isResume && window._dbgRecordPuzzle)window._dbgRecordPuzzle();
   // [v3.23] Refresh debug panel stats if open.
   try{
     var pnl=document.getElementById('_dbgPanel');
     if(pnl&&pnl.style.display==='flex'&&window._dbgRenderAll)window._dbgRenderAll();
   }catch(e){}
-  // Reset stats AFTER puzzle is built (so timer 0:00 matches first move).
-  if(window._mc113) window._mc113.reset({daily:!!opts.daily, dateStr:opts.daily?dateStr:null});
+  if(window._mc113){
+    if(isResume){
+      // [v3.49] reset({skipClearProgress:true}) so the save isn't
+      // wiped before restoreState reads from the in-memory payload.
+      window._mc113.reset({skipClearProgress:true});
+      window._mc113.restoreState(opts.resume);
+    } else {
+      // Reset stats AFTER puzzle is built (so timer 0:00 matches first move).
+      window._mc113.reset({daily:!!opts.daily, dateStr:opts.daily?dateStr:null});
+    }
+  }
   document.getElementById('selScreen').style.display='none';
   document.getElementById('gameScreen').style.display='flex';
   // [v2.69] sizeLabel() routing — 'xl2' shows as 'JUMBO' here.
@@ -15607,30 +16498,48 @@ function showGame(opts){
   document.getElementById('mastInfo').textContent=infoText;
   document.getElementById('win').classList.remove('show');
   render();
-  // v8.99 — show the floating zoom-pan pill in puzzle mode. Defer
-  // until next frame so .gscroll has its layout dimensions for the
-  // initial spawn position calculation.
-  // [v2.22] Only show if user has explicitly enabled it via the
-  // OPTIONS panel (PILL_ON). Default off — user opted out of
-  // having the pill on screen by default.
   requestAnimationFrame(function(){
     if(PILL_ON && window._zoomPill) window._zoomPill.show();
   });
-  // [v2.65] Game/puzzle is now active — clear the menu-active body
-  // class so the tile-controls-row (TILE ADJUST + display-mode
-  // buttons) becomes visible. CSS hides .tile-controls-row when
-  // body.menu-active is set.
   document.body.classList.remove('menu-active');
   // [v3.42] Show the READY overlay so timing data isn't polluted
   // by pre-first-move thinking time.
-  if(window._showReady)window._showReady();
+  // [v3.49] Skip the READY overlay on resume — the player already
+  // committed to this puzzle, just drop them straight back in.
+  if(!isResume && window._showReady)window._showReady();
 }
 function showMenu(){
+  // [v3.50] Save in-progress puzzle BEFORE switching screens. The
+  // Menu button doesn't trigger pagehide/visibilitychange, so without
+  // this explicit save, the latest moves wouldn't persist until the
+  // next noteMove (which can't happen since we're leaving the game).
+  // Skips internally if moves=0 or already won.
+  // [v3.56] Then pause the timer. Without this pause, startTs keeps
+  // pointing at a wall-clock anchor, and any subsequent saveProgress
+  // (e.g. from a visibilitychange when the user backgrounds the app
+  // from the menu screen) would write a wall-clock-inflated elapsed,
+  // making the resumed game's clock appear to have run during the
+  // away time. With pause, _curMs and _saveProgress both return the
+  // frozen pauseStartElapsed value until restoreState recomputes
+  // startTs on resume.
+  try{
+    if(window._mc113){
+      if(window._mc113.saveProgress)window._mc113.saveProgress();
+      if(window._mc113.pause)window._mc113.pause();
+    }
+  }catch(e){}
   document.getElementById('gameScreen').style.display='none';
   document.getElementById('selScreen').style.display='flex';
   // [v3.42] Hide the READY overlay if the user backs out before
   // tapping GO. Otherwise it'd persist over the menu screen.
   if(window._hideReady)window._hideReady();
+  // [v3.50] Resume banner removed in favor of per-mode Play prompt.
+  // [v3.62] Refresh the play button so the RESUME sub-label
+  // appears if the currently-selected (size, diff) has a saved
+  // game. Particularly important when returning from a puzzle the
+  // player just exited — they need to see RESUME on the button
+  // for that mode.
+  if(window._refreshPlayButton)window._refreshPlayButton();
   // [v3.38] Restore size-button highlight to whichever size was last
   // played. Without this, returning to menu via the Menu button leaves
   // the buttons un-highlighted (the .on class only gets toggled by
@@ -15684,6 +16593,9 @@ document.querySelectorAll('.sel-btn[data-size]').forEach(function(b){
     document.querySelectorAll('.sel-btn[data-size]').forEach(function(x){x.classList.remove('on');});
     b.classList.add('on');SIZE=b.dataset.size;document.body.classList.toggle('xl2-mode',SIZE==='xl2');
     playUIClick();
+    // [v3.62] Refresh the play button to show RESUME sub-label if
+    // the new (size, diff) combination has a saved game.
+    if(window._refreshPlayButton)window._refreshPlayButton();
   });
 });
 // Click sound on all sel-screen interactions (diff buttons, sound buttons)
@@ -19257,12 +20169,50 @@ document.querySelectorAll('[data-diff]').forEach(function(b){
   b.addEventListener('click',function(){
     document.querySelectorAll('[data-diff]').forEach(function(x){x.classList.remove('on');});
     b.classList.add('on');DIFF=b.dataset.diff;
+    // [v3.62] Refresh play button — new diff might have a saved game.
+    if(window._refreshPlayButton)window._refreshPlayButton();
   });
 });
 
+// [v3.50] Play button — checks if a saved game exists for the
+// currently-selected (size, diff). If so, shows the resume prompt
+// modal; if not, starts a fresh puzzle as before.
 document.getElementById('playBtn').addEventListener('click',function(){
-  resumeAC();showGame();
+  resumeAC();
+  var saved=window._mc113&&window._mc113.loadProgress&&window._mc113.loadProgress(SIZE,DIFF);
+  if(saved&&saved.ts&&saved.ts.elapsed>0&&saved.ts.moves>0){
+    // Saved game exists — show the resume/new prompt.
+    if(window._showResumePrompt){window._showResumePrompt(saved);return;}
+  }
+  showGame();
 });
+
+// [v3.62] Visual cue: when the currently-selected (size, diff)
+// has a saved in-progress game, the PLAY button shows a small
+// "RESUME" sub-label under "▶ PLAY". Toggled via the .has-save
+// class on the button. Called whenever size or diff changes, and
+// whenever the menu screen appears (since the player might be
+// returning from a puzzle they just exited).
+(function(){
+  var playBtn=document.getElementById('playBtn');
+  if(!playBtn)return;
+  function refresh(){
+    try{
+      var saved=window._mc113&&window._mc113.loadProgress&&window._mc113.loadProgress(SIZE,DIFF);
+      var hasSave=!!(saved&&saved.ts&&saved.ts.elapsed>0&&saved.ts.moves>0);
+      playBtn.classList.toggle('has-save', hasSave);
+    }catch(_){
+      playBtn.classList.remove('has-save');
+    }
+  }
+  window._refreshPlayButton=refresh;
+  // Initial paint after DOM is ready.
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',refresh);
+  } else {
+    refresh();
+  }
+})();
 // [v2.91] Wrap showMenu with a close chirp so the masthead Menu
 // button (leaving the puzzle screen, going "back/down") matches
 // the modal/display-button audio language.
@@ -19503,8 +20453,14 @@ document.getElementById('nxt').addEventListener('click',newPuzzle);
 
   window._showReady=showReady;
   window._hideReady=hideReady;
-  // Tap anywhere on the overlay (incl. button) starts the puzzle.
-  overlay.addEventListener('click',hideReady);
+  // [v3.61] Only the GO button dismisses ready. Previously any tap
+  // on the overlay would dismiss, which meant tapping NEW (or any
+  // other masthead button) would trigger GO before the new puzzle
+  // could finish building. Now: overlay is pointer-events:none,
+  // blur pane swallows taps on the puzzle/bank area, and the GO
+  // button is the only thing that calls hideReady. Masthead buttons
+  // fall through to their normal handlers — tapping NEW gives you
+  // a new puzzle with its own fresh GO overlay.
   if(goBtn){
     goBtn.addEventListener('click',function(ev){
       ev.stopPropagation();
@@ -19517,6 +20473,68 @@ document.getElementById('nxt').addEventListener('click',newPuzzle);
       positionBlurPane();
       positionGoBtn();
     }
+  });
+})();
+
+// [v3.50] Resume prompt modal. Triggered from the Play button when
+// a saved game exists for the chosen (size, diff). Two buttons:
+// RESUME continues the saved puzzle; START NEW discards the save
+// and builds a fresh puzzle for that mode.
+(function(){
+  var overlay=document.getElementById('resumeOverlay');
+  var infoEl=document.getElementById('resumePromptInfo');
+  var resumeBtn=document.getElementById('resumeResumeBtn');
+  var newBtn=document.getElementById('resumeNewBtn');
+  if(!overlay||!infoEl||!resumeBtn||!newBtn)return;
+
+  function fmtElapsed(ms){
+    if(!window._mc113||!window._mc113.fmtTime)return Math.floor(ms/1000)+'s';
+    return window._mc113.fmtTime(ms);
+  }
+  function sizeLabel(sz){
+    if(sz==='xl2')return 'JUMBO';
+    return (sz||'?').toUpperCase();
+  }
+
+  // _pendingSaved holds the payload between show and click. We don't
+  // re-read localStorage on click because between show and click the
+  // user might have backgrounded the app and triggered a stale save
+  // (unlikely but defensive).
+  var _pendingSaved=null;
+
+  function show(saved){
+    if(!saved)return;
+    _pendingSaved=saved;
+    var t=fmtElapsed(saved.ts.elapsed);
+    var m=saved.ts.moves||0;
+    var sz=sizeLabel(saved.size);
+    var df=(saved.diff||'').toUpperCase();
+    infoEl.textContent=sz+' · '+df+' · '+t+' · '+m+' move'+(m===1?'':'s');
+    overlay.style.display='flex';
+    if(window._modalOpenChirp)window._modalOpenChirp();
+  }
+  function hide(){
+    overlay.style.display='none';
+    if(window._modalCloseChirp)window._modalCloseChirp();
+  }
+  window._showResumePrompt=show;
+  window._hideResumePrompt=hide;
+
+  resumeBtn.addEventListener('click',function(ev){
+    ev.stopPropagation();
+    var s=_pendingSaved;
+    hide();
+    if(s)showGame({resume:s});
+  });
+  newBtn.addEventListener('click',function(ev){
+    ev.stopPropagation();
+    // Clear THIS mode's saved slot, then start fresh.
+    if(_pendingSaved&&window._mc113&&window._mc113.clearProgress){
+      window._mc113.clearProgress(_pendingSaved.size, _pendingSaved.diff);
+    }
+    _pendingSaved=null;
+    hide();
+    showGame();
   });
 })();
 
@@ -20157,7 +21175,19 @@ if(winMenuBtn){
     miniRowGapPct:  0.5,
     miniColGapPct:  0.5,
     miniWhiteMult:  1.0,
-    miniCyanMult:   1.0
+    miniCyanMult:   1.0,
+    // [v3.53] Placed-tile pulse settings (the dim-green breath
+    // introduced in v3.52). Defaults: enabled, peak at 0.9 (matches
+    // v3.52's hardcoded peak), unsynchronized (each tile uses its
+    // cell-key-derived phase).
+    pulseEnabled:   true,
+    pulsePeak:      0.9,
+    pulseSync:      false,
+    // [v3.54] Pulse speed in seconds per full cycle. 3.6s matches
+    // v3.52/v3.53. Slider range 1.2 → 7.0 lets the player dial from
+    // a quick attention-getting pulse down to a slow, almost
+    // imperceptible breath.
+    pulseSpeed:     3.6
   };
 
   // ── Load saved options (apply to globals) ──
@@ -20195,9 +21225,24 @@ if(winMenuBtn){
     window._miniColGapPct = (typeof window._optMiniColGapPct==='number') ? window._optMiniColGapPct : DEF.miniColGapPct;
     window._miniWhiteMult = (typeof window._optMiniWhiteMult==='number') ? window._optMiniWhiteMult : DEF.miniWhiteMult;
     window._miniCyanMult  = (typeof window._optMiniCyanMult ==='number') ? window._optMiniCyanMult  : DEF.miniCyanMult;
+    // [v3.53] Placed-tile pulse — toggle, peak brightness, sync.
+    // render() reads these directly to decide whether to apply the
+    // .ok-breath class and whether to use a hash-derived per-tile
+    // phase delay or a single shared phase.
+    window._pulseEnabled = (typeof window._optPulseEnabled==='boolean') ? window._optPulseEnabled : DEF.pulseEnabled;
+    window._pulsePeak    = (typeof window._optPulsePeak   ==='number')  ? window._optPulsePeak    : DEF.pulsePeak;
+    window._pulseSync    = (typeof window._optPulseSync   ==='boolean') ? window._optPulseSync    : DEF.pulseSync;
+    window._pulseSpeed   = (typeof window._optPulseSpeed  ==='number')  ? window._optPulseSpeed   : DEF.pulseSpeed;
+    // Update the dynamic keyframes + .ok-breath rule whenever peak
+    // or speed changes.
+    _writePulseKeyframes(window._pulsePeak, window._pulseSpeed);
     // Re-render the bank if the puzzle is loaded so the padding
     // change takes effect right away.
     try{ if(typeof renderBank === 'function' && typeof PZ !== 'undefined' && PZ) renderBank(); }catch(_){}
+    // [v3.53] Re-render the grid so pulse class changes (enabled
+    // off → strip from existing tiles) take effect immediately
+    // without waiting for the next move.
+    try{ if(typeof render === 'function' && typeof PZ !== 'undefined' && PZ) render(); }catch(_){}
   }
 
   function _loadOpts(){
@@ -20232,6 +21277,11 @@ if(winMenuBtn){
       if(typeof o.miniColGapPct ==='number') window._optMiniColGapPct  = o.miniColGapPct;
       if(typeof o.miniWhiteMult ==='number') window._optMiniWhiteMult  = o.miniWhiteMult;
       if(typeof o.miniCyanMult  ==='number') window._optMiniCyanMult   = o.miniCyanMult;
+      // [v3.53] Placed-tile pulse
+      if(typeof o.pulseEnabled  ==='boolean') window._optPulseEnabled  = o.pulseEnabled;
+      if(typeof o.pulsePeak     ==='number')  window._optPulsePeak     = o.pulsePeak;
+      if(typeof o.pulseSync     ==='boolean') window._optPulseSync     = o.pulseSync;
+      if(typeof o.pulseSpeed    ==='number')  window._optPulseSpeed    = o.pulseSpeed;
     }catch(e){}
     _applyTuning();
   }
@@ -20264,7 +21314,12 @@ if(winMenuBtn){
         miniRowGapPct:  (typeof window._optMiniRowGapPct==='number')  ? window._optMiniRowGapPct : DEF.miniRowGapPct,
         miniColGapPct:  (typeof window._optMiniColGapPct==='number')  ? window._optMiniColGapPct : DEF.miniColGapPct,
         miniWhiteMult:  (typeof window._optMiniWhiteMult==='number')  ? window._optMiniWhiteMult : DEF.miniWhiteMult,
-        miniCyanMult:   (typeof window._optMiniCyanMult ==='number')  ? window._optMiniCyanMult  : DEF.miniCyanMult
+        miniCyanMult:   (typeof window._optMiniCyanMult ==='number')  ? window._optMiniCyanMult  : DEF.miniCyanMult,
+        // [v3.53] Placed-tile pulse
+        pulseEnabled:   (typeof window._optPulseEnabled ==='boolean') ? window._optPulseEnabled : DEF.pulseEnabled,
+        pulsePeak:      (typeof window._optPulsePeak    ==='number')  ? window._optPulsePeak    : DEF.pulsePeak,
+        pulseSync:      (typeof window._optPulseSync    ==='boolean') ? window._optPulseSync    : DEF.pulseSync,
+        pulseSpeed:     (typeof window._optPulseSpeed   ==='number')  ? window._optPulseSpeed   : DEF.pulseSpeed
       }));
     }catch(e){}
     _applyTuning();
@@ -20444,6 +21499,150 @@ if(winMenuBtn){
     return wrap;
   }
 
+  // [v3.53] Collapsible section helper. Each section is a labeled
+  // drawer with a chevron that expands/collapses on tap. Used to
+  // group the options panel into Visual effects, Placed-tile pulse,
+  // Tile interaction, and Debug — snap tuning.
+  //
+  // [v3.55] Open/closed state IS now persisted to localStorage under
+  // 'equil_opt_sections' (a map of title → bool). On panel build,
+  // saved state overrides opts.defaultOpen if a value exists for
+  // that section title. This way the player can leave their
+  // preferred section open and have it ready next time they open
+  // OPTIONS. Falls back to opts.defaultOpen on first run / cleared
+  // storage.
+  //
+  // builders is an array of functions; each returns a DOM element
+  // to append to the section body. Lazy so toggling state doesn't
+  // re-render unnecessarily.
+  var SECTIONS_KEY = 'equil_opt_sections';
+  function _readSectionState(){
+    try{
+      var raw = localStorage.getItem(SECTIONS_KEY);
+      if(!raw) return {};
+      var m = JSON.parse(raw);
+      return (m && typeof m === 'object') ? m : {};
+    }catch(e){ return {}; }
+  }
+  function _writeSectionState(title, open){
+    try{
+      var m = _readSectionState();
+      m[title] = !!open;
+      localStorage.setItem(SECTIONS_KEY, JSON.stringify(m));
+    }catch(e){}
+  }
+  function _mkSection(title, builders, opts){
+    opts = opts || {};
+    // Saved state wins over opts.defaultOpen if present.
+    var saved = _readSectionState();
+    var open = (typeof saved[title] === 'boolean') ? saved[title] : !!opts.defaultOpen;
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'margin-bottom:10px;border:1px solid rgba(0,217,255,0.18);border-radius:6px;overflow:hidden;';
+
+    var hdr = document.createElement('button');
+    hdr.type = 'button';
+    hdr.style.cssText =
+      'width:100%;padding:9px 12px;font-family:inherit;font-size:10.5px;'+
+      'font-weight:700;letter-spacing:2px;text-transform:uppercase;'+
+      'background:rgba(0,217,255,0.06);color:var(--cyan,#00d9ff);'+
+      'border:0;cursor:pointer;display:flex;align-items:center;'+
+      'justify-content:space-between;text-align:left;';
+    var label = document.createElement('span');
+    label.textContent = title;
+    var chev = document.createElement('span');
+    chev.textContent = '▾';
+    chev.style.cssText = 'transition:transform 0.18s ease;font-size:10px;opacity:0.7;';
+    hdr.appendChild(label);
+    hdr.appendChild(chev);
+
+    var body = document.createElement('div');
+    body.style.cssText =
+      'padding:0 4px;overflow:hidden;'+
+      'transition:max-height 0.22s ease, padding 0.22s ease;';
+
+    var built = false;
+    function build(){
+      if(built)return;
+      built = true;
+      (builders || []).forEach(function(fn){
+        try{
+          var el = fn();
+          if(el)body.appendChild(el);
+        }catch(_){}
+      });
+    }
+    function paint(){
+      if(open){
+        build();
+        body.style.padding = '8px 4px 4px';
+        // Tall ceiling; transition still animates from 0.
+        body.style.maxHeight = '4000px';
+        chev.style.transform = 'rotate(0deg)';
+      } else {
+        body.style.padding = '0 4px';
+        body.style.maxHeight = '0';
+        chev.style.transform = 'rotate(-90deg)';
+      }
+    }
+    hdr.addEventListener('click', function(){
+      open = !open;
+      paint();
+      // [v3.55] Persist new state so panel reopens with this section
+      // in the same configuration.
+      _writeSectionState(title, open);
+    });
+
+    wrap.appendChild(hdr);
+    wrap.appendChild(body);
+    // Initial paint after a tick so the transition fires from 0 on open.
+    if(open){
+      build();
+      // Render expanded immediately on first paint (no animation needed
+      // since panel itself just appeared).
+      body.style.padding = '8px 4px 4px';
+      body.style.maxHeight = '4000px';
+      chev.style.transform = 'rotate(0deg)';
+    } else {
+      body.style.padding = '0 4px';
+      body.style.maxHeight = '0';
+      chev.style.transform = 'rotate(-90deg)';
+    }
+    return wrap;
+  }
+
+  // [v3.53] Runtime style element for the okBreath keyframe. The
+  // peak brightness is user-tunable via the OPTIONS panel slider,
+  // so the animation rule is rebuilt dynamically whenever the
+  // slider changes (CSS keyframes themselves can't read JS
+  // variables). The static rule in the main <style> block is
+  // overridden by this one (later in the cascade).
+  var _pulseStyleEl = null;
+  function _writePulseKeyframes(peakAlpha, durationSec){
+    if(!_pulseStyleEl){
+      _pulseStyleEl = document.createElement('style');
+      _pulseStyleEl.id = '_pulseDynStyle';
+      document.head.appendChild(_pulseStyleEl);
+    }
+    // peakAlpha clamped 0.35..1.0 so the brightness slider never
+    // produces a peak DIMMER than the base (which would invert
+    // the pulse). 0.35 = base = effectively no pulse.
+    var p = Math.max(0.35, Math.min(1.0, peakAlpha));
+    // Glow intensity scales with peak alpha so dimmer pulses also
+    // have proportionally weaker glow.
+    var glowAlpha = 0.45 * ((p - 0.35) / 0.55);
+    // [v3.54] Animation duration is now also written here so the
+    // pulse speed slider can dial it from a slow ~6s breath down
+    // to a quicker ~1.2s pulse. Default 3.6s matches v3.52.
+    var dur = (typeof durationSec === 'number' && durationSec > 0) ? durationSec : 3.6;
+    _pulseStyleEl.textContent =
+      '@keyframes okBreath{'+
+        '0%,100%{color:rgba(74,222,128,0.35);text-shadow:none;}'+
+        '50%{color:rgba(74,222,128,'+p.toFixed(3)+');'+
+            'text-shadow:0 0 6px rgba(74,222,128,'+glowAlpha.toFixed(3)+');}'+
+      '}'+
+      '.ok-breath{animation:okBreath '+dur.toFixed(2)+'s ease-in-out infinite;}';
+  }
+
   // ── Build the modal ──
   function _buildPanel(){
     var ov = document.createElement('div');
@@ -20466,158 +21665,181 @@ if(winMenuBtn){
       'letter-spacing:3px;text-align:center;margin-bottom:14px;';
     box.appendChild(ttl);
 
-    var sub = document.createElement('div');
-    sub.textContent = 'Visual effects';
-    sub.style.cssText =
-      'font-size:9px;color:rgba(255,255,255,0.45);letter-spacing:1.5px;'+
-      'margin-bottom:8px;';
-    box.appendChild(sub);
-
-    // Tap glow (with brightness slider)
-    box.appendChild(_mkToggleRow(
-      'Tap glow',
-      'Glowing halo when you tap a number tile.',
-      function(){ return GLOW_ON; },
-      function(v){ GLOW_ON = v; },
-      [
-        function(){ return _mkSliderRow(
-          'Brightness',
-          function(){ return (typeof window._optGlowBrightMult==='number')?window._optGlowBrightMult:DEF.glowBrightMult; },
-          function(v){ window._optGlowBrightMult=v; _applyTuning(); },
-          0.2, 3.0, 0.05, 2, 'x'
-        ); }
-      ]
-    ));
-
-    // Particles (with lifetime, speed, size sliders)
-    box.appendChild(_mkToggleRow(
-      'Particles',
-      'Particle burst from tile edges on tap.',
-      function(){ return PARTICLES_ON; },
-      function(v){ PARTICLES_ON = v; },
-      [
-        function(){ return _mkSliderRow(
-          'Lifetime',
-          function(){ return (typeof window._optPartLifeMult==='number')?window._optPartLifeMult:DEF.partLifeMult; },
-          function(v){ window._optPartLifeMult=v; _applyTuning(); },
-          10, 150, 1, 0, ''
-        ); },
-        function(){ return _mkSliderRow(
-          'Speed',
-          function(){ return (typeof window._optPartSpeedMult==='number')?window._optPartSpeedMult:DEF.partSpeedMult; },
-          function(v){ window._optPartSpeedMult=v; _applyTuning(); },
-          0.3, 3.0, 0.05, 2, 'x'
-        ); },
-        function(){ return _mkSliderRow(
-          'Size',
-          function(){ return (typeof window._optPartSizeMult==='number')?window._optPartSizeMult:DEF.partSizeMult; },
-          function(v){ window._optPartSizeMult=v; _applyTuning(); },
-          0.3, 3.0, 0.05, 2, 'x'
-        ); }
-      ]
-    ));
-
-    // Spin (with duration slider — lower = faster)
-    box.appendChild(_mkToggleRow(
-      'Tile spin',
-      'Brief spin animation on tile tap.',
-      function(){ return SPIN_ON; },
-      function(v){ SPIN_ON = v; },
-      [
-        function(){ return _mkSliderRow(
-          'Duration',
-          function(){ return (typeof window._optSpinDurMult==='number')?window._optSpinDurMult:DEF.spinDurMult; },
-          function(v){ window._optSpinDurMult=v; _applyTuning(); },
-          0.3, 2.5, 0.05, 2, 'x'
-        ); }
-      ]
-    ));
-
-    // Equation pulse (no slider)
-    box.appendChild(_mkToggleRow(
-      'Equation pulse',
-      'Random color wave across an equation when tapping a number tile with no cell selected.',
-      function(){ return PULSE_EQ_ON; },
-      function(v){ PULSE_EQ_ON = v; },
-      null
-    ));
-
-    // [v2.22] Floating zoom-pill toggle. The pill is a draggable
-    // floating control with a thumb-sized zoom circle and a grip
-    // tab for relocation. Off by default — user can enable it
-    // here. When toggled on, the pill spawns at the bottom-right
-    // corner of the puzzle area and plays a brief pop sound on
-    // appearance. Toggling off hides it (preserving last
-    // position for next reveal).
-    box.appendChild(_mkToggleRow(
-      'Zoom pill',
-      'Floating zoom-and-pan handle. Drag the grip to relocate, tap the circle to zoom into the grid.',
-      function(){ return PILL_ON; },
-      function(v){
-        PILL_ON = v;
-        try{
-          if(v && window._zoomPill){
-            window._zoomPill.show();
-            // Brief pop on appearance — same family as the
-            // tile-pickup pop, slightly higher pitch.
-            if(typeof playTilePickup === 'function'){
-              try{ playTilePickup(); }catch(_){}
+    // [v3.53] Visual effects — collapsible section (default OPEN
+    // since it's the most-used). Was a flat list of toggles with a
+    // gray subheader; the section wrapper gives a chevron header
+    // that can be tapped to collapse the whole group when the
+    // player just wants to scroll past it to other settings.
+    box.appendChild(_mkSection('Visual effects', [
+      // Tap glow (with brightness slider)
+      function(){ return _mkToggleRow(
+        'Tap glow',
+        'Glowing halo when you tap a number tile.',
+        function(){ return GLOW_ON; },
+        function(v){ GLOW_ON = v; },
+        [
+          function(){ return _mkSliderRow(
+            'Brightness',
+            function(){ return (typeof window._optGlowBrightMult==='number')?window._optGlowBrightMult:DEF.glowBrightMult; },
+            function(v){ window._optGlowBrightMult=v; _applyTuning(); },
+            0.2, 3.0, 0.05, 2, 'x'
+          ); }
+        ]
+      ); },
+      // Particles (with lifetime, speed, size sliders)
+      function(){ return _mkToggleRow(
+        'Particles',
+        'Particle burst from tile edges on tap.',
+        function(){ return PARTICLES_ON; },
+        function(v){ PARTICLES_ON = v; },
+        [
+          function(){ return _mkSliderRow(
+            'Lifetime',
+            function(){ return (typeof window._optPartLifeMult==='number')?window._optPartLifeMult:DEF.partLifeMult; },
+            function(v){ window._optPartLifeMult=v; _applyTuning(); },
+            10, 150, 1, 0, ''
+          ); },
+          function(){ return _mkSliderRow(
+            'Speed',
+            function(){ return (typeof window._optPartSpeedMult==='number')?window._optPartSpeedMult:DEF.partSpeedMult; },
+            function(v){ window._optPartSpeedMult=v; _applyTuning(); },
+            0.3, 3.0, 0.05, 2, 'x'
+          ); },
+          function(){ return _mkSliderRow(
+            'Size',
+            function(){ return (typeof window._optPartSizeMult==='number')?window._optPartSizeMult:DEF.partSizeMult; },
+            function(v){ window._optPartSizeMult=v; _applyTuning(); },
+            0.3, 3.0, 0.05, 2, 'x'
+          ); }
+        ]
+      ); },
+      // Spin (with duration slider — lower = faster)
+      function(){ return _mkToggleRow(
+        'Tile spin',
+        'Brief spin animation on tile tap.',
+        function(){ return SPIN_ON; },
+        function(v){ SPIN_ON = v; },
+        [
+          function(){ return _mkSliderRow(
+            'Duration',
+            function(){ return (typeof window._optSpinDurMult==='number')?window._optSpinDurMult:DEF.spinDurMult; },
+            function(v){ window._optSpinDurMult=v; _applyTuning(); },
+            0.3, 2.5, 0.05, 2, 'x'
+          ); }
+        ]
+      ); },
+      // Equation pulse (no slider)
+      function(){ return _mkToggleRow(
+        'Equation pulse',
+        'Random color wave across an equation when tapping a number tile with no cell selected.',
+        function(){ return PULSE_EQ_ON; },
+        function(v){ PULSE_EQ_ON = v; },
+        null
+      ); },
+      // Floating zoom-pill toggle.
+      function(){ return _mkToggleRow(
+        'Zoom pill',
+        'Floating zoom-and-pan handle. Drag the grip to relocate, tap the circle to zoom into the grid.',
+        function(){ return PILL_ON; },
+        function(v){
+          PILL_ON = v;
+          try{
+            if(v && window._zoomPill){
+              window._zoomPill.show();
+              if(typeof playTilePickup === 'function'){
+                try{ playTilePickup(); }catch(_){}
+              }
+            } else if(window._zoomPill){
+              window._zoomPill.hide();
             }
-          } else if(window._zoomPill){
-            window._zoomPill.hide();
-          }
-        }catch(_){}
-      },
-      null
-    ));
+          }catch(_){}
+        },
+        null
+      ); }
+    ]));
+
+    // [v3.53] Placed-tile pulse — collapsible section.
+    // When a tile sits inside a completed equation it dims to a muted
+    // green. The pulse brightens it gently to remind the player they
+    // can tap it to return it home (useful when a placement is later
+    // found to clash with a different equation). Three controls:
+    //   - Enabled: toggle the pulse on or off entirely. When off,
+    //     dim-green tiles render static like pre-v3.52.
+    //   - Max brightness: dim the pulse peak from 0.9 (full bright)
+    //     down toward 0.35 (=base, effectively no pulse). Lets the
+    //     player tune visibility to taste.
+    //   - Synchronize: when on, every dim-green tile pulses in
+    //     unison. When off, each tile has its own phase derived from
+    //     its (col,row) coordinates so the board breathes randomly.
+    box.appendChild(_mkSection('Placed-tile pulse', [
+      function(){ return _mkToggleRow(
+        'Enabled',
+        'Pulse dimmed-green placed tiles to hint they can be tapped to return home. When off, those tiles render statically.',
+        function(){ return (typeof window._optPulseEnabled==='boolean')?window._optPulseEnabled:DEF.pulseEnabled; },
+        function(v){ window._optPulseEnabled=v; _applyTuning(); },
+        [
+          function(){ return _mkSliderRow(
+            'Max brightness',
+            function(){ return (typeof window._optPulsePeak==='number')?window._optPulsePeak:DEF.pulsePeak; },
+            function(v){ window._optPulsePeak=v; _applyTuning(); },
+            0.35, 1.0, 0.01, 2, ''
+          ); },
+          // [v3.54] Speed slider — seconds per full breath cycle.
+          // Range 1.2s (quick reminder pulse) to 7.0s (very slow,
+          // background-y breath). Default 3.6s matches v3.52/v3.53.
+          function(){ return _mkSliderRow(
+            'Speed',
+            function(){ return (typeof window._optPulseSpeed==='number')?window._optPulseSpeed:DEF.pulseSpeed; },
+            function(v){ window._optPulseSpeed=v; _applyTuning(); },
+            1.2, 7.0, 0.1, 1, 's'
+          ); },
+          function(){ return _mkToggleRow(
+            'Synchronize pulses',
+            'When on, all dim-green tiles pulse together. When off, each tile has its own phase so the board breathes irregularly.',
+            function(){ return (typeof window._optPulseSync==='boolean')?window._optPulseSync:DEF.pulseSync; },
+            function(v){ window._optPulseSync=v; _applyTuning(); },
+            null
+          ); }
+        ]
+      ); }
+    ]));
 
     // [v2.44] Tile interaction section — drag-tiles toggle, bank
-    // padding controls. By default, tile dragging is OFF: tiles act
-    // as scrollable surface. Tap-to-place (with a cell selected)
-    // still works because the browser fires a synthetic click
-    // after a quick non-scrolled tap. When dragging is turned ON,
-    // the original drag-and-magnet flow returns, and the bank
-    // shows scroll-grab side padding so users have a place to
-    // swipe vertically without accidentally starting a drag. Both
-    // the padding width and which side(s) it appears on are
-    // user-configurable for finger-size and handedness.
-    var interactSub = document.createElement('div');
-    interactSub.textContent = 'Tile interaction';
-    interactSub.style.cssText =
-      'font-size:9px;color:rgba(255,255,255,0.45);letter-spacing:1.5px;'+
-      'margin:14px 0 8px 0;';
-    box.appendChild(interactSub);
-
-    box.appendChild(_mkToggleRow(
-      'Drag tiles',
-      'When ON, tiles can be dragged onto cells with a magnet snap. When OFF (default), tiles can only be tap-placed (after selecting a cell), and touching tiles otherwise scrolls the page.',
-      function(){
-        return (typeof window._optDragTiles==='boolean') ? window._optDragTiles : DEF.dragTiles;
-      },
-      function(v){ window._optDragTiles = v; _applyTuning(); },
-      [
-        function(){ return _mkSliderRow(
-          'Side padding width',
-          function(){
-            return (typeof window._optBankPadWidth==='number') ? window._optBankPadWidth : DEF.bankPadWidth;
-          },
-          function(v){ window._optBankPadWidth = v; _applyTuning(); },
-          0, 80, 1, 0, ' px'
-        ); },
-        function(){ return _mkSegmentedRow(
-          'Padding side',
-          function(){
-            return (typeof window._optBankPadSide==='string') ? window._optBankPadSide : DEF.bankPadSide;
-          },
-          function(v){ window._optBankPadSide = v; _applyTuning(); },
-          [
-            { value: 'both',  label: 'BOTH' },
-            { value: 'left',  label: 'LEFT' },
-            { value: 'right', label: 'RIGHT' }
-          ]
-        ); }
-      ]
-    ));
+    // padding controls. [v3.53] Wrapped in a collapsible section
+    // (default closed since most players will leave the default
+    // tap-to-place behavior alone).
+    box.appendChild(_mkSection('Tile interaction', [
+      function(){ return _mkToggleRow(
+        'Drag tiles',
+        'When ON, tiles can be dragged onto cells with a magnet snap. When OFF (default), tiles can only be tap-placed (after selecting a cell), and touching tiles otherwise scrolls the page.',
+        function(){
+          return (typeof window._optDragTiles==='boolean') ? window._optDragTiles : DEF.dragTiles;
+        },
+        function(v){ window._optDragTiles = v; _applyTuning(); },
+        [
+          function(){ return _mkSliderRow(
+            'Side padding width',
+            function(){
+              return (typeof window._optBankPadWidth==='number') ? window._optBankPadWidth : DEF.bankPadWidth;
+            },
+            function(v){ window._optBankPadWidth = v; _applyTuning(); },
+            0, 80, 1, 0, ' px'
+          ); },
+          function(){ return _mkSegmentedRow(
+            'Padding side',
+            function(){
+              return (typeof window._optBankPadSide==='string') ? window._optBankPadSide : DEF.bankPadSide;
+            },
+            function(v){ window._optBankPadSide = v; _applyTuning(); },
+            [
+              { value: 'both',  label: 'BOTH' },
+              { value: 'left',  label: 'LEFT' },
+              { value: 'right', label: 'RIGHT' }
+            ]
+          ); }
+        ]
+      ); }
+    ]));
 
     // [v2.52] xN tile spacing sliders moved to the TILE ADJUST modal
     // — they belong with the size/gap sliders since they're all about
@@ -20631,71 +21853,58 @@ if(winMenuBtn){
     // velocity readout above the sliders shows the smoothed
     // px/sec value during a drag, so the user can SEE how fast
     // they're dragging and pick threshold values that match.
-    var dbgSub = document.createElement('div');
-    dbgSub.textContent = 'Debug — snap tuning';
-    dbgSub.style.cssText =
-      'font-size:9px;color:rgba(255,255,255,0.45);letter-spacing:1.5px;'+
-      'margin:14px 0 8px 0;';
-    box.appendChild(dbgSub);
-
-    // Toggle: floating readout overlay during drags
-    box.appendChild(_mkToggleRow(
-      'Drag velocity overlay',
-      'When dragging a tile, show a small live readout at the top of the screen with the current velocity (px/sec) and whether the magnet is ON or OFF. Use it to find good threshold values for the sliders below.',
-      function(){ return !!window._equilShowVelOverlay; },
-      function(v){ window._equilShowVelOverlay = v; },
-      null
-    ));
-
-    // Hint
-    var dbgHint = document.createElement('div');
-    dbgHint.textContent = 'Turn the overlay on, close this panel, drag a tile, watch the velocity readout. Note the peak values for fast drags vs slow placement drags. Then reopen this panel and set the threshold roughly halfway between them.';
-    dbgHint.style.cssText =
-      'font-size:8.5px;color:rgba(255,255,255,0.35);line-height:1.4;'+
-      'padding:0 4px;margin-bottom:8px;';
-    box.appendChild(dbgHint);
-
-    // [v2.27] Single threshold slider replacing the two-slider
-    // ON/OFF setup. The slider value is the midpoint; the actual
-    // ON and OFF thresholds are ±100 px/s around it (fixed
-    // hysteresis gap of 200 px/s, plenty to prevent flicker at
-    // the boundary). Saved as window._equilDragMagnet.snapMid;
-    // snapOn and snapOff are derived from it.
-    box.appendChild(_mkSliderRow(
-      'Snap velocity threshold',
+    // [v3.53] Wrapped in a collapsible section (default closed
+    // since these are advanced tuning controls most players will
+    // never touch).
+    box.appendChild(_mkSection('Debug — snap tuning', [
+      // Toggle: floating readout overlay during drags
+      function(){ return _mkToggleRow(
+        'Drag velocity overlay',
+        'When dragging a tile, show a small live readout at the top of the screen with the current velocity (px/sec) and whether the magnet is ON or OFF. Use it to find good threshold values for the sliders below.',
+        function(){ return !!window._equilShowVelOverlay; },
+        function(v){ window._equilShowVelOverlay = v; },
+        null
+      ); },
+      // Hint
       function(){
-        var m = window._equilDragMagnet && window._equilDragMagnet.snapMid;
-        if(typeof m === 'number') return m;
-        return 60;
+        var dbgHint = document.createElement('div');
+        dbgHint.textContent = 'Turn the overlay on, close this panel, drag a tile, watch the velocity readout. Note the peak values for fast drags vs slow placement drags. Then reopen this panel and set the threshold roughly halfway between them.';
+        dbgHint.style.cssText =
+          'font-size:8.5px;color:rgba(255,255,255,0.35);line-height:1.4;'+
+          'padding:0 4px;margin-bottom:8px;';
+        return dbgHint;
       },
-      function(v){
-        if(!window._equilDragMagnet) window._equilDragMagnet = {};
-        window._equilDragMagnet.snapMid = v;
-        // [v2.28] Adaptive hysteresis: gap scales with the
-        // threshold value. Use 20% of the value with a minimum of 10.
-        var gap = Math.max(10, Math.round(v * 0.2));
-        window._equilDragMagnet.snapOn  = Math.max(0, v - gap);
-        window._equilDragMagnet.snapOff = v + gap;
-      },
-      30, 100, 1, 0, ' px/s'
-    ));
-
-    // [v2.32] Magnet lock-range slider — how close (in cell-widths)
-    // the finger has to be to a cell's center for the snap to fire.
-    // 0.5 = "finger has to be inside the cell"; 1.0 = within one
-    // cell's worth of distance; etc.
-    box.appendChild(_mkSliderRow(
-      'Magnet lock range',
-      function(){
-        var v = window._equilLockRange && window._equilLockRange.cells;
-        return (typeof v === 'number') ? v : 0.7;
-      },
-      function(v){
-        if(!window._equilLockRange) window._equilLockRange = {};
-        window._equilLockRange.cells = v;
-      },
-      0.3, 2.5, 0.05, 2, ' cell-widths'
-    ));
+      // [v2.27] Single threshold slider; midpoint with ±gap hysteresis.
+      function(){ return _mkSliderRow(
+        'Snap velocity threshold',
+        function(){
+          var m = window._equilDragMagnet && window._equilDragMagnet.snapMid;
+          if(typeof m === 'number') return m;
+          return 60;
+        },
+        function(v){
+          if(!window._equilDragMagnet) window._equilDragMagnet = {};
+          window._equilDragMagnet.snapMid = v;
+          var gap = Math.max(10, Math.round(v * 0.2));
+          window._equilDragMagnet.snapOn  = Math.max(0, v - gap);
+          window._equilDragMagnet.snapOff = v + gap;
+        },
+        30, 100, 1, 0, ' px/s'
+      ); },
+      // [v2.32] Magnet lock-range slider.
+      function(){ return _mkSliderRow(
+        'Magnet lock range',
+        function(){
+          var v = window._equilLockRange && window._equilLockRange.cells;
+          return (typeof v === 'number') ? v : 0.7;
+        },
+        function(v){
+          if(!window._equilLockRange) window._equilLockRange = {};
+          window._equilLockRange.cells = v;
+        },
+        0.3, 2.5, 0.05, 2, ' cell-widths'
+      ); }
+    ]));
 
     // Reset button
     var reset = document.createElement('button');
@@ -20734,8 +21943,16 @@ if(winMenuBtn){
       window._optMiniColGapPct = DEF.miniColGapPct;
       window._optMiniWhiteMult = DEF.miniWhiteMult;
       window._optMiniCyanMult  = DEF.miniCyanMult;
+      // [v3.53] Placed-tile pulse reset
+      window._optPulseEnabled = DEF.pulseEnabled;
+      window._optPulsePeak    = DEF.pulsePeak;
+      window._optPulseSync    = DEF.pulseSync;
+      window._optPulseSpeed   = DEF.pulseSpeed;
       _applyTuning();
       _saveOpts();
+      // [v3.55] Also wipe section-state so all sections collapse
+      // back to their default closed state after a reset.
+      try{ localStorage.removeItem(SECTIONS_KEY); }catch(_){}
       // Rebuild panel to reflect reset state
       if(ov.parentNode) ov.parentNode.removeChild(ov);
       _openPanel();
