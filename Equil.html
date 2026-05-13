@@ -1,4 +1,281 @@
-<!-- Equil v3.67 | Built: 2026-05-12 CT | github.com/Spamboni
+<!-- Equil v3.83 | Built: 2026-05-12 CT | github.com/Spamboni
+     v3.83: FIX — hide the rebuilt tile under the spin clone in
+            condensed display modes (### / xN / mini).
+
+     v3.82 fixed the no-spin bug for condensed-mode tiles, which
+     exposed a separate v3.72-era issue that had been hidden by the
+     missing spin: the post-place rebuilt tile sits fully visible
+     underneath the spinning clone, so the user can see content
+     "through" the clone footprint.
+
+     Cause: same data-bank-idx instability that caused the v3.82 bug.
+     In condensed modes, the rendered tile uses firstUnused as its
+     data-bank-idx. After place(), firstUnused shifts (10 → 11), so
+     the rebuilt tile carries a DIFFERENT data-bank-idx than the
+     source. v3.82's post-place hide queried by the old
+     data-bank-idx, found nothing in #bank, applied no hide.
+
+     Fix: query by data-collapsed-value (the tile's value), which is
+     value-stable across renders. The value-group exists before AND
+     after place() — only the firstUnused-pointing index changes.
+     For non-condensed modes (source tile has no data-collapsed-value)
+     we fall back to data-bank-idx, which IS stable in plain mode
+     because each slot has its own permanent index.
+
+     Implementation: a local _selFindRebuilt() / _clkFindRebuilt()
+     helper at each spin site does the value-or-index lookup. Both
+     the post-place hide and the cleanup unhide use it.
+
+     v3.82: FIX — place-spin works for cyan/xN multi-instance tiles.
+            Removes the v3.77–v3.81 diagnostic scaffolding.
+
+     ROOT CAUSE: in condensed display modes (### / xN / mini), the
+     rendered tile carries data-bank-idx = firstUnused for its value
+     group, NOT the actual bank slot index. So a value=4 with 5
+     unused instances at bank indices 10..14 renders ONE tile with
+     data-bank-idx="10".
+
+     When the user taps it, place(10) marks bank[10].used=true and
+     re-renders. The new firstUnused for value=4 is now 11, so the
+     rebuilt tile in the bank has data-bank-idx="11".
+
+     The spin clone (cloneNode(true)) still has data-bank-idx="10".
+
+     My post-place code was:
+       var slot = document.querySelector('.bt[data-bank-idx="10"]');
+       if(slot) slot.style.visibility='hidden';
+
+     That document-wide query DID find a matching element — the
+     CLONE in <body>, not the new bank tile. So I was hiding the
+     clone itself, killing the spin. Plain (non-condensed) modes
+     were unaffected because each bank slot has its own permanent
+     data-bank-idx that the new tile keeps.
+
+     The v3.81 visibility-forensics diag confirmed this exactly:
+       t=0:   visibility: visible
+       t=300: visibility: hidden   ← something hides it during spin
+
+     FIX (defense in depth):
+       1. Strip data-bank-idx (and data-snd-idx) from the clone
+          immediately after cloneNode(true) so no querySelector can
+          ever match it.
+       2. Scope post-place / cleanup queries to inside #bank with
+          _bankEl.querySelector(...) instead of document.querySelector.
+       Applied at both spin sites.
+
+     ALSO: ripped out v3.77–v3.81 diagnostic scaffolding:
+       - _spinDiag function definition (large block above _dbgTogglePanel)
+       - _spinDiag call sites at both spin sites
+       - hot-pink #ff00aa outline + outline-offset on the clone
+
+     Net behavior in v3.82: smooth spin for all tile types, soft
+     fade-in unhide, no visual debug residue.
+
+     v3.81: Spin diagnostic — visibility forensics (REMOVED in v3.82).
+     v3.80: TEMP — make the spin clone visually unmissable (REMOVED).
+     v3.79: Spin diagnostic overlay — moved out from over the bank
+            (REMOVED).
+     v3.78: Enhanced spin diagnostic — capture transform at three
+            timestamps (REMOVED in v3.82).
+     v3.77: TEMP — on-screen spin diagnostic (REMOVED in v3.82).
+     v3.76: Defensive inline animation (kept — harmless, slightly
+            more robust than the .placing-blend class version).
+
+     v3.75: xN display mode — hide the ×N badge for counts of 1 or 0.
+
+     The cyan ×N multiplier badge now only renders for unused counts
+     of 2 or more (×2, ×3, ×4, ...). At unused=1 the badge is dropped
+     so the tile reads as just the white main digit — "×1" was
+     redundant. At unused=0 the tile is already .used (dimmed by
+     .bt.used opacity:0.25), but the badge gate previously still
+     rendered "×0" inside the dimmed tile; that's also gone now.
+
+     Change is a one-condition tightening on the badge gate in the
+     xN render branch: hasMultiple → hasMultiple && unused >= 2.
+     Layout unchanged: white digit stays anchored at xnTopPct, so no
+     visible jump in white-digit position when unused crosses 2→1.
+     Other display modes (### / mini) untouched.
+
+     v3.74: ### display mode — legibility fix for fully-used tiles.
+
+     In cyan-only (###) display mode, when every instance of a value
+     has been placed, the bank tile was rendering its number at
+     rgba(0,147,170, 0.25) — a 25%-alpha cyan. Combined with the
+     .bt.used class's opacity:0.25, the effective alpha came out to
+     ~0.0625 (i.e. ~6%), which on a black background reads as
+     basically invisible.
+
+     Other display modes don't have this problem because their
+     .used tiles still show a WHITE outlined main digit; white at 25%
+     opacity is plenty legible on black. The cyan-only mode has no
+     white fallback, so the cyan had to do all the work — and it
+     wasn't enough.
+
+     Fix in the if(cyanOn && condenseOn) → else (all-used) branch:
+       - Drop the redundant 0.25-alpha color override. Use full-alpha
+         #0093aa so .bt.used's opacity is the only dimming layer —
+         matching the effective dimming of other modes' .used tiles.
+       - Add -webkit-text-stroke / text-stroke of 0.3px in #7dd3e0
+         (slightly lifted cyan) so the glyph silhouette has visual
+         weight. Hairlines on a black background disappear regardless
+         of color saturation; a stroke widens the rendered pixel
+         footprint without making the tile look fully bright.
+
+     Scoped to ### mode only via the enclosing branch — other modes
+     untouched, since per Sam's feedback their dimming is correct.
+
+     v3.73: Place-spin underlay — two fixes on the v3.72 surgical
+            hide (duplicate place(idx); soft fade-in unhide).
+
+       1. Duplicate place(idx) call at the SEL touchstart site. The
+          v3.72 edit accidentally left the original `place(idx)` line
+          in place AND added a new copy below my post-place hide
+          block, so place() was being called twice per tap. The
+          second call early-returned via the `if(t.used)return;`
+          guard at the top of place(), so no double-placement or
+          double-render actually occurred — but it was dead code and
+          a misleading footprint. Removed the duplicate, plus the
+          duplicate `_mxSelTouchHandledAt = performance.now()` that
+          went with it.
+
+       2. "Dimmer than before" perception on placed tiles. With v3.72,
+          the tile under the spinning clone was visibility:hidden for
+          the full spin duration, then snapped to visible on the same
+          frame the clone was removed. When the placement consumed
+          the last instance of a value, the .used class fired and the
+          tile appeared at opacity:0.25 instantly with no
+          transitional reference frame — the eye reads this as "more
+          dim than usual" because there was no gradient leading into
+          it. Fix: replace the hard visibility-snap with a quick
+          opacity fade-in. At cleanup time:
+            - clear inline visibility:hidden
+            - set transition: opacity 0.18s ease-out
+            - set inline opacity:0 (overriding the .used 0.25 baseline)
+            - force layout flush
+            - clear inline opacity (lets CSS take over — 0.25 for
+              .used tiles, 1 for non-.used)
+            - 220ms later, clear the inline transition so the tile
+              returns to its default transition settings.
+          Effect: tile fades in over 180ms to its natural opacity,
+          which feels like a settle rather than a snap. Applied at
+          both spin sites (SEL touchstart, click handler).
+
+     v3.72: Place-spin underlay — surgical replacement for v3.71 mask.
+
+     The v3.71 inflated-rectangle mask was clipping neighboring tiles'
+     borders and glow because its 10px inflate overlapped them.
+     Replaced with a precise approach: set visibility:hidden directly
+     on the source bank tile DOM node itself. This hides exactly the
+     tile's border, inner glow, and number — nothing else, since
+     visibility only affects the element it's set on, not its
+     neighbors. Layout is preserved (visibility, not display:none).
+
+     The wrinkle: place(idx) below the clone-creation calls render()
+     which rebuilds the bank, destroying the original tile node and
+     creating a new one in the .used state. So:
+       1. Hide source tile BEFORE creating the clone.
+       2. After place(idx) returns synchronously, re-query
+          .bt[data-bank-idx="idx"] and hide that new tile too.
+       3. In the cleanup setTimeout (frame-aligned with clone
+          removal), re-query the slot again — in case any other
+          render happened during the spin window — and unhide
+          whatever lives there now.
+
+     Both spin sites (SEL touchstart fast-path and click handler)
+     use the same pattern. The spinning clone itself gets an
+     explicit visibility:visible inline style as belt-and-suspenders
+     so it cannot accidentally inherit hidden if the source was
+     hidden at clone-time.
+
+     v3.71: Place-spin — underlay mask hides whatever sits in the
+            tile's footprint for the duration of the spin.
+
+     A small rectangle the color of the bank background is placed at
+     the bank slot the moment the spinning clone is created, sitting
+     one z-layer below the clone (z-index 9998 vs the clone's 9999).
+     This hides:
+       - the original .lit yellow-glowing bank tile for the first
+         few ms (until place() rebuilds the bank)
+       - the rebuilt .used greyed-out tile that takes its place
+
+     so the eye locks onto the spinning clone with nothing visible
+     directly underneath. The mask is removed in the SAME setTimeout
+     callback as the clone, so the un-ghost happens on the exact
+     frame the spin ends. Footprint is inflated by 10px on each side
+     so any outer glow from .lit on the underlying tile is also
+     covered; corners use a 14px border-radius matching the inflated
+     rect (tile is 10px radius + 4px extra for the inflation).
+
+     Applied at both place sites: the SEL touchstart fast-path and
+     the click handler.
+
+     v3.70: Tap-to-place spin — faster, smoother, no ghost outline.
+
+     Three changes to the place-spin animation that fires when a bank
+     tile is tapped into a selected grid cell:
+
+       1. Dashed cyan ghost border at the original bank position is
+          no longer drawn. The .bt-ghost CSS class and the JS that
+          creates the ghost div are both kept in the file — class
+          intact, JS commented out — so the anchor outline can be
+          revived later without re-tracing the implementation.
+
+       2. Base spin duration dropped 850ms → 500ms at both place
+          sites (the SEL touchstart fast path and the click handler).
+          Still scaled by window._spinDurMult so the OPTIONS panel
+          speed control keeps working; floor is still 80ms.
+
+       3. bt-spin keyframes simplified and easing changed. The old
+          keyframes paced rotation asymmetrically: 0→200° over the
+          first 40% of duration (5°/%), then 200→320° over the next
+          30% (4°/%), then only 320→360° over the last 30% (1.33°/%).
+          With the old cubic-bezier(0.25,0.46,0.45,0.94) ease-out
+          stacked on top, the final quarter of the rotation crawled
+          and read as "the tile hung near the end." New pacing is
+          uniform — 0°/180°/360° at 0%/50%/100% — with a single
+          mid-spin scale dip to 0.78 keeping a subtle "puff" feel.
+          Easing changed to cubic-bezier(0.4,0.0,0.2,1.0) (Material
+          standard), so the start, middle, and end of the spin all
+          move at perceptually similar rates.
+
+     Net result on Galaxy Brave: the spin should feel ~40% faster
+     and rotate evenly through its full arc. Any residual hitch is
+     more likely a Chromium GPU compositor quirk than CSS pacing.
+
+     v3.69: Debug-panel pinch-zoom — passive touchstart, preserve
+            dragged position when zooming back to 1x.
+
+       1. COUNTS panel's collapsible group headers (CURRENT PUZZLE,
+          PUZZLE AVERAGES, TEMPLATE COUNTS, FAIL REASONS) were no
+          longer toggling on tap. Root cause: the v3.68 touchstart
+          listener on _dbgPanelBody was registered as {passive: false},
+          which on mobile Chromium (incl. Brave) suppresses the
+          synthesized click that the collapse handlers listen for.
+          Fix: register touchstart as {passive: true}. preventDefault
+          was never actually needed there — touch-action:pan-y on the
+          body already disables the browser's native pinch, so the
+          two-finger gesture flows to JS without us blocking anything
+          at touchstart. touchmove stays {passive: false} so we can
+          still cancel scroll/pan during an active pinch or drag.
+
+       2. Pinch-out-to-1× was snapping the panel back to its pre-zoom
+          position. Root cause: the inner translate (tx, ty) was being
+          zeroed whenever scale hit 1, which discarded any visual offset
+          accumulated from the zoom-anchored math (and from one-finger
+          panning at >1× before zooming back out).
+          Fix: at scale=1, *bake* tx/ty into panel.style.left/top so
+          the visual position is preserved with identity transform.
+          This happens on touchend (after a user pinch-out), inside
+          touchcancel, and inside _dbgZoomReset (before the close
+          animation starts). Mid-gesture math is left continuous —
+          no baking happens during an active pinch, so re-zooming
+          smoothly without releasing fingers still works.
+          Side benefit: future header drags via _dbgMakeDraggable now
+          see a clean left/top with no hidden translate component,
+          which keeps the two systems composable.
+
+     v3.68: Pinch-to-zoom on debug panels (COUNTS + TIMES).
+
      v3.67: PLAY button — divider aligned with triangle tip,
             PLAY/RESUME centered.
 
@@ -5561,10 +5838,19 @@ body.xl2-mode .gscroll::before{ display:block; }
   95%  { font-size:10px;  opacity:1; }
   100% { font-size:1.8px; opacity:0.01; }
 }
+/* [v3.70] bt-spin reworked for snappier, more uniform rotation.
+   Old keyframes had asymmetric pacing — 0→200° in 40%, then 200→320°
+   in 30%, then only 320→360° in the last 30%. With the cubic-bezier
+   ease-out also stacked on top, the last quarter of the rotation
+   crawled and the tile read as "hanging" near the end. New pacing
+   is uniform 1.8°/% with a single mid-spin scale dip; easing is
+   shifted from the back-loaded ease-out to Material-standard so
+   the start, middle, and end of the spin all move at perceptually
+   similar rates. Duration default also dropped from 850ms to 500ms
+   at the call sites — see the two _selSpinDur/_clkSpinDur formulas. */
 @keyframes bt-spin{
   0%  {transform:rotate(0deg) scale(1);}
-  40% {transform:rotate(200deg) scale(0.75);}
-  70% {transform:rotate(320deg) scale(0.82);}
+  50% {transform:rotate(180deg) scale(0.78);}
   100%{transform:rotate(360deg) scale(1);}
 }
 @keyframes _hitGlow{
@@ -5588,7 +5874,7 @@ body.xl2-mode .gscroll::before{ display:block; }
   70% {opacity:1;}
   100%{opacity:0;}
 }
-.bt.spinning{animation:bt-spin var(--spin-dur,380ms) cubic-bezier(0.25,0.46,0.45,0.94) forwards;will-change:transform;backface-visibility:hidden;-webkit-backface-visibility:hidden;transform-style:preserve-3d;-webkit-transform-style:preserve-3d;}
+.bt.spinning{animation:bt-spin var(--spin-dur,380ms) cubic-bezier(0.4,0.0,0.2,1.0) forwards;will-change:transform;backface-visibility:hidden;-webkit-backface-visibility:hidden;transform-style:preserve-3d;-webkit-transform-style:preserve-3d;}
 /* [v1.36] Yellow → cyan blend during the placing-spin. Applied to the
    clone created by the SEL click/touchstart handlers so the tile
    visibly transitions from its "selectable" yellow glow back to the
@@ -5609,7 +5895,7 @@ body.xl2-mode .gscroll::before{ display:block; }
 }
 .bt.placing-blend{
   animation:
-    bt-spin var(--spin-dur,380ms) cubic-bezier(0.25,0.46,0.45,0.94) forwards,
+    bt-spin var(--spin-dur,380ms) cubic-bezier(0.4,0.0,0.2,1.0) forwards,
     bt-place-blend var(--spin-dur,380ms) ease-in-out forwards !important;
   will-change:transform,border-color,box-shadow;
 }
@@ -6420,7 +6706,7 @@ window.onerror=function(msg,src,line,col,err){
        go nearly fully semi-circular like Play does. -->
   <div class="sel-cta-row"><button class="sel-play" id="playBtn"><span class="play-row"><span class="play-tri">▶</span><span class="play-stack"><span class="play-main">PLAY</span><span class="play-divider"></span><span class="play-resume" id="playResumeLbl">RESUME</span></span></span></button></div>
   <div class="sel-cta-row"><button id="statsBtn" style="margin-top:10px;width:auto;padding:10px 28px;background:transparent;border:1.5px solid rgba(0,217,255,0.4);border-radius:18px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;font-weight:700;">📊 Stats</button></div>
-  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v3.67</div>
+  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v3.83</div>
 </div>
 
 <!-- GAME SCREEN -->
@@ -8242,8 +8528,18 @@ window._dbgTogglePanel=function(){
   if(!panel)return;
   // [v3.27] Panel is a flex column, so we toggle between 'flex' and 'none'.
   if(panel.style.display==='flex'){
-    panel.style.display='none';
-    try{if(window._modalCloseChirp)window._modalCloseChirp();}catch(e){}
+    // [v3.68] If pinch-zoomed in, animate scale back to 1 before
+    // hiding so the close feels like a smooth retraction rather than
+    // a hard cut. Hides on the next frame after the transition ends.
+    var didReset=false;
+    try{if(panel._dbgZoomReset)didReset=panel._dbgZoomReset(true);}catch(e){}
+    if(didReset){
+      try{if(window._modalCloseChirp)window._modalCloseChirp();}catch(e){}
+      setTimeout(function(){panel.style.display='none';},240);
+    } else {
+      panel.style.display='none';
+      try{if(window._modalCloseChirp)window._modalCloseChirp();}catch(e){}
+    }
   } else {
     _dbgRenderAll();
     panel.style.display='flex';
@@ -8618,8 +8914,16 @@ window._dbgToggleTimesPanel=function(){
   var panel=document.getElementById('_dbgTimesPanel');
   if(!panel)return;
   if(panel.style.display==='flex'){
-    panel.style.display='none';
-    try{if(window._modalCloseChirp)window._modalCloseChirp();}catch(e){}
+    // [v3.68] Smooth zoom-back on close, same as COUNTS panel.
+    var didReset=false;
+    try{if(panel._dbgZoomReset)didReset=panel._dbgZoomReset(true);}catch(e){}
+    if(didReset){
+      try{if(window._modalCloseChirp)window._modalCloseChirp();}catch(e){}
+      setTimeout(function(){panel.style.display='none';},240);
+    } else {
+      panel.style.display='none';
+      try{if(window._modalCloseChirp)window._modalCloseChirp();}catch(e){}
+    }
   } else {
     _dbgRenderTimes();
     panel.style.display='flex';
@@ -8976,8 +9280,235 @@ function _dbgBumpFail(reason){
       document.addEventListener('touchmove',onMove,{passive:false});
       document.addEventListener('touchend',onUp);
     }
+
+    // [v3.68/v3.69] Pinch-to-zoom on debug panels.
+    //
+    // Listener lives on the panel's "body" element (the content area,
+    // not the header) so we don't fight with _dbgMakeDraggable's
+    // single-finger header drag. Two-finger pinch scales the whole
+    // panel from the finger midpoint. When zoomed, single-finger drag
+    // inside the body pans. On close while zoomed, the toggle function
+    // calls _dbgZoomReset(true) to animate back to scale=1 before hiding.
+    //
+    // [v3.69] Two refinements:
+    //   1) touchstart is registered as {passive: true}. The previous
+    //      {passive: false} registration was suppressing synthesized
+    //      clicks on child elements like the COUNTS panel's collapsible
+    //      group headers. preventDefault is now only needed on touchmove
+    //      (to block scroll while pinching/panning) — touch-action:pan-y
+    //      on the body already disables the browser's native pinch.
+    //   2) When the pan-translate (tx,ty) reaches scale=1 — either via
+    //      a user pinch-out or via the close animation — the offsets are
+    //      *baked* into the panel's left/top so the visual position is
+    //      preserved. Previously tx/ty was zeroed at scale=1, snapping
+    //      the panel back to its pre-zoom position.
+    //
+    // Transform composition: the drag system uses left/top for the
+    // panel's position and sets transform='none' on first drag. We
+    // set transform='translate(tx,ty) scale(s)' with origin 0 0. Both
+    // systems share the same one-time "convert translateX(-50%) to
+    // left/top" routine so they compose cleanly regardless of which
+    // gesture happens first.
+    function _dbgMakePinchZoom(panelId, headerId, bodyId){
+      var panel=document.getElementById(panelId);
+      var body=document.getElementById(bodyId);
+      if(!panel||!body)return;
+
+      var scale=1, tx=0, ty=0;
+      var pinching=false, panning=false;
+      var startDist=0, startScale=1;
+      var startMidX=0, startMidY=0;
+      var startTx=0, startTy=0;
+      var panStartX=0, panStartY=0;
+      var initializedPos=false;
+      var transitionTimer=null;
+
+      function applyTransform(animate){
+        if(transitionTimer){clearTimeout(transitionTimer);transitionTimer=null;}
+        if(animate){
+          panel.style.transition='transform 0.24s cubic-bezier(.2,.7,.3,1)';
+          transitionTimer=setTimeout(function(){
+            panel.style.transition='';
+            transitionTimer=null;
+          },280);
+        } else {
+          panel.style.transition='';
+        }
+        panel.style.transformOrigin='0 0';
+        panel.style.transform='translate('+tx+'px,'+ty+'px) scale('+scale+')';
+      }
+
+      function ensureInitialized(){
+        // Same one-time conversion the drag system does: bake the
+        // initial translateX(-50%) centering into left/top so we can
+        // own the transform property cleanly.
+        if(initializedPos)return;
+        var rect=panel.getBoundingClientRect();
+        var bRect=document.body.getBoundingClientRect();
+        panel.style.left=(rect.left-bRect.left)+'px';
+        panel.style.top =(rect.top -bRect.top )+'px';
+        panel.style.transform='';
+        initializedPos=true;
+      }
+
+      // [v3.69] At scale=1, fold any residual tx/ty into the panel's
+      // left/top so the visual position is preserved and the transform
+      // state is identity. This way:
+      //   - After a user pinches out to 1, the panel stays where they
+      //     dragged it instead of snapping back.
+      //   - Future _dbgMakeDraggable header drags can read clean
+      //     left/top without a hidden translate component.
+      // Clamps to the same min-visible bounds the drag system uses
+      // (-100 to vw-50 on x, 0 to vh-30 on y).
+      function bakePanIntoLeftTop(){
+        if(tx===0 && ty===0)return;
+        var left=parseFloat(panel.style.left)||0;
+        var top =parseFloat(panel.style.top )||0;
+        var nl=left+tx, nt=top+ty;
+        var vw=window.innerWidth, vh=window.innerHeight;
+        if(nl<-100) nl=-100;
+        if(nl>vw-50) nl=vw-50;
+        if(nt<0) nt=0;
+        if(nt>vh-30) nt=vh-30;
+        panel.style.left=nl+'px';
+        panel.style.top =nt+'px';
+        tx=0; ty=0;
+      }
+
+      function dist(t1,t2){
+        var dx=t2.clientX-t1.clientX, dy=t2.clientY-t1.clientY;
+        return Math.hypot(dx,dy);
+      }
+      function midp(t1,t2){
+        return {x:(t1.clientX+t2.clientX)/2, y:(t1.clientY+t2.clientY)/2};
+      }
+      function clampScale(s){return s<1?1:(s>5?5:s);}
+
+      function clampPan(){
+        // Keep at least ~40px of the panel's visual rect inside the
+        // viewport so the user can never lose it entirely while
+        // panning a zoomed view.
+        var pw=panel.offsetWidth, ph=panel.offsetHeight;
+        var left=parseFloat(panel.style.left)||0;
+        var top =parseFloat(panel.style.top )||0;
+        var sw=pw*scale, sh=ph*scale;
+        var visLeft=left+tx, visTop=top+ty;
+        var visRight=visLeft+sw, visBot=visTop+sh;
+        var vw=window.innerWidth, vh=window.innerHeight;
+        if(visRight<40)         tx+=40-visRight;
+        if(visLeft>vw-40)       tx-=visLeft-(vw-40);
+        if(visBot<40)           ty+=40-visBot;
+        if(visTop>vh-40)        ty-=visTop-(vh-40);
+      }
+
+      function targetInHeader(t){
+        while(t&&t!==panel){
+          if(t.id===headerId)return true;
+          t=t.parentNode;
+        }
+        return false;
+      }
+
+      // [v3.69] passive:true — we never call preventDefault on
+      // touchstart, and registering as non-passive was suppressing
+      // child click synthesis (broke COUNTS collapsible groups).
+      body.addEventListener('touchstart', function(ev){
+        if(ev.touches.length===2){
+          ensureInitialized();
+          pinching=true;
+          panning=false;
+          startDist=dist(ev.touches[0],ev.touches[1]);
+          startScale=scale;
+          var m=midp(ev.touches[0],ev.touches[1]);
+          startMidX=m.x; startMidY=m.y;
+          startTx=tx;    startTy=ty;
+        } else if(ev.touches.length===1 && scale>1){
+          // One-finger pan only when already zoomed in.
+          if(targetInHeader(ev.target))return;
+          pinching=false;
+          panning=true;
+          panStartX=ev.touches[0].clientX;
+          panStartY=ev.touches[0].clientY;
+          startTx=tx; startTy=ty;
+        }
+      }, {passive:true});
+
+      body.addEventListener('touchmove', function(ev){
+        if(pinching && ev.touches.length===2){
+          var d=dist(ev.touches[0],ev.touches[1]);
+          if(startDist<1)return;
+          var newScale=clampScale(startScale*(d/startDist));
+          var m=midp(ev.touches[0],ev.touches[1]);
+
+          // Anchor zoom at the finger midpoint: find the panel-local
+          // point under the starting midpoint, then place it under the
+          // current midpoint at the new scale.
+          var left=parseFloat(panel.style.left)||0;
+          var top =parseFloat(panel.style.top )||0;
+          var localX=(startMidX-left-startTx)/startScale;
+          var localY=(startMidY-top -startTy)/startScale;
+          tx=m.x-left-localX*newScale;
+          ty=m.y-top -localY*newScale;
+          scale=newScale;
+
+          // [v3.69] No tx/ty snap-back at scale=1 — let the panel rest
+          // wherever the user pinched it out to. The bake happens on
+          // touchend instead, so mid-gesture math stays continuous.
+          clampPan();
+          applyTransform(false);
+          ev.preventDefault();
+        } else if(panning && ev.touches.length===1){
+          var dx=ev.touches[0].clientX-panStartX;
+          var dy=ev.touches[0].clientY-panStartY;
+          tx=startTx+dx; ty=startTy+dy;
+          clampPan();
+          applyTransform(false);
+          ev.preventDefault();
+        }
+      }, {passive:false});
+
+      body.addEventListener('touchend', function(ev){
+        if(ev.touches.length<2)pinching=false;
+        if(ev.touches.length<1){
+          panning=false;
+          // [v3.69] If the user pinched out to scale=1, fold the
+          // residual translate into left/top so the panel rests in
+          // place and future header drags see a clean transform.
+          if(scale===1 && (tx!==0 || ty!==0)){
+            bakePanIntoLeftTop();
+            applyTransform(false);
+          }
+        }
+      });
+      body.addEventListener('touchcancel', function(){
+        pinching=false; panning=false;
+        if(scale===1 && (tx!==0 || ty!==0)){
+          bakePanIntoLeftTop();
+          applyTransform(false);
+        }
+      });
+
+      // Hooks for the toggle handlers' smooth close-while-zoomed.
+      panel._dbgZoomReset=function(animate){
+        if(scale===1 && tx===0 && ty===0)return false;
+        // [v3.69] Bake current translate into left/top BEFORE
+        // animating, so the panel stays where the user dragged it
+        // during zoom rather than snapping back to its pre-zoom
+        // origin as it reaches scale=1.
+        if(tx!==0 || ty!==0){
+          bakePanIntoLeftTop();
+        }
+        scale=1;
+        applyTransform(!!animate);
+        return true;
+      };
+      panel._dbgZoomIsZoomed=function(){return scale>1;};
+    }
+
     _dbgMakeDraggable('_dbgPanel','_dbgPanelHeader',['_dbgPanelClose','_dbgPanelOpacity']);
     _dbgMakeDraggable('_dbgTimesPanel','_dbgTimesPanelHeader',['_dbgTimesPanelClose','_dbgTimesPanelOpacity']);
+    _dbgMakePinchZoom('_dbgPanel','_dbgPanelHeader','_dbgPanelBody');
+    _dbgMakePinchZoom('_dbgTimesPanel','_dbgTimesPanelHeader','_dbgTimesBody');
   }
   if(document.readyState==='loading'){
     document.addEventListener('DOMContentLoaded',hook);
@@ -14055,9 +14586,26 @@ function renderBank(){
         }
         tile.appendChild(cyanWrap);
       } else {
-        // Used / nothing to show — render a faint placeholder.
+        // [v3.74] Used / all-placed cyan-mode tile. Previously this
+        // rendered the value at rgba(0,147,170,0.25) — a 25% alpha
+        // cyan. Combined with .bt.used's opacity:0.25, the effective
+        // alpha was ~0.0625, which on black is essentially invisible.
+        // Other display modes don't have this problem because their
+        // .used tiles show a WHITE outlined digit; white at 25%
+        // opacity is still legible. Cyan at 25% × 25% is not.
+        //
+        // Fix: use full-alpha cyan (so .bt.used's 0.25 opacity is the
+        // only dimming applied — matching every other mode's effective
+        // dimming) and add a thin 0.3px text-stroke in a slightly
+        // lifted cyan. The stroke thickens the glyph silhouette, which
+        // is what makes it read at low effective alpha — single
+        // hairlines on a black background disappear regardless of
+        // color saturation. Scoped to cyan mode only via the enclosing
+        // if(cyanOn && condenseOn && collapsedGroup) branch.
         tile.textContent = item.value;
-        tile.style.color = 'rgba(0,147,170,0.25)';
+        tile.style.color = '#0093aa';
+        tile.style.webkitTextStroke = '0.3px #7dd3e0';
+        tile.style.textStroke = '0.3px #7dd3e0';
       }
     } else if(xnOn && condenseOn && collapsedGroup){
       // ── xN MODE ─────────────────────────────────────────────────
@@ -14122,7 +14670,14 @@ function renderBank(){
         + 'flex-shrink:0;';
       tile.appendChild(whiteSpan);
 
-      if(hasMultiple){
+      // [v3.75] xN badge gate also requires unused >= 2. Per Sam's
+      // request, the cyan ×N badge only appears for counts of 2 or
+      // more. At unused=1 the badge disappears so the tile reads as
+      // just the white digit (since "×1" is redundant); at unused=0
+      // the tile is .used (dimmed by .bt.used opacity:0.25) — the
+      // gate previously still rendered "×0" inside the dimmed tile,
+      // also gone now.
+      if(hasMultiple && collapsedGroup.unused >= 2){
         var unused = collapsedGroup.unused;
         var mulSpan = document.createElement('span');
         mulSpan.className = '_btXN';
@@ -15221,9 +15776,15 @@ function renderBank(){
               if(typeof el._spawn === 'function') el._spawn(el);
               // [v1.36] See click handler below for the ghost-border +
               // yellow→cyan blend rationale. Same pattern.
+              // [v3.70] Base duration dropped 850→500ms for snappier
+              // tap-feedback. Ghost-border creation suppressed; the
+              // dashed cyan anchor outline at the original position
+              // wasn't carrying its weight visually. Block kept in
+              // place as a comment so it can be revived cleanly.
               var _selSdm=(typeof window._spinDurMult==='number'&&window._spinDurMult>0)?window._spinDurMult:1.0;
-              var _selSpinDur=Math.max(80,Math.round(850*_selSdm));
+              var _selSpinDur=Math.max(80,Math.round(500*_selSdm));
               var _selRect = el.getBoundingClientRect();
+              /* [v3.70] Ghost suppressed — see header comment.
               var _selGhost = document.createElement('div');
               _selGhost.className = 'bt-ghost';
               _selGhost.style.left = _selRect.left + 'px';
@@ -15235,7 +15796,69 @@ function renderBank(){
               setTimeout(function(){
                 if(_selGhost.parentNode) _selGhost.parentNode.removeChild(_selGhost);
               }, _selSpinDur + 40);
+              */
+              // [v3.72/v3.82] Hide just the source tile under the clone.
+              // Using visibility:hidden preserves layout (so the bank
+              // doesn't reflow) while killing the tile's border, inner
+              // glow, and number — exactly what sits in z behind the
+              // spinning clone, nothing more.
+              //
+              // [v3.82] The bug that killed v3.72–v3.81 for cyan/xN
+              // multi-instance tiles: in condensed display modes the
+              // rendered tile carries data-bank-idx=firstUnused (e.g.
+              // 10 when value=4 has 5 instances at indices 10..14).
+              // After place(10), bank[10].used=true, the new "first
+              // unused" for value=4 is 11, and the rebuilt tile in
+              // the bank gets data-bank-idx=11. The CLONE in <body>,
+              // made via cloneNode(true), still has data-bank-idx=10.
+              // A document-wide query `.bt[data-bank-idx="10"]` then
+              // matched the CLONE — and we set visibility:hidden on
+              // it, killing the spin entirely. Plain (non-condensed)
+              // modes were unaffected because each bank slot has its
+              // own permanent index that the new tile inherits.
+              //
+              // Fix: (a) strip data-bank-idx from the clone so no
+              // such query can ever match it, and (b) scope the
+              // post-place and cleanup queries to inside #bank.
+              // [v3.83] Find-rebuilt-tile helper. In condensed modes
+              // (### / xN / mini) the rebuilt tile carries a DIFFERENT
+              // data-bank-idx than the source after place() — because
+              // the rendered tile uses firstUnused as its bank index,
+              // and firstUnused shifts when the previous first one
+              // gets marked used. data-collapsed-value, by contrast,
+              // is value-stable: same before and after place().
+              //
+              // So for condensed-mode tiles we look up the rebuilt
+              // tile by its value (which is the same group). For
+              // plain mode (no data-collapsed-value) we fall back to
+              // data-bank-idx, which IS stable there because each
+              // slot has its own permanent index.
+              //
+              // This fixes the v3.82 leftover: in v3.82 the post-place
+              // hide query failed for condensed modes (returned null),
+              // so the rebuilt tile sat fully visible underneath the
+              // spinning clone.
+              el.style.visibility='hidden';
+              var _selBankIdx = idx;
+              var _selBankEl = document.getElementById('bank');
+              var _selSrcCollapsedVal = (el.dataset && el.dataset.collapsedValue)
+                || null;
+              function _selFindRebuilt(){
+                if(!_selBankEl) return null;
+                if(_selSrcCollapsedVal){
+                  return _selBankEl.querySelector(
+                    '.bt[data-collapsed-value="' + _selSrcCollapsedVal + '"]'
+                  );
+                }
+                return _selBankEl.querySelector(
+                  '.bt[data-bank-idx="' + _selBankIdx + '"]'
+                );
+              }
               var _selClone = el.cloneNode(true);
+              // [v3.82] Defang the clone — strip dataset attrs that
+              // could be matched by any later querySelector.
+              _selClone.removeAttribute('data-bank-idx');
+              _selClone.removeAttribute('data-snd-idx');
               _selClone.style.border = '';
               _selClone.style.boxShadow = '';
               _selClone.style.position = 'fixed';
@@ -15247,14 +15870,47 @@ function renderBank(){
               _selClone.style.zIndex = '9999';
               _selClone.style.pointerEvents = 'none';
               _selClone.style.setProperty('--spin-dur', _selSpinDur+'ms');
+              // Defensive reset of inline transform/transition that
+              // may have come over with the cloned cssText.
+              _selClone.style.transform = '';
+              _selClone.style.transition = 'none';
+              _selClone.style.willChange = 'transform,border-color,box-shadow';
+              // Belt-and-suspenders visibility:visible since we just
+              // hid the source the clone was copied from.
+              _selClone.style.visibility='visible';
               document.body.appendChild(_selClone);
               void _selClone.offsetWidth;
-              _selClone.classList.add('placing-blend');
+              // Inline animation — same as the .placing-blend class
+              // rule, but inline so nothing in the cascade can lose.
+              _selClone.style.animation =
+                'bt-spin ' + _selSpinDur + 'ms cubic-bezier(0.4,0.0,0.2,1.0) forwards, ' +
+                'bt-place-blend ' + _selSpinDur + 'ms ease-in-out forwards';
               setTimeout(function(){
                 if(_selClone.parentNode) _selClone.parentNode.removeChild(_selClone);
+                var _slot = _selFindRebuilt();
+                if(_slot){
+                  // Soft un-hide: brief opacity fade-in so the dim
+                  // .used state doesn't pop in abruptly.
+                  _slot.style.visibility='';
+                  _slot.style.transition='opacity 0.18s ease-out';
+                  _slot.style.opacity='0';
+                  void _slot.offsetWidth;
+                  _slot.style.opacity='';
+                  setTimeout(function(){
+                    if(_slot && _slot.parentNode){
+                      _slot.style.transition='';
+                    }
+                  }, 220);
+                }
               }, _selSpinDur + 40);
               window._mxSelTouchHandledAt = performance.now();
               place(idx);
+              // [v3.83] Hide the post-place rebuilt tile so the user
+              // doesn't see it sitting underneath the spinning clone.
+              // _selFindRebuilt() handles the condensed-mode case
+              // where data-bank-idx has shifted.
+              var _selNewSlot = _selFindRebuilt();
+              if(_selNewSlot) _selNewSlot.style.visibility='hidden';
             }catch(_){}
           }
         }
@@ -15507,9 +16163,13 @@ function renderBank(){
         var _realTile = document.querySelector('.bt[data-bank-idx="'+idx+'"]') || tile;
         try{
           if(typeof _realTile._spawn === 'function') _realTile._spawn(_realTile);
+          // [v3.70] Base duration dropped 850→500ms for snappier
+          // tap-feedback. Ghost-border creation suppressed; block
+          // kept in place as a comment so it can be revived cleanly.
           var _clkSdm=(typeof window._spinDurMult==='number'&&window._spinDurMult>0)?window._spinDurMult:1.0;
-          var _clkSpinDur=Math.max(80,Math.round(850*_clkSdm));
+          var _clkSpinDur=Math.max(80,Math.round(500*_clkSdm));
           var _origRect = _realTile.getBoundingClientRect();
+          /* [v3.70] Ghost suppressed — see header comment.
           // [v1.36] Ghost border — static dashed outline at original
           // position, fades out over the spin duration. Helps the eye
           // anchor on the tap location while the clone spins above.
@@ -15524,11 +16184,34 @@ function renderBank(){
           setTimeout(function(){
             if(_ghost.parentNode) _ghost.parentNode.removeChild(_ghost);
           }, _clkSpinDur + 40);
+          */
+          // [v3.72/v3.82/v3.83] Surgical hide — see v3.83 comment at
+          // the SEL touchstart site for the full rationale, including
+          // the data-bank-idx mismatch bug AND the v3.83 fix that uses
+          // data-collapsed-value when the source was a condensed tile.
+          _realTile.style.visibility='hidden';
+          var _clkBankIdx = idx;
+          var _clkBankEl = document.getElementById('bank');
+          var _clkSrcCollapsedVal = (_realTile.dataset && _realTile.dataset.collapsedValue)
+            || null;
+          function _clkFindRebuilt(){
+            if(!_clkBankEl) return null;
+            if(_clkSrcCollapsedVal){
+              return _clkBankEl.querySelector(
+                '.bt[data-collapsed-value="' + _clkSrcCollapsedVal + '"]'
+              );
+            }
+            return _clkBankEl.querySelector(
+              '.bt[data-bank-idx="' + _clkBankIdx + '"]'
+            );
+          }
           // [v1.36] Spinning clone — keep .lit so the yellow glow is
-          // the START of the blend animation. .placing-blend drives
-          // both the spin transform AND the yellow→cyan color fade
-          // over the same duration.
+          // the START of the blend animation.
           var _spinClone = _realTile.cloneNode(true);
+          // [v3.82] Strip dataset attrs so document-wide queries can
+          // never match the clone (which lives in <body>, not #bank).
+          _spinClone.removeAttribute('data-bank-idx');
+          _spinClone.removeAttribute('data-snd-idx');
           // Clear inline styles set by applyTileColor that would
           // override the keyframe animation's border-color values.
           _spinClone.style.border = '';
@@ -15542,17 +16225,42 @@ function renderBank(){
           _spinClone.style.zIndex = '9999';
           _spinClone.style.pointerEvents = 'none';
           _spinClone.style.setProperty('--spin-dur', _clkSpinDur+'ms');
+          // Defensive reset of inline transform/transition.
+          _spinClone.style.transform = '';
+          _spinClone.style.transition = 'none';
+          _spinClone.style.willChange = 'transform,border-color,box-shadow';
+          _spinClone.style.visibility='visible';
           document.body.appendChild(_spinClone);
           void _spinClone.offsetWidth;
-          // .lit stays on the clone (preserved by cloneNode(true) since
-          // the original tile carried it). Add .placing-blend to drive
-          // the combined spin + yellow→cyan animation.
-          _spinClone.classList.add('placing-blend');
+          // Inline animation declaration — same shorthand as the
+          // .placing-blend class rule.
+          _spinClone.style.animation =
+            'bt-spin ' + _clkSpinDur + 'ms cubic-bezier(0.4,0.0,0.2,1.0) forwards, ' +
+            'bt-place-blend ' + _clkSpinDur + 'ms ease-in-out forwards';
           setTimeout(function(){
             if(_spinClone.parentNode) _spinClone.parentNode.removeChild(_spinClone);
+            var _slot = _clkFindRebuilt();
+            if(_slot){
+              // Soft un-hide with brief opacity fade-in.
+              _slot.style.visibility='';
+              _slot.style.transition='opacity 0.18s ease-out';
+              _slot.style.opacity='0';
+              void _slot.offsetWidth;
+              _slot.style.opacity='';
+              setTimeout(function(){
+                if(_slot && _slot.parentNode){
+                  _slot.style.transition='';
+                }
+              }, 220);
+            }
           }, _clkSpinDur + 40);
         }catch(_){}
         place(idx);
+        // [v3.83] Hide the post-place rebuilt tile (condensed-aware).
+        var _clkNewSlot = (typeof _clkFindRebuilt === 'function')
+          ? _clkFindRebuilt()
+          : null;
+        if(_clkNewSlot) _clkNewSlot.style.visibility='hidden';
       });
     })(renderIdx,renderIdx,tile);
     // Store spawnParticles reference on the tile so swipe handler can call it
