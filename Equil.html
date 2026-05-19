@@ -1,3 +1,248 @@
+<!-- Equil v4.13 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.13: New trophy artwork on the win card.
+
+     ASSET:
+     - assets/equil-trophy.webp (81 KB). Photographic image of a
+       crystal trophy filled with cyan-numbered amethyst tiles, on
+       a base of more tiles. Matches the cyan + purple/magenta
+       palette of the rest of the app perfectly.
+     - Source JPG (1072x960, 217 KB) was processed the same way as
+       the logo asset: downscaled to 480 px wide, then luminance-
+       based alpha keying (BLACK_FLOOR=14, WHITE_CEIL=120, GAMMA=0.85)
+       so the black background becomes transparent with a soft falloff
+       on the cyan glow at the trophy's base. WebP quality 85.
+
+     MARKUP:
+     - The 48px 🏆 emoji is replaced with <img src="assets/equil-
+       trophy.webp"> sized 96px tall in the headline cluster.
+     - Fail-silent fallback: an emoji <div> sibling stays in DOM
+       hidden. The img's onerror handler reveals the emoji if the
+       webp fails to load (e.g. local testing without assets/).
+       So the card works with or without the asset deployed.
+     - Subtle cyan drop-shadow filter on the img matches the rest
+       of the card's accent treatment.
+
+     DEPLOY: drop equil-trophy.webp into the Equil/assets/ folder
+     on GitHub Pages alongside equil-logo.webp. Filenames are case-
+     sensitive on Pages — keep lowercase.
+
+<!-- Equil v4.12 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.12: Four win-card polish tweaks from Sam's screenshots.
+
+     1) MOVES BURST RELOCATED.
+        Previously sat top-left of the headline wrap, overlapping
+        the Template: line. Now anchored to the upper-left of the
+        card itself, top:32px left:-22px — sits BELOW the size/diff
+        and template labels. Header gets z-index:3, burst gets
+        z-index:0 so the cyan header always reads in front when
+        they overlap.
+
+     2) POLYGON POINTS REGENERATED.
+        The hand-written sunburst points had a coincident pair on
+        one spike that rendered as a squared-off end. Replaced both
+        the outer and inner polygons with proper 9-point stars
+        generated from polar coordinates — every point is at outer
+        radius 92, every valley at inner radius 38, equal angular
+        spacing. No squared ends possible with this geometry. Same
+        change applied to both time burst and moves burst.
+
+     3) "LEAST BEST" LABEL TIGHTENED.
+        The two words wrap naturally in the narrow column. The cell
+        now has line-height:0.95 (was 1.9 inherited) so when "Least"
+        and "Best" stack, they sit almost touching. display:inline-
+        block lets line-height take effect inside the grid cell.
+
+     4) ROW DIVIDERS BETWEEN STATS.
+        Best / Avg / Least Best rows are now separate grid blocks
+        with cyan-tinted border-bottom on the Best and Avg rows.
+        Visual rhythm matches the cyan divider above the current-run
+        row, so the whole stats area reads as four clearly separated
+        rows.
+
+<!-- Equil v4.11 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.11: Win card polish pass based on Sam's screenshots.
+
+     LAYOUT — UNIFIED STATS GRID:
+     - Current-run stats moved INTO the same grid as the historical
+       template stats. Now everything aligns vertically:
+         [empty]      MOVES   TIME
+         (mistakes)   9       0:21      ← current run, green text
+         ────────────────────────────
+         Best         9       0:21
+         Avg          10      0:35
+         Least Best   13      1:00
+       The eye reads down each column to compare current vs. best.
+
+     - Mistake indicator moved from "below the moves line" to the
+       label column of the current-run row. It stays invisible (via
+       visibility:hidden, not display:none) when zero so the row
+       height doesn't jump.
+
+     - Old winStats <div> kept in DOM as display:none with stub
+       legacy IDs (_winStatsLegacyTimer, _winStatsLegacyMoves,
+       winMistakesWrap, winMistakes) so any downstream lookups still
+       resolve. The active winTimer/winMoves/winCurMistakes IDs
+       now live in the unified grid.
+
+     COLOR PASS:
+     - Row labels (Best/Avg/Least Best, TEMPLATE:) switched from
+       muted grey to cyan-tinted with low opacity.
+     - Column headers MOVES/TIME: cyan-tinted (was muted).
+     - Historical stat numbers: white (was muted grey).
+     - Current-run numbers (moves, time): GREEN (#4ade80) by
+       default, magenta on PB. Green distinguishes "what you just
+       did" from "your record book" at a glance.
+     - PB-tinted Best row values: magenta (unchanged from v4.10).
+     - CLEAN SOLVE label: magenta (unchanged).
+
+     MOVES-BURST FORCED VISIBLE FOR THIS BUILD:
+     - Two new dev flags alongside _skipSplash:
+         window._forceTimeBurst  = false;
+         window._forceMovesBurst = true;
+       _forceMovesBurst=true for v4.11 so Sam can actually see the
+       moves burst — his current puzzles tie his best move count
+       rather than beating it, so the organic gate never fires.
+       Real PB-detection logic untouched; the override just OR's
+       with the real condition. Flip back to false for normal play.
+
+<!-- Equil v4.10 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.10: Major win card rebuild based on Sam's hand-drawn mock.
+
+     LAYOUT CHANGES:
+     - Top-left header: SIZE · DIFFICULTY on line 1, "Template: NAME"
+       on line 2. Identifies the puzzle the player just beat.
+     - Headline cluster (trophy + Solved!) unchanged in content but
+       now wrapped in a relative-positioned div that hosts the PB
+       bursts as absolute-positioned overlays.
+     - "CLEAN SOLVE" indicator: small magenta text, only when mks===0.
+       Per Sam: "small text under 'solved' for now ... squeeze some
+       space in there for it to pop ... in magenta perhaps."
+     - Per-template stats table (3 rows × 3 cols): label | moves | time
+       for Best / Avg / Least Best. "Least Best" is intentional
+       terminology per Sam ("for the lols", on-brand anti-positioning).
+     - The old winLabel (PERSONAL BEST / SOLVED / CLEAN / Best:0:34)
+       is now redundant — bursts handle PB celebration, the magenta
+       label handles clean. winLabel kept in DOM as display:none so
+       downstream code doesn't break.
+
+     PER-METRIC PB BURSTS:
+     - Two independent SVG bursts (top-right and top-left of headline).
+       Yellow stroke-only sunburst, ~30% opacity sit-behind so the
+       "Solved!" text reads on top. Fade in with stagger if both fire.
+     - winBurstTime fires when this solve's TIME beats the previously-
+       recorded template best.
+     - winBurstMoves fires when this solve's MOVES beats the
+       previously-recorded template best moves.
+     - Gated on "we have prior data to compare against" — first-ever
+       solve doesn't burst. Skipped runs (nonchalant, skipRecord) also
+       don't burst since the prior stats don't include this run.
+
+     MOVES STATS PERSISTENCE:
+     - _recordTplStats now takes (size, diff, tplName, ms, moves) and
+       tracks bestMoves / worstMoves / totalMoves / movesCount.
+     - getGhostStats returns these alongside time stats. Pre-v4.10
+       entries lack the move fields; they're added lazily on next
+       solve. Pre-v4.10 records show "--" in the moves columns until
+       enough new solves accumulate.
+     - Backwards-compatible: old records keep working for time stats.
+
+     BUTTONS:
+     - Old two-separate-button row replaced with a split-pill (MENU
+       and NEXT PUZZLE inside one cyan border). Old two-button markup
+       commented out in place for one-line revert.
+
+     PB DETECTION REWORK:
+     - We now snapshot prior template stats BEFORE recordWin runs,
+       then compare this run's ms/moves to that snapshot. Previously
+       the per-template "is this a PB" check compared current ms to
+       (already-updated) tpl.best, which was always true after this
+       run was recorded. The snapshot-then-record-then-compare order
+       is what makes the bursts actually fire correctly.
+
+<!-- Equil v4.09 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.09: Per-template best/avg/worst row on the win card.
+
+     New row sits between the existing PERSONAL BEST/CLEAN/etc label
+     and the Menu/Next Puzzle buttons:
+       BEST 0:34  ·  AVG 0:52  ·  WORST 1:18
+     Compact monospaced row at 11px with letter-spacing matching the
+     rest of the card's typography. BEST tints magenta when the
+     current solve set it (i.e. this run's ms === stats.best after
+     the record-and-display ordering).
+
+     Data source: _mc113.getGhostStats(size, diff, tplName) — already
+     existed, used by the grid-edge pace boxes. No new storage; the
+     stats are baked by _recordTplStats which already runs in
+     _showWinCard before the card renders.
+
+     Visibility rules:
+       - count >= 2: show the row (we have at least one solve to
+         compare against, even if it's just the current one + one
+         prior).
+       - count === 1: hide. First-ever solve of this template means
+         best === avg === worst === current time. Nothing to compare.
+       - No tpl name, getGhostStats throws, or storage missing: hide.
+
+     Daily puzzles, chalant/nonchalant: the row reads whatever the
+     existing recording rules have already saved. Nonchalant and
+     skipRecord (e.g. WIN! debug button) don't write to tpl stats,
+     so for those modes the row shows prior chalant stats only —
+     useful historical reference without polluting the comparison.
+
+<!-- Equil v4.08 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.08: BUGFIX — undo was firing twice per click.
+
+     When v4.07 re-added the undo button, an old wire-up from when
+     the button was first removed (~v2.33) was still hooked into the
+     DOMContentLoaded init block:
+       (function(){ var u=document.getElementById('undo');
+                    if(u) u.addEventListener('click',undo); })();
+     It guarded for null (sensible when the button didn't exist) but
+     now that v4.07 restored the button it fired alongside the proper
+     v4.07 handler. Each click → two undos.
+
+     Fix: commented out the old wire-up. The undo() function itself
+     stays. Sole click handler now lives next to the playBtn handler
+     and does the sound + win-check + AC-resume work.
+
+<!-- Equil v4.07 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.07: Three additions.
+
+     1) SPLASH DURATION → 3 seconds total.
+        200ms fade-in + 2600ms hold + 200ms fade-out. No audio at
+        the splash — cold-boot autoplay is blocked on mobile, so
+        per Sam's direction we don't even try; the opening sound
+        moved to the Play button instead.
+
+     2) OPENING FANFARE on Play button.
+        Sound-only ascending pop sequence (C5 → C6 over 7 pops at
+        ~95ms apart). Reuses the _winPop helper from the win wave
+        but with no DOM/particles/CSS side effects. Fires on every
+        Play tap whether we end up showing the resume prompt or
+        starting a fresh puzzle. New function: _playOpeningFanfare,
+        exposed on window. Tap unlocks the AudioContext via the
+        existing resumeAC() call so the pops reliably play.
+
+     3) UNDO BUTTON back in the UI.
+        Sits in the debug row below the grid, above the bank — left
+        side, opposite the existing TIMES/COUNTS buttons. Pill-
+        rounded cyan styling consistent with the app palette. The
+        undo() function and the renderBank disable-management hook
+        already existed (a previous UI removal left the machinery
+        intact, per Sam's no-machinery-removal principle). All we
+        added was the visible <button id="undo">, a click handler,
+        and the disabled-state CSS.
+
+        Semantics: linear undo. Place A, B, C → undo twice (C and
+        B return to bank) → place D → undo pulls D, then A. B and
+        C are gone from the stack (HIST.pop() truncated them on the
+        original undos).
+
+        Disabled when HIST is empty OR when isWon() returns true
+        (locks after victory). Plays the existing playReturn()
+        sound (descending tritone) for audio consistency with
+        drag-back returns.
+
 <!-- Equil v4.06 | Built: 2026-05-19 CT | github.com/Spamboni
      v4.06: Splash logo now has a proper alpha channel. The black
             JPEG background is gone; soft cyan glow falloff at the
@@ -6850,6 +7095,21 @@ body:not(.seq-mode) #sizeCanvasWrap{display:none!important;}
    visible. The row is for puzzle-mode UI only; on the menu it
    was just floating at the bottom looking out of place. */
 body.menu-active .tile-controls-row{ display:none!important; }
+
+/* [v4.07] Undo button disabled state. The disabled flag is set by
+   renderBank whenever HIST is empty (and after victory, the click
+   handler ignores taps too). Visual treatment: dim to ~35% opacity
+   and remove the interactive cursor so it reads as "nothing to undo
+   right now" without disappearing entirely. */
+#undo:disabled{
+  opacity:0.35;
+  cursor:default;
+  background:rgba(0,217,255,0.05);
+  border-color:rgba(0,217,255,0.25);
+}
+#undo:not(:disabled):active{
+  background:rgba(0,217,255,0.25);
+}
 .tile-controls-row > button{
   flex:1;
   font-family:'IBM Plex Mono',monospace;
@@ -7571,6 +7831,18 @@ body.menu-active .tile-controls-row{ display:none!important; }
   // Dev override — set to true to skip the splash entirely (useful
   // when iterating and you don't want to wait 2s every reload).
   window._skipSplash = false;
+
+  // [v4.11] Dev overrides for the win-card PB bursts. When true, the
+  // corresponding burst displays on EVERY solve regardless of whether
+  // it was a real per-template PB. Useful for screenshots or design
+  // iteration when you can't organically beat your best (e.g. on a
+  // tiny puzzle where 9 moves is the optimum). Flip both to false
+  // for normal play. _forceMovesBurst is on for v4.11 so Sam can
+  // see the moves burst at all (previous builds never fired it
+  // since the puzzles tied move count rather than beating it).
+  window._forceTimeBurst  = false;
+  window._forceMovesBurst = true;
+
   if(window._skipSplash) return;
 
   var splash = document.getElementById('bootSplash');
@@ -7587,13 +7859,16 @@ body.menu-active .tile-controls-row{ display:none!important; }
     void splash.offsetWidth;
     splash.style.opacity = '1';
 
-    // Hold ~1600ms after fade-in, then fade out ~200ms, then remove.
+    // [v4.07] Timing now totals ~3s: 200ms fade-in + 2600ms hold +
+    // 200ms fade-out. The "hold" setTimeout fires at fade-in+hold
+    // (200+2600 = 2800ms) and starts the fade-out, which finishes
+    // ~220ms later when the element is removed.
     setTimeout(function(){
       splash.style.opacity = '0';
       setTimeout(function(){
         if(splash.parentNode) splash.parentNode.removeChild(splash);
       }, 220);
-    }, 1800);
+    }, 2800);
   };
   probe.onerror = function(){
     // Silent fail — asset isn't there, just skip the splash entirely.
@@ -7705,7 +7980,7 @@ window.onerror=function(msg,src,line,col,err){
        go nearly fully semi-circular like Play does. -->
   <div class="sel-cta-row"><button class="sel-play" id="playBtn"><span class="play-row"><span class="play-tri">▶</span><span class="play-stack"><span class="play-main">PLAY</span><span class="play-divider"></span><span class="play-resume" id="playResumeLbl">RESUME</span></span></span></button></div>
   <div class="sel-cta-row"><button id="statsBtn" style="margin-top:10px;width:auto;padding:10px 28px;background:transparent;border:1.5px solid rgba(0,217,255,0.4);border-radius:18px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;font-weight:700;">📊 Stats</button></div>
-  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v4.06</div>
+  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v4.13</div>
 </div>
 
 <!-- GAME SCREEN -->
@@ -7810,9 +8085,23 @@ window.onerror=function(msg,src,line,col,err){
 <!-- [Equil 1.04] Removed: seqPuz (Unified SEQ/PUZ toggle) button HTML — sequencer-only. -->
   </div>
   <!-- [v3.18b] DEBUG: template-name label. Outside .gscroll so the grid's
-       touch handlers don't intercept the tap. Tap to show counts. -->
+       touch handlers don't intercept the tap. Tap to show counts.
+       [v4.07] Undo button lives on the left side of this row — sits
+       between the grid and the bank, "below the puzzle, above the
+       tiles" per the request. The undo() function and its disable-
+       management logic already existed (a previous UI removal kept
+       the machinery in place); we just re-added the visible entry
+       point with id="undo" so renderBank's existing
+         _undoBtn.disabled = HIST.length === 0
+       hook lights it up automatically. Disable after victory is
+       handled via the isWon() check in the click handler. -->
   <div style="width:100%;max-width:520px;display:flex;justify-content:space-between;align-items:center;padding:2px 14px;font:11px/1.2 monospace;color:rgba(0,217,255,0.55);letter-spacing:1px;user-select:none;flex-shrink:0;">
-    <span id="_dbgTplLabel"></span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <button id="undo" title="Undo last placement" style="background:rgba(0,217,255,0.12);border:1.5px solid rgba(0,217,255,0.55);color:rgba(0,217,255,0.95);font:11px/1 'IBM Plex Mono',monospace;font-weight:700;letter-spacing:1px;padding:6px 12px;border-radius:999px;cursor:pointer;display:flex;align-items:center;gap:5px;transition:opacity 0.15s ease,background 0.15s ease;">
+        <span style="font-size:13px;line-height:1;">↶</span><span>UNDO</span>
+      </button>
+      <span id="_dbgTplLabel"></span>
+    </div>
     <div style="display:flex;gap:6px;">
       <button id="_dbgTimesBtn" style="background:rgba(0,217,255,0.10);border:1px solid rgba(0,217,255,0.40);color:rgba(0,217,255,0.85);font:10px/1 monospace;letter-spacing:1px;padding:4px 8px;border-radius:6px;cursor:pointer;">TIMES</button>
       <button id="_dbgCountsBtn" style="background:rgba(0,217,255,0.10);border:1px solid rgba(0,217,255,0.40);color:rgba(0,217,255,0.85);font:10px/1 monospace;letter-spacing:1px;padding:4px 8px;border-radius:6px;cursor:pointer;">COUNTS</button>
@@ -8220,23 +8509,198 @@ window.onerror=function(msg,src,line,col,err){
 </div><!-- /game-screen -->
 
 <div class="wov" id="win">
+  <!-- [v4.10] Win card rebuild based on the new sketch.
+       - Header row top-left: SIZE · DIFFICULTY then Template: NAME.
+       - Solved! headline with optional yellow SVG bursts behind it,
+         absolutely positioned. Two independent bursts (time PB and
+         moves PB) so both can fire on the same solve.
+       - "CLEAN SOLVE" magenta one-liner sits between headline and
+         current-run stats (per user direction — burst handles PB,
+         this just signals zero-mistakes).
+       - Three-column table: label | moves | time, with rows for
+         Best / Avg / Least Best. "Least Best" is the deliberate
+         label for worst (per anti-positioning Equil philosophy).
+       - Bottom: split-pill MENU | NEXT PUZZLE. Old two-separate-
+         buttons markup left intact but commented out, easy revert
+         (per the no-machinery-removal principle). -->
   <div class="wcard">
-    <div class="wico">🏆</div><div class="wt">Solved!</div>
-    <div id="winStats" style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--text-primary);letter-spacing:2px;font-weight:700;margin-top:4px;">
-      <span id="winTimer">0:00</span> · <span id="winMoves">0</span> moves<span id="winMistakesWrap" style="display:none;color:#ff6b6b;"> · <span id="winMistakes">0</span> ✕</span>
+    <!-- Header row: top-left identification of the puzzle. -->
+    <div id="winHeader" style="position:absolute;top:14px;left:18px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;text-align:left;line-height:1.5;pointer-events:none;z-index:3;">
+      <div id="winSizeDiff" style="font-weight:700;color:rgba(0,217,255,0.85);">SMALL · MEDIUM</div>
+      <div style="color:rgba(0,217,255,0.75);"><span style="opacity:0.85;">TEMPLATE:</span> <span id="winTplName" style="color:var(--text-primary);font-weight:700;">--</span></div>
     </div>
-    <div id="winLabel" class="ws" style="margin-top:2px;">PERSONAL BEST</div>
+
+    <!-- [v4.12] MOVES PB burst — now positioned relative to the
+         card itself (not the headline wrap) so it sits in the
+         empty upper-left zone BELOW the size/diff/template header
+         instead of overlapping the Solved! cluster. Header gets
+         z-index:3 so the SIZE · DIFFICULTY and TEMPLATE: lines
+         always render in front; burst sits at z-index:0 so it
+         layers behind everything except the card background.
+         Anchored to the LEFT (Sam's preferred spot for the moves
+         celebration since time burst already lives on the right). -->
+    <svg id="winBurstMoves" viewBox="0 0 200 200" style="display:none;position:absolute;top:32px;left:-22px;width:120px;height:120px;pointer-events:none;opacity:0;transition:opacity 0.5s ease;z-index:0;" aria-hidden="true">
+      <g stroke="#ffd84a" stroke-width="2" fill="none" stroke-linejoin="round" opacity="0.85">
+        <polygon points="100.0,8.0 113.0,64.3 159.1,29.5 132.9,81.0 190.6,84.0 137.4,106.6 179.7,146.0 124.4,129.1 131.5,186.5 100.0,138.0 68.5,186.5 75.6,129.1 20.3,146.0 62.6,106.6 9.4,84.0 67.1,81.0 40.9,29.5 87.0,64.3"/>
+        <polygon points="100.0,35.0 109.6,73.7 141.8,50.2 124.2,86.0 164.0,88.7 127.6,104.9 156.3,132.5 118.0,121.4 122.2,161.1 100.0,128.0 77.8,161.1 82.0,121.4 43.7,132.5 72.4,104.9 36.0,88.7 75.8,86.0 58.2,50.2 90.4,73.7" opacity="0.6"/>
+      </g>
+      <text x="100" y="98" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="14" font-weight="700" fill="#ffd84a" letter-spacing="1">NEW BEST</text>
+      <text x="100" y="116" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="14" font-weight="700" fill="#ffd84a" letter-spacing="1">MOVES</text>
+    </svg>
+
+    <!-- Headline cluster with burst overlays. The bursts are absolute
+         children of this wrapper so they pin to the trophy/title
+         group regardless of card resizing. -->
+    <div id="winHeadlineWrap" style="position:relative;display:flex;flex-direction:column;align-items:center;width:100%;margin-top:18px;">
+      <!-- TIME PB burst (top-right, behind the headline). Hidden by
+           default; _showWinCard reveals it on a time PB. SVG sunburst
+           with a yellow stroke-only outline, low-opacity so the
+           headline reads on top. -->
+      <svg id="winBurstTime" viewBox="0 0 200 200" style="display:none;position:absolute;top:-22px;right:-28px;width:120px;height:120px;pointer-events:none;opacity:0;transition:opacity 0.5s ease;z-index:1;" aria-hidden="true">
+        <!-- [v4.12] Polygon points regenerated as a proper 9-point
+             sunburst: every point sits at outer radius 92, every
+             valley at inner radius 38, evenly spaced around the
+             circle. The previous hand-written points had a coincident
+             pair that rendered as a squared-off end. Inner polygon
+             is the same shape scaled down for the layered effect. -->
+        <g stroke="#ffd84a" stroke-width="2" fill="none" stroke-linejoin="round" opacity="0.85">
+          <polygon points="100.0,8.0 113.0,64.3 159.1,29.5 132.9,81.0 190.6,84.0 137.4,106.6 179.7,146.0 124.4,129.1 131.5,186.5 100.0,138.0 68.5,186.5 75.6,129.1 20.3,146.0 62.6,106.6 9.4,84.0 67.1,81.0 40.9,29.5 87.0,64.3"/>
+          <polygon points="100.0,35.0 109.6,73.7 141.8,50.2 124.2,86.0 164.0,88.7 127.6,104.9 156.3,132.5 118.0,121.4 122.2,161.1 100.0,128.0 77.8,161.1 82.0,121.4 43.7,132.5 72.4,104.9 36.0,88.7 75.8,86.0 58.2,50.2 90.4,73.7" opacity="0.6"/>
+        </g>
+        <text x="100" y="98" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="14" font-weight="700" fill="#ffd84a" letter-spacing="1">NEW BEST</text>
+        <text x="100" y="116" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="14" font-weight="700" fill="#ffd84a" letter-spacing="1">TIME</text>
+      </svg>
+      <!-- [v4.12] MOVES PB burst was moved OUT of this headline
+           wrapper and into the top-left area of the card (below the
+           header). See winBurstMoves below as a sibling of .wcard's
+           child structure. Sam's note: it was previously over the
+           Template line; moved so it sits just below the header
+           where there's empty card real estate. -->
+      <!-- [v4.13] Trophy image replaces the emoji. External asset
+           at assets/equil-trophy.webp following the assets-outside-
+           the-HTML workflow. Fail-silent: if the image fails to
+           load (local testing with no assets/ folder), the onerror
+           handler hides it and reveals the emoji fallback sibling,
+           so the win card still displays correctly without the
+           asset. Sized 96px tall — roughly twice the emoji's 48px,
+           since the photo has more detail to read. The cyan
+           drop-shadow gives it a subtle glow that matches the rest
+           of the card's accent treatment. -->
+      <img id="winTrophyImg" src="assets/equil-trophy.webp" alt=""
+           style="position:relative;z-index:2;height:96px;width:auto;display:block;filter:drop-shadow(0 0 14px rgba(0,217,255,0.25));margin-bottom:-4px;"
+           onerror="this.style.display='none';var f=document.getElementById('winTrophyFallback');if(f) f.style.display='block';">
+      <div id="winTrophyFallback" class="wico" style="display:none;position:relative;z-index:2;">🏆</div>
+      <div class="wt" style="position:relative;z-index:2;">Solved!</div>
+    </div>
+
+    <!-- Clean-solve indicator. Appears in magenta only when current
+         run had zero mistakes. Smaller than headline, larger than
+         the table labels. Independent of PB status (a clean run can
+         also be a PB, in which case the burst+this text both show). -->
+    <div id="winCleanLabel" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2.5px;color:var(--magenta);font-weight:700;margin-top:2px;">CLEAN SOLVE</div>
+
+    <!-- [v4.11] Unified stats grid: current-run row + divider + 3
+         template-stat rows, all in ONE grid so moves/time columns
+         align perfectly between current run and historical stats.
+         The eye reads top-to-bottom in the MOVES column and the
+         TIME column to compare what you just did with your best/
+         avg/least-best history.
+
+         Column structure (3 cols):
+           [ label/mistake-indicator ] [ MOVES ] [ TIME ]
+
+         Color scheme (v4.11):
+           - Column headers MOVES/TIME: cyan-tinted
+           - Row labels Best/Avg/Least Best: cyan-tinted (was grey)
+           - Current run numbers (moves, time): GREEN — distinguishes
+             "what you just did" from historical
+           - Mistake count: red on the left (was a separate line)
+           - Stat numbers: white (was muted grey)
+           - PB-tinted values: magenta (unchanged from v4.10)
+
+         The old winStats element is kept in DOM as display:none so
+         downstream code that might reference winTimer/winMoves
+         (e.g. for save/restore) still finds them — those IDs now
+         live in this new grid. -->
+    <div id="winTplStats" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:1.5px;margin-top:10px;width:100%;max-width:300px;">
+      <!-- Column header row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:9px;letter-spacing:2px;margin-bottom:4px;color:var(--cyan);opacity:0.75;">
+        <span></span>
+        <span style="text-align:center;">MOVES</span>
+        <span style="text-align:right;">TIME</span>
+      </div>
+      <!-- Current run row (above the divider). Numbers in green so the
+           eye sees them as "just now" vs. the white historical values.
+           Mistake indicator lives in the label column so it doesn't
+           disrupt moves/time column alignment. Hides if no mistakes
+           (i.e. on clean solves the indicator slot is just blank). -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:baseline;line-height:1.6;padding-bottom:8px;border-bottom:1px solid rgba(0,217,255,0.35);">
+        <span id="winCurMistakes" style="text-align:left;color:#ff6b6b;font-weight:700;font-size:12px;visibility:hidden;">0 ✕</span>
+        <span id="winMoves" style="text-align:center;color:#4ade80;font-weight:700;font-size:14px;">0</span>
+        <span id="winTimer" style="text-align:right;color:#4ade80;font-weight:700;font-size:14px;">0:00</span>
+      </div>
+      <!-- Historical stats — Best / Avg / Least Best. Each row is
+           its own grid so we can put cyan-tinted dividing lines
+           between them. The "Least Best" cell uses a tighter
+           line-height so when the two words wrap (they always do in
+           the column) they sit nearly stacked. -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:baseline;line-height:1.9;padding-top:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,217,255,0.35);">
+        <span style="text-align:left;color:var(--cyan);opacity:0.75;">Best</span>
+        <span id="winTplBestMoves" style="text-align:center;color:var(--text-primary);font-weight:700;">--</span>
+        <span id="winTplBest" style="text-align:right;color:var(--text-primary);font-weight:700;">--</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:baseline;line-height:1.9;padding-top:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,217,255,0.35);">
+        <span style="text-align:left;color:var(--cyan);opacity:0.75;">Avg</span>
+        <span id="winTplAvgMoves" style="text-align:center;color:var(--text-primary);font-weight:700;">--</span>
+        <span id="winTplAvg" style="text-align:right;color:var(--text-primary);font-weight:700;">--</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:baseline;line-height:1.9;padding-top:6px;">
+        <!-- [v4.12] line-height:0.95 squeezes "Least" and "Best" onto
+             stacked rows that nearly touch. white-space:normal allows
+             the wrap; display:inline-block lets the tighter line
+             height take effect inside a grid cell. -->
+        <span style="text-align:left;color:var(--cyan);opacity:0.75;display:inline-block;line-height:0.95;">Least Best</span>
+        <span id="winTplWorstMoves" style="text-align:center;color:var(--text-primary);font-weight:700;">--</span>
+        <span id="winTplWorst" style="text-align:right;color:var(--text-primary);font-weight:700;">--</span>
+      </div>
+    </div>
+
+    <!-- [v4.11] Legacy single-line winStats kept as display:none.
+         The winTimer / winMoves / winMistakes IDs have moved up
+         into the unified grid above; these dummy spans satisfy any
+         downstream code that might still look them up by id (none
+         currently spotted, but safer than ripping the references). -->
+    <div id="winStats" style="display:none;">
+      <span id="_winStatsLegacyTimer">0:00</span>
+      <span id="_winStatsLegacyMoves">0</span>
+      <span id="winMistakesWrap" style="display:none;"><span id="winMistakes">0</span></span>
+    </div>
+
+    <!-- The PERSONAL BEST/SOLVED/Best:0:34 label from v4.09 is now
+         redundant on PB (burst handles it) and on clean (the magenta
+         label above handles it). Kept in DOM as display:none so any
+         downstream code referencing winLabel doesn't break, and so
+         we can revive it if we want a fallback "Best: 0:34" hint
+         when neither PB nor clean fires. -->
+    <div id="winLabel" class="ws" style="display:none;margin-top:2px;">PERSONAL BEST</div>
+
+    <!-- [v4.10] Split-pill button replacing the two-button row. Both
+         halves of the pill are full buttons (so accessibility/focus
+         work), separated by a thin cyan divider. -->
+    <div id="winSplitBtns" style="display:flex;margin-top:14px;border:1.5px solid var(--cyan);border-radius:999px;overflow:hidden;background:transparent;box-shadow:0 0 12px rgba(0,217,255,0.4);">
+      <button id="winMenuBtn" style="flex:1;background:transparent;border:none;color:var(--cyan);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:12px 22px;cursor:pointer;border-right:1px solid rgba(0,217,255,0.5);">MENU</button>
+      <button id="nxt" style="flex:1.4;background:transparent;border:none;color:var(--cyan);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:12px 22px;cursor:pointer;">NEXT PUZZLE</button>
+    </div>
+    <!-- [v4.10] OLD two-separate-button markup left here commented
+         out for easy revert. To revive: delete the split-pill div
+         above and uncomment this block. winMenuBtn and nxt IDs are
+         already used above so the click handlers wired elsewhere
+         work either way.
     <div style="display:flex;gap:8px;margin-top:8px;">
-      <!-- [v2.82] Replaced the Share button with a Menu button.
-           Share has no audience yet (no daily, no leaderboards) so
-           "Copy to clipboard" was a feature looking for a use case.
-           Menu here mirrors the masthead Menu button — quick exit
-           from the win card back to the puzzle-size selector.
-           Inline padding override removed since both buttons now
-           use the same .wnxt sizing for visual symmetry. -->
       <button class="wnxt" id="winMenuBtn">Menu</button>
       <button class="wnxt" id="nxt">Next Puzzle</button>
     </div>
+    -->
   </div>
 <!-- Save/Load Modal -->
 <div id="seqModal" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.8);align-items:center;justify-content:center;"><div id="seqModalBox" style="background:var(--bg-secondary);border:2px solid var(--cyan);border-radius:6px;padding:18px;width:min(340px,90vw);font-family:'IBM Plex Mono',monospace;box-shadow:0 0 20px rgba(0,217,255,0.3);"><div id="seqModalTitle" style="font-weight:700;font-size:13px;letter-spacing:1px;margin-bottom:12px;color:var(--text-primary);"></div><div id="seqModalBody" style="color:var(--text-secondary);"></div><div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end;"><button id="seqModalCancel" style="font-family:'IBM Plex Mono',monospace;font-size:11px;padding:6px 12px;border:1.5px solid var(--cyan);border-radius:3px;background:transparent;color:var(--cyan);cursor:pointer;">Cancel</button><button id="seqModalOk" style="font-family:'IBM Plex Mono',monospace;font-size:11px;padding:6px 12px;border:1.5px solid var(--cyan);border-radius:3px;background:rgba(0,217,255,0.15);color:var(--cyan);cursor:pointer;">OK</button></div></div></div>
@@ -14582,25 +15046,53 @@ window._mc113 = (function(){
   }
   // Record a chalant solve into the rich tpl stats. Returns the
   // updated entry (or null on failure).
-  function _recordTplStats(size, diff, tplName, ms){
+  // [v4.10] Now tracks moves alongside time. Entries written by
+  // pre-v4.10 versions lack {bestMoves, worstMoves, totalMoves};
+  // those fields initialize lazily on the next solve. We do NOT
+  // backfill old records (we don't have the historical move counts).
+  function _recordTplStats(size, diff, tplName, ms, moves){
     if(!size || !diff || !tplName || !(ms > 0)) return null;
     var m = _loadTplStats();
     var k = size+'|'+diff+'|'+tplName;
     var e = m[k];
+    var hasMoves = (typeof moves === 'number' && moves > 0);
     if(!e){
       e = {best: ms, worst: ms, total: ms, count: 1};
+      if(hasMoves){
+        e.bestMoves  = moves;
+        e.worstMoves = moves;
+        e.totalMoves = moves;
+        e.movesCount = 1;
+      }
     } else {
       if(ms < e.best)  e.best  = ms;
       if(ms > e.worst) e.worst = ms;
       e.total += ms;
       e.count += 1;
+      if(hasMoves){
+        // Lazy init: if this is the first run with moves info for
+        // a pre-v4.10 record, seed all three fields from this solve.
+        if(e.bestMoves == null){
+          e.bestMoves  = moves;
+          e.worstMoves = moves;
+          e.totalMoves = moves;
+          e.movesCount = 1;
+        } else {
+          if(moves < e.bestMoves)  e.bestMoves  = moves;
+          if(moves > e.worstMoves) e.worstMoves = moves;
+          e.totalMoves += moves;
+          e.movesCount = (e.movesCount || 0) + 1;
+        }
+      }
     }
     m[k] = e;
     _saveTplStats(m);
     return e;
   }
-  // Returns {best, worst, avg, count} or null. Used by the grid-edge
-  // pace boxes to decide which boxes to draw.
+  // Returns {best, worst, avg, count, bestMoves, worstMoves, avgMoves,
+  // movesCount} or null. Move stats may be null if no recorded solves
+  // have moves data yet (pre-v4.10 entries that haven't been refreshed
+  // by a new solve).
   //   count === 1: only `best` is meaningful (best === worst === avg).
   //   count === 2: best and worst are real; avg is just their midpoint.
   //   count >= 3: full triple available.
@@ -14611,12 +15103,23 @@ window._mc113 = (function(){
     var k = size+'|'+diff+'|'+tplName;
     var e = m[k];
     if(!e || !(e.count > 0)) return null;
-    return {
+    var out = {
       best: e.best,
       worst: e.worst,
       avg: Math.round(e.total / e.count),
-      count: e.count
+      count: e.count,
+      bestMoves: null,
+      worstMoves: null,
+      avgMoves: null,
+      movesCount: 0
     };
+    if(e.bestMoves != null && e.movesCount > 0){
+      out.bestMoves  = e.bestMoves;
+      out.worstMoves = e.worstMoves;
+      out.avgMoves   = Math.round(e.totalMoves / e.movesCount);
+      out.movesCount = e.movesCount;
+    }
+    return out;
   }
 
   function recordWin(size,diff,ms,movesCount,isDaily,dateStr,mistakesCount){
@@ -17427,8 +17930,14 @@ function renderBank(){
   }
   // [v2.33] Undo button removed from UI; guard the lookup so the
   // null doesn't throw.
+  // [v4.07] Button is back. Disable when HIST is empty (nothing to
+  // undo) OR when the puzzle is won (undo locks after victory per
+  // design — the puzzle is sealed, no take-backs).
   var _undoBtn = document.getElementById('undo');
-  if(_undoBtn) _undoBtn.disabled = HIST.length === 0;
+  if(_undoBtn){
+    var _wonNow = !!(window._mc113 && window._mc113.isWon && window._mc113.isWon());
+    _undoBtn.disabled = (HIST.length === 0) || _wonNow;
+  }
   // Apply pad name labels (and refresh mic icons) now that tiles are fresh
   if(window._updateSampleIcons) window._updateSampleIcons();
   if(window._updateExprGrid) window._updateExprGrid();
@@ -22702,8 +23211,14 @@ window._swapPaceBoxModePrefs = function(){
 // [v3.50] Play button — checks if a saved game exists for the
 // currently-selected (size, diff). If so, shows the resume prompt
 // modal; if not, starts a fresh puzzle as before.
+// [v4.07] Also fires the opening ascending-pop fanfare on EVERY
+// tap (whether we end up showing the resume prompt or starting a
+// fresh puzzle). The tap unlocks the AudioContext via resumeAC()
+// so the pops actually play on mobile (autoplay-blocked on cold
+// boot would silently fail — but a user gesture clears that).
 document.getElementById('playBtn').addEventListener('click',function(){
   resumeAC();
+  if(window._playOpeningFanfare) window._playOpeningFanfare();
   var saved=window._mc113&&window._mc113.loadProgress&&window._mc113.loadProgress(SIZE,DIFF);
   if(saved&&saved.ts&&saved.ts.elapsed>0&&saved.ts.moves>0){
     // Saved game exists — show the resume/new prompt.
@@ -22711,6 +23226,27 @@ document.getElementById('playBtn').addEventListener('click',function(){
   }
   showGame();
 });
+
+// [v4.07] Wire up the undo button. The undo() function and the
+// disable-management hook (renderBank: _undoBtn.disabled = HIST
+// .length === 0) already existed; we just re-added the visible
+// entry point. Click handler:
+//   - Bails if already won (locks undo after victory per design).
+//   - Bails if HIST is empty (no-op even if button is somehow
+//     clicked while disabled).
+//   - Calls undo() and plays the existing tile-return sound for
+//     audio consistency with other return paths (drag-back, etc).
+(function(){
+  var u=document.getElementById('undo');
+  if(!u) return;
+  u.addEventListener('click', function(){
+    resumeAC();
+    if(window._mc113 && window._mc113.isWon && window._mc113.isWon()) return;
+    if(!HIST.length) return;
+    if(window.playReturn) playReturn();
+    undo();
+  });
+})();
 
 // [v3.62] Visual cue: when the currently-selected (size, diff)
 // has a saved in-progress game, the PLAY button shows a small
@@ -22746,7 +23282,13 @@ document.getElementById('backBtn').addEventListener('click',function(){
   showMenu();
 });
 // [v2.33] Undo button removed from toolbar; guard the wire.
-(function(){ var u=document.getElementById('undo'); if(u) u.addEventListener('click',undo); })();
+// [v4.08] Old wire-up retired. When the undo button was re-added
+// in v4.07 this line started firing a SECOND undo per click on
+// top of the proper handler we wired with sound + win-check + AC
+// resume, so the user saw two undos per tap. The undo() function
+// itself stays available; only this duplicate event registration
+// is gone. New handler lives next to the playBtn handler.
+// (function(){ var u=document.getElementById('undo'); if(u) u.addEventListener('click',undo); })();
 document.getElementById('newp').addEventListener('click',newPuzzle);
 document.getElementById('nxt').addEventListener('click',newPuzzle);
 
@@ -23292,17 +23834,61 @@ function _winWaveSequence(onComplete){
   if(onComplete) setTimeout(onComplete, totalMs);
 }
 
+// [v4.07] Sound-only ascending pop sequence — used as the "opening
+// signature" on the Play button. Same C5→C6 sweep as the win wave,
+// but no DOM, no particles, no .bursting class. Pure audio so it
+// can play before any puzzle is on screen.
+//
+// Mobile note: this is gated by the play button TAP, which counts
+// as user interaction and unlocks the AudioContext. Tapping Play
+// also fires resumeAC() (see the playBtn handler), so by the time
+// these pops queue up the AC is awake. We don't try to play this
+// on cold boot — the splash IIFE has no audio code at all per
+// Sam's note.
+function _playOpeningFanfare(){
+  if(!AC) return;
+  resumeAC();
+  var COUNT = 7;                  // pops in the run
+  var PER_MS = 95;                // delay between pops
+  var FREQ_LO = 523.25;           // C5
+  var FREQ_HI = 1046.50;          // C6
+  for(var i=0;i<COUNT;i++){
+    (function(idx){
+      var t = idx/(COUNT-1);
+      var freq = FREQ_LO + (FREQ_HI-FREQ_LO)*t;
+      setTimeout(function(){ _winPop(freq); }, idx*PER_MS);
+    })(i);
+  }
+}
+window._playOpeningFanfare = _playOpeningFanfare;
+
 // ═══════════════════════════════════════════════════════════
 
 // _showWinCard fills in the win card with timer / move count / PB
 // label, then displays it. Called from place() when winCheck() passes
 // (replacing the simpler "All equations correct" overlay used in 1.12).
+// [v4.10] Rewritten for the new layout (header / two bursts / table).
 function _showWinCard(opts){
   var ms=window._mc113?window._mc113.curMs():0;
   var mvs=window._mc113?window._mc113.getMoves():0;
   var mks=window._mc113&&window._mc113.getMistakes?window._mc113.getMistakes():0;
   var isDaily=window._mc113?window._mc113.isDaily():false;
   var dateStr=window._mc113?window._mc113.dailyDateStr():null;
+
+  // [v4.10] We need to know the PRIOR stats (before this solve was
+  // recorded) to detect if THIS run set a new template-time-PB or
+  // template-moves-PB. recordWin's isPB flag is for the size|diff
+  // aggregate, not per-template — and we want the bursts gated on
+  // the per-template comparison since that's what the table shows.
+  // Snapshot now, then record, then compare.
+  var _tplNmEarly = window._currentTplName;
+  var _priorTplStats = null;
+  try{
+    if(_tplNmEarly && window._mc113 && window._mc113.getGhostStats){
+      _priorTplStats = window._mc113.getGhostStats(SIZE, DIFF, _tplNmEarly);
+    }
+  }catch(_){}
+
   // Record the result and learn whether this was a personal best.
   // [v2.84] opts.skipRecord skips the localStorage write — used by
   // the WIN! debug button so test fires don't pollute real stats
@@ -23315,7 +23901,8 @@ function _showWinCard(opts){
   // focused attempts, not idle play.
   var result={isPB:false,rec:null,clean:false};
   var _nonchalant = (window._equilMode === 'nonchalant');
-  if(window._mc113 && !(opts && opts.skipRecord) && !_nonchalant){
+  var _recorded = !(opts && opts.skipRecord) && !_nonchalant;
+  if(window._mc113 && _recorded){
     result=window._mc113.recordWin(SIZE,DIFF,ms,mvs,isDaily,dateStr,mks);
     // [v3.84] Also update per-template best for the ghost-runner bar.
     // [v3.90] Plus the richer per-template stats (best/worst/avg) for
@@ -23326,38 +23913,185 @@ function _showWinCard(opts){
         window._mc113._recordTplBest(SIZE, DIFF, _tplName, ms);
       }
       if(_tplName && window._mc113._recordTplStats){
-        window._mc113._recordTplStats(SIZE, DIFF, _tplName, ms);
+        window._mc113._recordTplStats(SIZE, DIFF, _tplName, ms, mvs);
       }
     }catch(_){}
   }
+
+  // [v4.10] Determine per-template PB flags. We compare this run's
+  // metrics to the PRIOR template stats snapshot (taken before
+  // recording) so we know if this run beat what was on record.
+  //   - First-ever solve of the template (_priorTplStats null):
+  //     don't fire bursts. No prior history means the comparison
+  //     is meaningless — every first-time solve would "PB".
+  //   - Skipped runs (skipRecord / nonchalant): no PB bursts.
+  //   - Moves PB: only meaningful if prior stats had movesCount > 0,
+  //     i.e. we have at least one prior solve with moves data
+  //     recorded (post-v4.10 entries).
+  var _newTimeBest  = false;
+  var _newMovesBest = false;
+  if(_recorded && _priorTplStats){
+    if(_priorTplStats.count >= 1 && ms < _priorTplStats.best){
+      _newTimeBest = true;
+    }
+    if(_priorTplStats.movesCount >= 1 && _priorTplStats.bestMoves != null
+       && mvs < _priorTplStats.bestMoves){
+      _newMovesBest = true;
+    }
+  }
+
+  // Header (size · diff and template name).
+  var sizeEl = document.getElementById('winSizeDiff');
+  var tplNmEl = document.getElementById('winTplName');
+  if(sizeEl){
+    var _sz = (window.sizeLabel ? window.sizeLabel(SIZE) : (SIZE||'').toUpperCase());
+    var _df = (DIFF||'').toUpperCase();
+    sizeEl.textContent = _sz + ' · ' + _df;
+  }
+  if(tplNmEl) tplNmEl.textContent = window._currentTplName || '--';
+
+  // Current-run line (timer · moves · mistakes).
   var tEl=document.getElementById('winTimer');
   var mEl=document.getElementById('winMoves');
   var kEl=document.getElementById('winMistakes');
   var kWrap=document.getElementById('winMistakesWrap');
-  var lEl=document.getElementById('winLabel');
   if(tEl) tEl.textContent=window._mc113?window._mc113.fmtTime(ms):'';
   if(mEl) mEl.textContent=String(mvs);
-  // [v2.68] Mistakes on the win card. Hide the wrapper if zero so a
-  // clean run reads as just "timer · moves" and the no-mistake state
-  // is implicit (and rewarded by the CLEAN label below).
   if(kEl) kEl.textContent=String(mks);
   if(kWrap) kWrap.style.display=(mks>0?'inline':'none');
-  if(lEl){
-    if(result.isPB){
-      lEl.textContent=mks===0?'★ PERSONAL BEST · CLEAN':'★ PERSONAL BEST';
-      lEl.style.color='var(--magenta)';
-    } else if(mks===0){
-      // Clean run that wasn't a PB still gets a quiet badge.
-      lEl.textContent='CLEAN SOLVE';
-      lEl.style.color='var(--cyan)';
-    } else if(result.rec && result.rec.bestMs!=null){
-      lEl.textContent='Best: '+window._mc113.fmtTime(result.rec.bestMs);
-      lEl.style.color='var(--text-muted)';
-    } else {
-      lEl.textContent='SOLVED';
-      lEl.style.color='var(--text-muted)';
+
+  // [v4.11] New mistake indicator lives in the unified stats grid's
+  // current-run row, in the LABEL column (where Best/Avg/Least Best
+  // labels sit for the historical rows). Uses visibility:hidden when
+  // zero so the row's height stays consistent — keeps the grid from
+  // jumping when clean vs. messy runs render.
+  var curMksEl = document.getElementById('winCurMistakes');
+  if(curMksEl){
+    curMksEl.textContent = String(mks) + ' \u2715';
+    curMksEl.style.visibility = (mks > 0) ? 'visible' : 'hidden';
+  }
+
+  // Clean-solve magenta label (independent of PB; both can show).
+  var cleanEl = document.getElementById('winCleanLabel');
+  if(cleanEl) cleanEl.style.display = (mks === 0) ? 'block' : 'none';
+
+  // Old winLabel kept hidden; left in DOM for downstream code that
+  // might reference it. Blank it so no stale text shows if revived.
+  var lEl=document.getElementById('winLabel');
+  if(lEl){ lEl.textContent=''; lEl.style.display='none'; }
+
+  // Per-template best/avg/worst table. Reads stats AGAIN after the
+  // record so the table reflects the just-recorded state.
+  var tplRow = document.getElementById('winTplStats');
+  if(tplRow){
+    try{
+      var _tplStats = null;
+      var _tplNm = window._currentTplName;
+      if(_tplNm && window._mc113 && window._mc113.getGhostStats){
+        _tplStats = window._mc113.getGhostStats(SIZE, DIFF, _tplNm);
+      }
+      // Show the table only when we have meaningful data. count >= 2
+      // for the time column (need at least one prior solve to compare
+      // to). The moves columns get filled separately and degrade to
+      // "--" if the entry predates v4.10 moves tracking.
+      if(_tplStats && _tplStats.count >= 2){
+        var fmt = window._mc113.fmtTime;
+        var bEl = document.getElementById('winTplBest');
+        var aEl = document.getElementById('winTplAvg');
+        var wEl = document.getElementById('winTplWorst');
+        if(bEl) bEl.textContent = fmt(_tplStats.best);
+        if(aEl) aEl.textContent = fmt(_tplStats.avg);
+        if(wEl) wEl.textContent = fmt(_tplStats.worst);
+        // Tint the time-best magenta when current run set it.
+        if(bEl){
+          bEl.style.color = (_recorded && _tplStats.best === ms)
+            ? 'var(--magenta)' : 'var(--text-primary)';
+        }
+
+        // Moves columns. Show only if we have move data on file
+        // (movesCount > 0). Pre-v4.10 entries will leave these as
+        // "--" until enough new solves come in to populate them.
+        var bmEl = document.getElementById('winTplBestMoves');
+        var amEl = document.getElementById('winTplAvgMoves');
+        var wmEl = document.getElementById('winTplWorstMoves');
+        if(_tplStats.movesCount >= 2 && _tplStats.bestMoves != null){
+          if(bmEl){
+            bmEl.textContent = String(_tplStats.bestMoves);
+            bmEl.style.color = (_recorded && _tplStats.bestMoves === mvs)
+              ? 'var(--magenta)' : 'var(--text-primary)';
+          }
+          if(amEl) amEl.textContent = String(_tplStats.avgMoves);
+          if(wmEl) wmEl.textContent = String(_tplStats.worstMoves);
+        } else {
+          // Not enough moves history yet. Show dashes; they'll start
+          // populating once a few solves accumulate post-v4.10.
+          if(bmEl){ bmEl.textContent = '--'; bmEl.style.color = 'var(--text-muted)'; }
+          if(amEl){ amEl.textContent = '--'; amEl.style.color = 'var(--text-muted)'; }
+          if(wmEl){ wmEl.textContent = '--'; wmEl.style.color = 'var(--text-muted)'; }
+        }
+        tplRow.style.display = 'block';
+
+        // [v4.11] Also tint the CURRENT-RUN values magenta when they
+        // set a PB. Otherwise they stay green (which signals "this
+        // is the run you just did" without being a record).
+        // Note: tEl/mEl are the winTimer/winMoves elements which now
+        // live in the unified grid's current-run row. We update their
+        // color here so the row visually celebrates a PB alongside
+        // the matching Best row value below.
+        if(tEl){
+          tEl.style.color = _newTimeBest  ? 'var(--magenta)' : '#4ade80';
+        }
+        if(mEl){
+          mEl.style.color = _newMovesBest ? 'var(--magenta)' : '#4ade80';
+        }
+      } else {
+        tplRow.style.display = 'none';
+        // Even with no historical stats to show, the current-run row
+        // is part of that grid — so when the grid is hidden, there's
+        // nothing to color. (First-ever solve hides the whole panel.)
+      }
+    }catch(_){
+      tplRow.style.display = 'none';
     }
   }
+
+  // [v4.10] Bursts. Independent show/hide for time and moves PBs.
+  // They reveal with a slight stagger so both don't snap in
+  // simultaneously when both fire — feels more alive.
+  //
+  // [v4.11] Dev overrides for demo/screenshot purposes. Set either
+  // flag to true in the console (or here) to force the corresponding
+  // burst to display regardless of whether it was a real PB. Useful
+  // for taking promo screenshots before the player has built up
+  // enough history to organically PB.
+  //   window._forceTimeBurst  = true;
+  //   window._forceMovesBurst = true;
+  // Both default to false; leave the actual gating logic untouched.
+  var _showTimeBurst  = _newTimeBest  || !!window._forceTimeBurst;
+  var _showMovesBurst = _newMovesBest || !!window._forceMovesBurst;
+  var burstTime = document.getElementById('winBurstTime');
+  var burstMoves = document.getElementById('winBurstMoves');
+  // Reset both to hidden first (in case last solve had them).
+  if(burstTime){
+    burstTime.style.display = 'none';
+    burstTime.style.opacity = '0';
+  }
+  if(burstMoves){
+    burstMoves.style.display = 'none';
+    burstMoves.style.opacity = '0';
+  }
+  if(_showTimeBurst && burstTime){
+    burstTime.style.display = 'block';
+    // Reveal on next frame so the transition fires.
+    setTimeout(function(){ burstTime.style.opacity = '1'; }, 350);
+  }
+  if(_showMovesBurst && burstMoves){
+    burstMoves.style.display = 'block';
+    // Staggered slightly behind the time burst if both fire.
+    setTimeout(function(){ burstMoves.style.opacity = '1'; },
+               _showTimeBurst ? 550 : 350);
+  }
+
   // [v2.85] Position the win card so its center sits on the grid's
   // visual center. Without this, the card flex-centered in the
   // viewport overlay, which read as "low" because the user's eye
