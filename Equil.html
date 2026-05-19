@@ -1,3 +1,79 @@
+<!-- Equil v4.17 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.17: OG image — bigger logo, single-line tagline.
+
+     Logo width bumped from 380 to 520 px so it claims the right
+     side of the canvas as the dominant element. Anti-positioning
+     subtitle ("no coins. just the puzzle.") removed entirely; only
+     "MATH CROSSWORD." remains below the logo. The result is a
+     cleaner, more brand-forward composition that lets the screenshot
+     do the explanatory work and the logo do the recognition work.
+
+     DEPLOY: replace assets/og-image.png. Same caching notes apply.
+
+-->
+
+<!-- Equil v4.16 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.16: OG image tagline updated. Dropped "no hints." from the
+     anti-positioning subtitle since Sam is considering adding hints
+     in a future version. Tagline is now:
+       MATH CROSSWORD.
+       no coins.
+       just the puzzle.
+
+     Keeping "no coins" because the no-microtransaction stance is
+     non-negotiable; "just the puzzle" stays as the through-line.
+     Re-running build_og.py with the updated tagline regenerates the
+     same composition (gameplay left, logo+tagline right), just with
+     the trimmed copy.
+
+     DEPLOY: replace assets/og-image.png with the new file. Caching
+     notes from v4.15 still apply (Reddit/Discord/Facebook cache
+     aggressively — fresh posts pick up the new image, old posts
+     don't).
+
+-->
+
+<!-- Equil v4.15 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.15: OG image swapped from logo-only to gameplay+logo composition.
+
+     RATIONALE:
+     The v4.14 OG image was the Equil logo centered on black at the OG
+     spec aspect ratio (1200x630). It was on-brand but uninformative —
+     for Reddit specifically, where users scroll fast and "what is this
+     puzzle?" is a stronger thumbnail hook than "what is this brand?",
+     a gameplay shot answers the curiosity question instantly. Logo
+     cards also tend to read as "an ad" in subreddit feeds.
+
+     NEW COMPOSITION (built by /home/claude/build_og.py):
+     - LEFT 45% of canvas: gameplay screenshot crop showing a Large/
+       Hard puzzle mid-solve. Masthead and bank cropped out so it's
+       pure grid; cyan border outline gives it some visual lift on
+       the black background.
+     - RIGHT 55%: Equil crystal logo at top, then a prominent cyan
+       "MATH CROSSWORD." tagline in monospace, then the anti-
+       positioning subtitle "no coins. no hints. just the puzzle."
+       in a softer grey.
+
+     The screenshot used was Sam's own gameplay (Large size, Hard
+     difficulty, 16 moves in at 3:12, best time 1:54 — meaning it's
+     genuinely mid-solve, not a contrived demo board).
+
+     META TAGS: unchanged from v4.14. The filename assets/og-image.png
+     is the same — we're just swapping the image content. This means
+     no HTML edit is strictly required, but a re-scrape will be needed
+     to clear caches:
+       - Reddit / Discord / Facebook aggressively cache OG scrapes
+       - For Reddit, the fix is delete + repost the link, not edit
+       - For Discord, suffix the URL with ?v=2 once to force re-fetch
+       - For first-time posts after deploy: just works.
+
+     DEPLOY: replace assets/og-image.png in the Equil/assets/ folder
+     with the new file. Then re-verify with https://www.opengraph.xyz/
+     by pasting the equil.pages.dev URL — should show the gameplay
+     card now.
+
+-->
+
 <!-- Equil v4.14 | Built: 2026-05-19 CT | github.com/Spamboni
      v4.14: Open Graph + Twitter Card meta tags so link previews
      in Reddit / Discord / iMessage / X show the Equil logo and
@@ -8039,7 +8115,7 @@ window.onerror=function(msg,src,line,col,err){
        go nearly fully semi-circular like Play does. -->
   <div class="sel-cta-row"><button class="sel-play" id="playBtn"><span class="play-row"><span class="play-tri">▶</span><span class="play-stack"><span class="play-main">PLAY</span><span class="play-divider"></span><span class="play-resume" id="playResumeLbl">RESUME</span></span></span></button></div>
   <div class="sel-cta-row"><button id="statsBtn" style="margin-top:10px;width:auto;padding:10px 28px;background:transparent;border:1.5px solid rgba(0,217,255,0.4);border-radius:18px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;font-weight:700;">📊 Stats</button></div>
-  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v4.14</div>
+  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v4.17</div>
 </div>
 
 <!-- GAME SCREEN -->
