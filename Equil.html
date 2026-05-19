@@ -1,3 +1,24 @@
+<!-- Equil v4.06 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.06: Splash logo now has a proper alpha channel. The black
+            JPEG background is gone; soft cyan glow falloff at the
+            edges is preserved instead of being clipped at a hard
+            rectangle. Format swapped to WebP for ~3.5x smaller file
+            than equivalent-quality PNG with no visible degradation.
+
+     Alpha generation strategy (logged for future reference):
+       - Per-pixel alpha from luma, not a hard black-key. Pure black
+         → alpha 0, crystal interior → alpha 255, glow region in
+         between → semi-transparent. Preserves the soft edge fade.
+       - Rec.709 luma weighting, BLACK_FLOOR=14, WHITE_CEIL=120,
+         GAMMA=0.85. Lower ceiling + gamma<1 keep letter interiors
+         opaque so the logo still reads cleanly over non-black bgs.
+       - WebP quality 85 chosen over PNG (787KB → 224KB) — WebP
+         supports alpha and ships on every modern browser.
+
+     DEPLOY NOTE: asset path is now assets/equil-logo.webp (was .jpg).
+     If the old .jpg is still in your assets/ folder you can delete it
+     — the code no longer references it.
+
 <!-- Equil v4.05 | Built: 2026-05-19 CT | github.com/Spamboni
      v4.05: Boot splash screen with the crystal "Equil" logo, ~2s
             display, fades in/out. Asset lives EXTERNAL to the HTML
@@ -7578,7 +7599,7 @@ body.menu-active .tile-controls-row{ display:none!important; }
     // Silent fail — asset isn't there, just skip the splash entirely.
     if(splash && splash.parentNode) splash.parentNode.removeChild(splash);
   };
-  probe.src = 'assets/equil-logo.jpg';
+  probe.src = 'assets/equil-logo.webp';
 })();
 </script>
 
@@ -7684,7 +7705,7 @@ window.onerror=function(msg,src,line,col,err){
        go nearly fully semi-circular like Play does. -->
   <div class="sel-cta-row"><button class="sel-play" id="playBtn"><span class="play-row"><span class="play-tri">▶</span><span class="play-stack"><span class="play-main">PLAY</span><span class="play-divider"></span><span class="play-resume" id="playResumeLbl">RESUME</span></span></span></button></div>
   <div class="sel-cta-row"><button id="statsBtn" style="margin-top:10px;width:auto;padding:10px 28px;background:transparent;border:1.5px solid rgba(0,217,255,0.4);border-radius:18px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;font-weight:700;">📊 Stats</button></div>
-  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v4.05</div>
+  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v4.06</div>
 </div>
 
 <!-- GAME SCREEN -->
