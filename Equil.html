@@ -1,3 +1,837 @@
+<!-- Equil v4.44 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.44: Restored the dark CS×CS wrapper bg behind op/eq/given pills.
+
+     PER SAM:
+     "I realize we need those containers back, or was it wrappers,
+      that the cells were on. The things I thought were borders on the
+      cells. I realize when placing some tiles it feels empty now
+      without that there, and also the cells are not lined up perfectly
+      in the lattice."
+
+     ROOT:
+     v4.37 removed the wrapper bg (Sam had misread it as black borders).
+     But the wrapper served two purposes:
+       1) Visual frame — each cell occupied a full CS×CS dark slot
+          aligned with the lattice gridlines. Without it, the rounded
+          pill floated inside the slot with empty corners showing
+          background, reading as misalignment.
+       2) Tactile presence — placing a tile felt anchored when there
+          was a visible slot to drop into.
+
+     FIX:
+     Restored the conditional wrapBg = 'background:var(--bk);' for
+     cell.role==='op'/'eq'/cell.isGiven (line ~19523). Inner rounded
+     pills sit inside the dark CS×CS wrapper as colored chips, same
+     as pre-v4.37. Blank cells continue without a wrapper bg since
+     their cyan border defines the slot.
+-->
+
+<!-- Equil v4.43 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.43: Pace ring settings exposed in the options panel.
+
+     PER SAM:
+     "Put the fuses back on, add settings in the global settings for
+      to turn on and off pace rings, to turn on and off the fuse glow,
+      and also a slider to adjust opacity of pace rings."
+
+     NEW OPTIONS PANEL SECTION: "Pace rings"
+       - "Show pace rings" toggle (master on/off for the system).
+         When on, contains a sub-slider: "Ring opacity" (0.10–1.00).
+       - "Fuse glow" toggle (the bright square riding each ring's
+         erasing front).
+
+     PERSISTENCE:
+       - Added paceRings/paceFuses/paceRingOpacity to DEF.
+       - Load/save handlers added in equil_opts_v2 localStorage key.
+       - Defaults: paceRings=true, paceFuses=true, paceRingOpacity=0.4.
+
+     PLUMBING:
+       - _applyTuning sets window._paceRingsOn, _paceFusesOn,
+         _paceRingOpacity from the opt values, then calls
+         _initPaceRings so toggles take effect mid-puzzle.
+       - _initPaceRings checks window._paceRingsOn at the top and
+         exits early if false.
+       - Fuse setup checks window._paceFusesOn (replaces the
+         hardcoded _FUSES_ON flag from v4.42).
+       - Each active ring gets its stroke-opacity attribute set from
+         window._paceRingOpacity on init.
+
+     Reset button also resets the three new prefs to defaults.
+-->
+
+<!-- Equil v4.42 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.42: Fixed rings being clipped at viewport edges + disabled
+     fuse squares for a cleaner look.
+
+     PER SAM:
+     1) "half of avg and all of worst ring get eaten up on left and
+         right edges of my phone."
+     2) "can we try it without the glowing ends now that they aren't
+         competing with the cells. I want to see if maybe they are
+         still pretty easy to pick up on without the extra highlight."
+
+     FIXES:
+     1) RING CLIPPING AT SCREEN EDGE.
+        Root cause: v4.41 made grid-clip 16 px wider than the original
+        grid (8 px gutter on each side). On puzzle sizes where the
+        grid was already near viewport width (Small/Medium and up),
+        this pushed the gutter past .gscroll's overflow:hidden edge,
+        clipping the rings on left/right.
+        Fix: getCellSize() now subtracts an additional 16 px from
+        available width (line ~16713), so cells shrink slightly on
+        affected sizes to leave room for the gutter. Net result:
+        rings now stay within viewport on all sizes.
+
+     2) FUSES DISABLED.
+        Added _FUSES_ON = false flag at top of the pace rings IIFE.
+        All fuse setup/positioning code in _initPaceRings and the
+        fuse SVG itself short-circuit on this flag. To revive: set
+        _FUSES_ON = true and the markup/JS are otherwise intact.
+
+     If rings are still hard to track on Sam's eye-test, we can:
+       (a) bump ring stroke-opacity from 0.4 → 0.6 for more contrast
+       (b) flip _FUSES_ON back to true
+-->
+
+<!-- Equil v4.41 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.41: Grid gutter so pace rings sit JUST OUTSIDE the cells.
+
+     PER SAM:
+     "Is there any way we can just shrink the grid down a little and
+      have the pace rings just kissing the outer edge of the cells?"
+
+     APPROACH:
+     Instead of shrinking the grid, kept the grid the same size and
+     enlarged grid-clip by 8 px on each side (GUTTER=8). Made grid-clip
+     a flex container that centers the grid in the enlarged box. The
+     pace rings sit at grid-clip's outer edge, which is now 8 px
+     outside the grid → "just kissing" the outer edge of cells from
+     OUTSIDE rather than overlapping cells.
+
+     CHANGES:
+     1) grid-clip sized to (gridW+16) × (gridH+16) instead of grid
+        exact extent.
+     2) grid-clip given display:flex, align-items+justify-content:center
+        so the grid sits centered.
+     3) Lattice positioned inline with left/top/right/bottom = 8px so
+        it fills only the cell area, not the gutter. Pattern still
+        aligns with cell boundaries.
+     4) Lattice clip-path:inset(3px) removed from CSS — no longer
+        needed since rings don't overlap lattice.
+     5) Pace ring SVG z-index 1 (above .gscroll bg), fuse SVG z-index
+        2. Neither needs to be behind cells anymore.
+     6) Reverted v4.40's cell opacity 0.7 → back to opaque var(--bk)/
+        var(--bg). No need for translucent cells since rings don't
+        sit behind them.
+
+     Net visual: cells fully opaque and crisp; rings sit in a clean
+     8-px band outside the cells, no overlap, fully visible; lattice
+     still inside the cell area aligned to cell boundaries.
+-->
+
+<!-- Equil v4.40 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.40: Fuses pushed behind cells, cells made 70% opaque so rings
+     + fuse glow subtly visible through cell pixels.
+
+     PER SAM:
+     "Okay, now put them under the cells in z, same as pace lines.
+      I think if we can somehow make the cells like .7 opacity maybe,
+      that might be enough to track the bright light under it but not
+      feel weird that its just some light going over it."
+
+     CHANGES:
+     1) #paceRingFuses SVG z-index changed from 2 → -1. Now sits at
+        the same z-level as #paceRings, both behind .grid-clip.
+     2) Cell background alpha lowered from 1.0 to 0.7 by swapping the
+        opaque base color from var(--bk)/var(--bg) to rgba(*,0.7):
+          - blank cells: var(--bg) → var(--bg)
+          - op/eq/given pills: var(--bk) → rgba(21,21,21,0.7) (5 sites)
+        Text and borders are untouched — only the background alpha
+        changes, so puzzle readability stays the same.
+
+     Net effect: cells read as nearly-opaque tiles against the dark
+     bg, but the moving fuse light and ring stroke are subtly visible
+     through them — enough to track motion without feeling like
+     bright lines are running across the puzzle face.
+-->
+
+<!-- Equil v4.39 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.39: Fuse shape simplified per Sam — "make each of them the same
+     size as the actual lines, and just square. So basically just like
+     the very end of the line is bright."
+
+     CHANGES:
+     1) Markup: <circle r=2.5> + feGaussianBlur filter REPLACED with
+        <rect width=2 height=2>. No filter — just a flat square the
+        same size as the stroke (stroke-width:2). Full opacity same
+        color as the ring's stroke (rings paint at 0.4 stroke-opacity,
+        the fuse fills at 1.0 fill-opacity), so the fuse reads as a
+        bright accent on the erasing end.
+     2) JS: cx/cy attribute updates changed to x/y, with a -1 offset
+        on both axes to center the 2×2 box on the perimeter point.
+        Otherwise positioning logic is unchanged.
+
+     Visual result: the very end of the line that's currently being
+     erased glows brightly — looks like the line is extinguishing
+     from a lit tip, with no halo extending into surrounding pixels.
+-->
+
+<!-- Equil v4.38 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.38: Glowing "fuse" dot rides the erasing front of each pace
+     ring, making the lines easier to track behind the cells.
+
+     PER SAM:
+     "Im still having a little trouble tracking the lines behind cells.
+     Let's try adding a bright glowing light at the end that is erasing
+     the ring. Like a fuse that is lit."
+
+     IMPLEMENTATION:
+     - New <svg id="paceRingFuses"> sibling of #paceRings, at z-index:2
+       (above .grid-clip so dots are visible OVER cells, while the
+       rings themselves stay at z-index:-1 behind cells). Same px
+       coordinate space as #paceRings.
+     - Three <circle> fuses, one per ring, colored to match its ring:
+         worst → #4a8fa0 (dark cyan)
+         avg   → #00ffff (bright cyan)
+         best  → #c400ff (magenta)
+       Each has a feGaussianBlur+feMerge filter for a glow halo.
+     - JS: per-ring geometry (rx, ry, rw, rh) is captured during
+       _initPaceRings. _pointOnRect() converts progress 0..1 to an
+       (x,y) point on the rect's perimeter starting top-left and
+       going clockwise. _updatePaceRings sets the fuse's cx/cy each
+       frame in addition to the existing stroke-dashoffset update.
+     - When a ring reaches done state, its fuse also gets hidden.
+
+     The dot itself is r=2.5 px solid color, with a Gaussian-blurred
+     halo merged on top to give it the lit-fuse glow look. The halo
+     extends well beyond the dot so the eye picks up "moving point
+     of light" even when the dot is over a cell.
+-->
+
+<!-- Equil v4.37 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.37: Restored blank-cell cyan border + removed the dark wrapper
+     bg around non-blank cell pills.
+
+     CORRECTING v4.36 MISREAD:
+     I interpreted Sam's "black borders on cells" as the cyan borders
+     on blank cells and removed those. Wrong. The "black borders" he
+     meant are the DARK SQUARE wrappers behind the rounded pills on
+     op/eq/given cells — the var(--bk) bg that shows in the corners
+     around the rounded pill. Restored cyan border on blank cells,
+     removed wrapper bg on the others.
+
+     CHANGES:
+     1) Blank-cell cyan border restored.
+        else _bord='border:1px solid rgba(0,217,255,0.25);';
+
+     2) gc wrapper bg always transparent.
+        Previously op/eq/given cells got 'background:var(--bk);' on
+        the wrapper to mask the pace boxes from showing through the
+        translucent pill rgba. Now wrappers are transparent for all
+        cell types — pills float against puzzle bg.
+
+     3) Op, eq, and given pill backgrounds rewritten to layer over
+        var(--bk). Same trick used for blank cells in v4.36:
+          background: linear-gradient(rgba,rgba), var(--bk);
+        The rgba tint becomes a gradient layer composited over an
+        opaque base, so pills are visually identical to before but
+        no longer let pace rings show through cell pixels.
+
+     Net result: black squares around rounded pills are gone; pills
+     still appear with their original color tints; rings still
+     correctly masked behind every cell type, visible only in
+     inter-cell gaps.
+-->
+
+<!-- Equil v4.36 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.36: Two fixes.
+
+     1) BLANK-CELL MASKING ACTUALLY WORKS NOW.
+        v4.35's attempt used `background:`+bg+`, var(--bg)` which is
+        INVALID CSS — the `background` shorthand accepts only one
+        color value; subsequent comma-separated values are treated as
+        background IMAGES (gradients/urls), not colors. Browser
+        silently ignored the second value and the rings still showed
+        through cell pixels.
+
+        Fix: wrap the rgba tint in linear-gradient() to make it a
+        background-image layer that composites correctly over an
+        opaque var(--bg) base:
+          background: linear-gradient(rgba,rgba), var(--bg);
+        The 'transparent' default case shortcuts to just 'var(--bg)'.
+
+     2) DEFAULT CELL BORDERS REMOVED.
+        Per Sam: "Can you also get rid of black borders on cells, I
+        want to see what that looks like. ...they cover up most of
+        the pace lines." Removed the
+          'border:1px solid rgba(0,217,255,0.25);'
+        that was on every non-selected, non-solved blank cell.
+        Selected (purple) and solved (no border) states unchanged.
+
+        Net result: cells now read as floating tinted rectangles via
+        their bg color, no outline. Rings show through inter-cell
+        gaps without an additional 2 px of border blocking the view.
+-->
+
+<!-- Equil v4.35 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.35: Two surgical changes per Sam.
+
+     1) BLANK CELLS NOW MASK PACE RINGS.
+        Pace rings live at z-index:-1 inside .gscroll (v4.34). Cells
+        compositied on top, but blank cells had rgba/transparent
+        backgrounds — rings showed through. Fix: layered every blank
+        cell's bg over an opaque var(--bg) baseline in the cssText
+        assignment (line 19273). Multi-background syntax means the
+        rgba tint composites on top of opaque bg, masking the ring
+        underneath the cell pixels but keeping the rgba tint visible.
+
+        Rings now only show through the 1 px gaps BETWEEN cells —
+        the "cracks" Sam asked for.
+
+     2) BEST TIME LABEL NO LONGER PUSHES CONTENT DOWN.
+        Previously the swap from #mastGhost (3px bar) to
+        #mastGhostLabel (~12px text) at best-time-hit pushed
+        everything below down by ~9 px. Fix:
+
+        a) #mastGhostLabel CSS changed display:none → visibility:hidden.
+           Element now reserves its full vertical space from the start
+           but is invisible until best-time-hit.
+        b) Placeholder &nbsp; content added to the label in markup so
+           the box has its natural line-height even before real text.
+        c) JS: _initGhostBar resets label.textContent to '\u00a0' (nbsp)
+           and label.style.visibility='hidden'. The best-time-hit branch
+           in _updateGhostBar sets bar.style.visibility='hidden' (NOT
+           display:none) so the bar's 3 px row also stays in layout —
+           then label.style.visibility='visible' to reveal it.
+
+        Net: total reserved height stays at bar(3) + label(~12) = 15 px
+        throughout the puzzle. The swap at best-time-hit changes WHICH
+        of the two is visible, but the layout doesn't shift.
+-->
+
+<!-- Equil v4.34 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.34: Pace rings moved behind cells in z-depth, opacity bumped.
+
+     PER SAM:
+     "Now, just put those pace lines behind cells in z, so we just see
+     them through the cracks, maybe that will be enough. Bump up their
+     opacity to .4 though."
+
+     CHANGES:
+     1) Pace rings SVG z-index dropped from 1 to -1.
+        With this change, rings paint BEHIND .grid-clip (and thus
+        behind all the cells). They show through:
+          - The 1px gaps between cells (background is transparent)
+          - The partially-transparent cell backgrounds (rgba alpha
+            values of 0.05-0.25 typically)
+        Net effect: rings appear as subtle "glow" along grid lines
+        rather than as bold overlays on top.
+
+     2) stroke-opacity bumped 0.2 → 0.4.
+        Compensates for the partial occlusion now that cells are on
+        top. At 0.2 with cells covering most of the ring area, the
+        rings would have been nearly invisible. 0.4 keeps them
+        readable through cell pixels.
+
+     3) .gscroll given z-index:0 to establish a stacking context.
+        Without this, the SVG's z-index:-1 would escape into body's
+        root context (because .gscroll had position:relative but no
+        explicit z-index, which doesn't make a stacking context).
+        The rings would have paint behind .gscroll's background and
+        be invisible. z-index:0 contains them properly.
+-->
+
+<!-- Equil v4.33 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.33: Grid-clip sized to match actual cell extent.
+
+     PROBLEM (per Sam testing v4.32):
+     - Lattice still extended past the cells on right/bottom
+     - Pace rings overlapped cells on left, off cells on right
+     - Both symptoms pointed to the same root: cells were left-aligned
+       within a grid-clip that was wider than the cells, leaving
+       asymmetric empty space on right/bottom
+
+     ROOT CAUSE:
+     The gridW/gridH formula:
+       gridW=cols*CS+(cols-1)+2+6
+     included +2 px for the .grid 1px borders on each side. v4.31
+     removed that border, so the +2 became excess width. Plus +6
+     headroom for subpixel rendering. Total: 8 px of empty space on
+     right and bottom, since cells sit flush at top-left of grid-clip.
+
+     FIX:
+     Simplified gridW=cols*CS+(cols-1) and gridH=rows*CS+(rows-1).
+     No border allowance, no headroom. grid-clip now matches the
+     actual cell extent exactly.
+
+     This should fix:
+     - Lattice no longer extends past cells
+     - Pace rings now align with grid edges symmetrically
+     - The 2 leftover edge lines from v4.32 (which were the lattice
+       extending past cells into empty headroom space)
+-->
+
+<!-- Equil v4.32 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.32: Fixed lattice alignment that broke when v4.31 removed
+     .grid's 1px border.
+
+     PROBLEM (per Sam testing v4.31):
+     - On Jumbo puzzle the lattice grid was visibly offset by 1px
+       from where cells actually sit — most apparent because Jumbo
+       has many cells and the misalignment compounds visually.
+     - Small/Medium showed the same offset but it was less obvious.
+
+     ROOT CAUSE:
+     The lattice's `backgroundPosition='1px 1px'` (set in JS at
+     line ~19024) was compensating for the .grid element's 1px
+     border that pushed cells 1px inward from the grid's outer edge.
+     v4.31 removed that border (it was the perimeter line we were
+     chasing). With border gone, cells now start at 0px, but the
+     lattice was still offset by 1px → 1px misalignment everywhere.
+
+     FIX:
+     Changed lattice backgroundPosition from '1px 1px' to '0px 0px'.
+
+     REMAINING ISSUES TO INVESTIGATE (next iteration):
+     - Sam reported 2 lines on lower edge and right edge of grid
+       in Small/Medium even after pace lines erase. May be interior
+       lattice lines that look like edge lines because surrounding
+       cells are empty; may resolve with this v4.32 alignment fix,
+       or may need separate investigation.
+     - Pace rings didn't appear at all on Jumbo. Possibly because
+       puzzle was brand new with no stats history.
+-->
+
+<!-- Equil v4.31 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.31: FOUND THE CULPRIT and restored everything else.
+
+     The faint perimeter cyan rectangle that survived v4.24-v4.30
+     diagnostic eliminations was an inline border:1px solid
+     rgba(0,217,255,0.12) being set on the .grid element via
+     `grid.style.cssText='...border:1px solid rgba(0,217,255,0.12);'`
+     at line 18975. This cssText is reassigned on every grid render,
+     clobbering the CSS rule .grid{border:none} that v4.24 had added
+     to remove the same border. The CSS rule was correct; the JS was
+     overriding it on every redraw.
+
+     v4.31 FIX:
+     Dropped the `border:1px solid rgba(0,217,255,0.12)` segment from
+     the grid.style.cssText assignment. The grid frame perimeter line
+     is now actually gone.
+
+     RESTORED FROM DIAGNOSTIC:
+       - Lattice (was hidden in v4.26)
+       - Pace rings init/update calls (commented out in v4.27)
+       - Pace rings SVG inline style (gutted in v4.29)
+       - .gscroll inset box-shadow (removed in v4.29)
+       - Cell borders rule (overridden in v4.30)
+
+     KEPT FROM DIAGNOSTIC (per Sam's preference):
+       - #gridEdgeMask div removed (v4.28) — Sam said "we can keep
+         that thing off"
+
+     With the actual culprit found, the lattice's perimeter cyan
+     lines from v4.24's clip-path:inset(3px) are still clipped 3px
+     inward, but now there's no .grid border interfering with the
+     pace rings either. The full ring system should work cleanly.
+-->
+
+<!-- Equil v4.30 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.30: Diagnostic — all cell borders killed via !important.
+
+     Every cell has an inline `border:1px solid rgba(0,217,255,0.25)`
+     set in JS at line ~18946. To override without touching that JS
+     logic, added a CSS rule:
+       .grid [data-cell-key]{border:none !important;}
+
+     This wins over the inline style. All cells will have no borders
+     at all — they'll look like floating numbers/operators with no
+     boxes. The point is purely diagnostic: if perimeter lines are
+     gone, cell borders are the source. If still there, the source
+     is something else entirely.
+
+     Reverting: remove the !important rule.
+-->
+
+<!-- Equil v4.29 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.29: Two more diagnostic eliminations.
+
+     1) pace ring SVG stripped of all inline geometry styles, only
+        display:none !important and visibility:hidden remain. Wanted
+        to rule out the SVG element somehow leaking visible geometry.
+
+     2) .gscroll inset box-shadow removed. The original CSS had:
+          box-shadow:0 0 4px rgba(0,217,255,0.12),
+                     inset 0 0 3px rgba(0,217,255,0.04);
+        The inset portion (3 px cyan at 4% opacity) would paint a faint
+        cyan rectangle inside the .gscroll element. But .gscroll spans
+        full screen width while the lines are at grid-edge — so this
+        is unlikely to be the source. Still worth checking.
+
+     Lattice off, pace rings disabled and SVG hidden, gridEdgeMask
+     removed, gscroll inset glow removed.
+
+     If lines persist with all of the above off, next candidates are:
+       - cell borders themselves
+       - some other element painting at grid-clip boundary
+       - browser sub-pixel rendering at edges
+-->
+
+<!-- Equil v4.28 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.28: Diagnostic — gridEdgeMask removed.
+
+     Sam noticed in v4.27 testing that cells were getting clipped at
+     the top and left edges (just a sliver). That clipping is the
+     #gridEdgeMask div I added in v4.25 doing its work — it's a 3-px
+     border-only div in the page background color, positioned absolute
+     inset:0 inside .grid-clip, intended to mask cell borders at the
+     perimeter. But:
+       1. It was clipping cell content along with cell borders, and
+       2. Its bg-color border was likely also the source of the faint
+          perimeter lines (subpixel rendering of #0f0f0f against #0f0f0f
+          can produce a visible seam on some displays/browsers).
+
+     With gridEdgeMask removed, expected results:
+       - Cells should no longer be clipped at top/left
+       - The faint perimeter lines should disappear
+       - Cell borders themselves will still be visible at the
+         perimeter, but those are not the lines Sam was seeing
+
+     Lattice still hidden (v4.26), pace rings still disabled (v4.27).
+     Reverting: paste back the gridEdgeMask div per the comment in
+     the markup.
+-->
+
+<!-- Equil v4.27 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.27: Diagnostic — pace rings fully disabled (no init, no tick).
+
+     Sam's testing of v4.26 (lattice hidden) showed faint lines still
+     present on the grid perimeter, varying which sides they appeared
+     on depending on the puzzle (bottom+right on Small Medium, top+
+     right on Jumbo). To isolate whether those lines come from the
+     pace ring system itself, this version turns off pace rings too.
+
+     This way Sam can see the puzzle with:
+       - lattice: hidden (v4.26)
+       - pace rings: disabled (v4.27)
+       - pace boxes: still disabled (v4.20)
+       - gridEdgeMask: still present
+       - cell borders: still present
+       - .grid border: still removed (v4.24)
+
+     If the lines persist with rings off, source is gridEdgeMask or
+     cell borders. If they go away, source is the rings.
+
+     Reverting: uncomment the five `_initPaceRings` / `_updatePaceRings`
+     call sites (search for v4.27 in the file).
+-->
+
+<!-- Equil v4.26 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.26: Diagnostic — entire lattice hidden via display:none.
+
+     Sam's confirmation that the faint perimeter lines are the lattice
+     means the v4.24 clip-path:inset(3px) isn't doing enough work.
+     Rather than guess at the right amount of inset or alternative
+     masking strategy, this version turns the lattice off entirely
+     so we can verify the lines actually disappear. Once confirmed,
+     the next iteration can either:
+       (a) leave the lattice off if Sam likes the cleaner look, or
+       (b) re-enable it with a more aggressive masking approach
+           (larger inset, different clipping strategy, or background
+           shift), now that we know exactly what we're targeting.
+
+     All other lattice CSS is preserved below the display:none rule.
+     Reverting is a one-line change.
+-->
+
+<!-- Equil v4.25 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.25: One more attempt at killing the perimeter cyan lines.
+
+     WHAT WAS STILL VISIBLE AFTER v4.24:
+     The perimeter cells' own borders (border:1px solid rgba(0,217,
+     255,0.25) — set inline on every cell at render time, line ~18946).
+     Each cell has its own faint cyan outline. The OUTER borders of
+     the cells in the first/last row and first/last column form a
+     thin rectangle around the entire grid — that's what was still
+     showing in Sam's v4.24 screenshot.
+
+     v4.24 cleared the lattice's outer lines and the .grid border,
+     but cell borders were still painting.
+
+     v4.25 FIX:
+     New element #gridEdgeMask: a 3-px-wide border-only div with the
+     page background color, positioned absolute inset:0 inside .grid-
+     clip at z-index:2.
+       - Cells live at z-index:1, so the mask paints OVER cell borders
+         in the outer 3-px band.
+       - Pace rings (#paceRings, sibling of .grid-clip in .gscroll at
+         z-index:1) paint OVER the entire .grid-clip composited layer,
+         so the rings sit on top of the mask.
+
+     Z-stack inside .grid-clip (top to bottom):
+       #gridEdgeMask  (z-index:2) — bg-color border, masks cell edges
+       .grid + cells  (z-index:1)
+       .grid-lattice  (z-index:-1) — already inset-clipped 3px in v4.24
+
+     At the .gscroll level (top to bottom):
+       #paceRings     (z-index:1) — visible rings
+       .grid-clip     (z-index:0) — everything else
+
+     The 3-px mask width matches the lattice clip-path inset from
+     v4.24 so both masks are the same band. Trade-off: perimeter
+     cells lose 3 px of their outer edge. Cell content (numbers,
+     operators) is centered and well clear of that band, so this
+     should be visually invisible.
+
+-->
+
+<!-- Equil v4.24 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.24: Proper fix for the lattice-fighting-pace-rings issue.
+     Sam's screenshot from v4.23 still showed thin cyan lines around
+     the entire perimeter at 0:41 (when all pace rings had long since
+     erased) — meaning the v4.23 inset box-shadow attempt was not
+     masking anything.
+
+     ROOT CAUSE OF v4.23's FAILURE:
+     `.grid-clip` has `position:relative; z-index:0` which establishes
+     a new stacking context. Inside that context, the lattice's
+     `z-index:-1` does NOT push it behind the parent's background —
+     it just places it below z-index:0 siblings within the same
+     context. So the lattice was painting ABOVE the box-shadow layer,
+     not below it. The mask had nothing to mask.
+
+     v4.24 PROPER FIX (two changes):
+
+     1) clip-path:inset(3px) ON THE LATTICE ITSELF.
+        Doesn't rely on stacking context tricks — the lattice simply
+        doesn't paint in its outer 3 px. Interior lattice lines
+        unchanged.
+
+     2) .grid border REMOVED.
+        Was border:1px solid rgba(0,217,255,0.12) — a separate faint
+        cyan frame at the grid's outer edge. Even at 0.12 alpha it
+        contributed to the perimeter line visible in the screenshot.
+        Cells render their own borders/backgrounds independently, so
+        the removal has no functional impact.
+
+     The v4.23 inset box-shadow attempt is reverted (it wasn't doing
+     anything useful; left in CSS would just be a dead treatment).
+-->
+
+<!-- Equil v4.23 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.23: Masked the lattice's outermost grid lines so the pace
+     rings have a clear visual lane at the grid edge.
+
+     PROBLEM (per Sam):
+     The lattice's outer-edge cyan lines (.grid-lattice background-
+     gradients paint 1-px stripes at x=0 and y=0 plus every CS+1
+     interval after) sit exactly where the pace ring strokes live.
+     Both elements are cyan-tinted in that band, and the lattice was
+     "fighting" the rings visually — making the rings hard to read.
+
+     APPROACH:
+     Add inset box-shadow:inset 0 0 0 3px var(--bg) to .grid-clip.
+     This paints a 3-px-wide band of the page background color along
+     the inner edge of grid-clip.
+
+     Z-STACKING LOGIC:
+       1. .grid-lattice paints first (z-index:-1 — escapes into the
+          .grid-clip stacking context, sits BEHIND the parent's
+          background and box-shadow).
+       2. .grid-clip's inset box-shadow paints ON TOP of the lattice
+          in the outer 3-px band.
+       3. .grid (z-index:1) and its cells paint after, but the
+          perimeter cells lose at most 3 px of their outer transparent
+          margin — cell content is centered and well clear of that band.
+       4. #paceRings (z-index:1) paint LAST, fully visible against
+          the now-clean band.
+
+     The interior lattice lines (cell boundaries at all the non-edge
+     positions) are unchanged — the mask only kills the outer 3 px.
+
+-->
+
+<!-- Equil v4.22 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.22: Pace rings tightened to touching, outset zeroed.
+
+     OUTSET → 0.
+     v4.21's 5 px outset was still getting clipped on Large/Hard
+     puzzles where the grid runs nearly flush with .gscroll. Rather
+     than fight .gscroll's overflow:hidden (which is intentional
+     for other clipping behaviors), the simpler fix is to sit the
+     outermost ring AT the grid's outer edge instead of extending
+     past it. Trade-off acknowledged: rings now sit just inside the
+     grid bounds, overlapping the perimeter cells. At 0.2 opacity
+     (v4.21) they should read as soft borders rather than visual
+     noise.
+
+     RING INSETS → 0/2/4 (touching).
+     v4.21 had 0/4/8 inset spacing — visible gaps between the three
+     rings. Sam wants them touching as one continuous 6-px-thick
+     dissolving band. With 2 px strokes centered at insets 0/2/4,
+     each stroke spans (inset-1) to (inset+1) px from the outer edge,
+     so adjacent strokes share an edge with no visual gap. The total
+     band reads as one coherent moving border rather than three
+     separate orbits.
+
+-->
+
+<!-- Equil v4.21 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.21: Pace ring tweaks based on v4.20 testing.
+
+     1) OUTSET REDUCED 10 → 5 px.
+        On Large/Hard puzzles the grid extends to within a few px of
+        .gscroll's full width, so the 10 px outset was getting
+        clipped by .gscroll's overflow:hidden on the left and right
+        edges. Top and bottom rings were fine (more vertical room
+        from .gscroll's 16 px padding). 5 px is enough breathing
+        room to sit just outside the grid line without bumping into
+        gscroll's bounds even on the tightest fits.
+
+     2) NEW COLOR PALETTE (per Sam):
+          worst (outermost) → dark cyan  #4a8fa0
+          avg   (middle)    → bright cyan #00ffff
+          best  (innermost) → magenta    #c400ff
+        Old amber/purple/cyan palette retired. Cyan family + magenta
+        keeps the rings on-brand with the rest of the cyan-and-
+        magenta UI, and the three values are visually distinct.
+
+     3) STROKE OPACITY → 0.2.
+        Old rings were fully opaque, which was still a bit louder
+        than ideal once the colors changed. 0.2 opacity puts them
+        firmly in the "ambient peripheral signal" category instead
+        of grabbing attention. Opacity lives on stroke-opacity
+        (rather than baked into the color) so the colors stay
+        tweakable independently — e.g. flipping opacity to 0.4 for
+        the last 20% of each ring's life (intensity ramp) would be
+        a straightforward future addition if desired.
+
+-->
+
+<!-- Equil v4.20 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.20: Three pace-ring refinements based on v4.19 feedback.
+
+     1) RING ORDER FLIPPED: worst is now OUTERMOST.
+        v4.19 had best outermost (touching the grid edge). Sam's
+        intuition is to put worst outermost — the "outer boundary
+        you've already beaten" if you finish before it erases.
+        Slowest-erasing ring sits in the most peripheral position;
+        the eye naturally follows the action inward as time runs out.
+        New layout (from outside in):
+          Worst (amber) → Avg (purple) → Best (cyan)
+
+     2) RINGS PUSHED OUTSIDE THE GRID.
+        The SVG moved from inside .grid-clip to be a sibling within
+        .gscroll. JS positions it to wrap .grid-clip with a 10 px
+        outset on all sides, putting the rings in the .gscroll
+        padding region (16 px top/bottom) just past the grid's edge.
+        They no longer overlap any cells. The outset is JS-driven
+        from gridClip.offsetLeft/offsetTop/offsetWidth/offsetHeight
+        so it adapts to any puzzle size or screen.
+
+        Trade-off considered: rings could have sat UNDER the cells in
+        z-depth (Sam's fallback option), but that meant the outermost
+        cell row/column would partially obscure them. Putting them
+        outside the grid keeps them fully visible without competing
+        with the playable cells.
+
+     3) OLD PACE BOXES FULLY DISABLED.
+        The four _initPaceBoxes call sites and the one _updatePaceBoxes
+        tick call are now commented out. The functions themselves
+        (definitions in lines ~19375-19440), the DOM (#paceBoxes), and
+        the CSS classes (.paceBox-best/avg/worst) all remain in place
+        per the no-machinery-removal principle. To revive the old
+        inward-marching boxes:
+          - uncomment the five call sites (search "v4.20" in the file)
+          - hide #paceRings via CSS
+
+-->
+
+<!-- Equil v4.19 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.19: Replaced the pace BOXES with pace RINGS at the grid edge.
+
+     PROBLEM:
+     The pace box system (rectangles shrinking toward the grid center
+     as time passed) was too distracting — they cut through the play
+     area and competed with the equations for attention.
+
+     SOLUTION:
+     Three concentric rectangular STROKES around the grid edge that
+     erase clockwise from the top-left corner. They sit at the
+     periphery, never overlap the playable cells, and convey the
+     same information (best/avg/worst time budgets vs your current
+     elapsed time) much more subtly.
+
+     RING POSITIONS:
+       - Best   (outermost, touches the grid edge)   — soft cyan #7dd3e0
+       - Avg    (middle, inset 4px from outer)        — soft purple #a78bfa
+       - Worst  (innermost, inset 8px from outer)     — muted amber #f0b86e
+     Colors match the existing pace box palette so users who had
+     a mental model from the old system carry it over.
+
+     ERASE DIRECTION:
+     The visible stroke disappears starting at the top-left corner
+     going CLOCKWISE around the rectangle. So the top edge erases
+     left-to-right first, then the right edge top-to-bottom, then
+     the bottom edge right-to-left, then the left edge bottom-to-top.
+
+     ERASE PACE:
+     Each ring erases over its own time budget. Best ring (shortest
+     budget) erases fastest — you watch it disappear first. If you
+     finish before a ring is fully erased, you beat that pace.
+
+     IMPLEMENTATION:
+     - SVG with three <rect>s inside .grid-clip, position:absolute
+       inset:0, pointer-events:none. Painted on top of the grid
+       (z-index:3) so the strokes sit above all the cells.
+     - Each rect uses pathLength=100 so stroke-dashoffset works in
+       0-100 percentages regardless of actual perimeter pixel length.
+     - Erase animation: stroke-dasharray="100 100", stroke-dashoffset
+       animates from 0 (full ring) to -100 (fully erased). NEGATIVE
+       offset is what makes the FRONT of the path (top-left going
+       clockwise) erase first; positive offset would erase from the
+       END inward toward the start, which is the wrong direction.
+     - rect dimensions set by JS at init time (reading grid-clip's
+       getBoundingClientRect) so the rings fit the actual rendered
+       grid size at any puzzle size or device.
+
+     OLD MACHINERY:
+     The pace box DOM (#paceBoxes), CSS classes (.paceBox-best/avg/
+     worst), and JS functions (_initPaceBoxes / _updatePaceBoxes)
+     are all kept in place per the no-machinery-removal principle.
+     #paceBoxes stays display:none. The functions still run but
+     operate on hidden DOM. Reverting to the old visual is just:
+     flip #paceBoxes back to display:block, hide #paceRings.
+
+     The new ring system parallels the old one in every way — same
+     stats source (getGhostStats), same visibility gating by count,
+     same preferences (window._paceBox.showBest/showAvg/showWorst),
+     same tick cadence (called right after _updatePaceBoxes in _tick).
+
+-->
+
+<!-- Equil v4.18 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.18: Current-run moves and time on the win card switched from
+     green (#4ade80) to cyan (var(--cyan), #00d9ff). Better palette
+     consistency — green was carried over from the grid's "correct
+     equation" coloring, but on the win card cyan reads as the
+     primary brand color and harmonizes with the row labels and
+     column headers. Magenta PB highlight unchanged: current-run
+     values still tint magenta when this run set a per-template PB.
+
+     The four spots updated:
+       - Initial markup style="color:#4ade80" on winMoves and
+         winTimer spans (changed to var(--cyan))
+       - JS ternary in _showWinCard that toggles between PB-magenta
+         and non-PB color (changed both branches' fallback to cyan)
+
+     Other #4ade80 references in the file (grid cell correct-state
+     coloring around lines 18640/18641/18720) are left alone — those
+     are a different visual signal (equation solved correctly) and
+     should stay green.
+
+-->
+
 <!-- Equil v4.17 | Built: 2026-05-19 CT | github.com/Spamboni
      v4.17: OG image — bigger logo, single-line tagline.
 
@@ -6635,7 +7469,15 @@ body.has-ghost-bar .gscroll{ border-top:none; }
   font-size:9px;letter-spacing:2px;text-transform:uppercase;
   color:rgba(0,217,255,0.55);
   padding:2px 0 1px;
-  display:none;
+  /* [v4.35] visibility:hidden (not display:none) reserves the label's
+     vertical space from the start. Without this, when best-time-hit
+     swapped bar for label, content below pushed down by the height
+     difference (~9 px). With visibility:hidden, the label's box is
+     in the layout from the start — it's just not painted until it
+     becomes visibility:visible. Combined with placeholder content
+     below (a non-breaking space) so the box has a definite height
+     even before the real "Best time:" text is set. */
+  visibility:hidden;
 }
 
 /* ── Selection screen ── */
@@ -6756,7 +7598,13 @@ body.has-ghost-bar .gscroll{ border-top:none; }
    would awkwardly hug the screen edge without symmetric padding
    to give them visual room. The horizontal lines plus the grid-
    clip outline are sufficient to delineate the puzzle area. */
-.gscroll{width:100%;padding:16px 0;display:flex;justify-content:center;flex-shrink:0;overflow:hidden;touch-action:pan-y;position:relative;background:var(--bg);border-top:2px solid rgba(0,217,255,0.5);border-bottom:2px solid rgba(0,217,255,0.5);box-shadow:0 0 4px rgba(0,217,255,0.12), inset 0 0 3px rgba(0,217,255,0.04);}
+.gscroll{width:100%;padding:16px 0;display:flex;justify-content:center;flex-shrink:0;overflow:hidden;touch-action:pan-y;position:relative;z-index:0;background:var(--bg);border-top:2px solid rgba(0,217,255,0.5);border-bottom:2px solid rgba(0,217,255,0.5);box-shadow:0 0 4px rgba(0,217,255,0.12), inset 0 0 3px rgba(0,217,255,0.04);}
+/* [v4.34] Added z-index:0 to .gscroll to establish a new stacking
+   context. Needed so #paceRings (z-index:-1 sibling) is contained
+   within .gscroll instead of escaping to body's root context. Without
+   the explicit z-index, position:relative alone doesn't make a
+   stacking context, and z-index:-1 children paint behind the parent's
+   background — which would hide the rings entirely. */
 /* [v1.56] Diagonal corner accents on the .gscroll outer container.
    Switched from one stretched 100×100 SVG to four small per-corner
    SVGs stacked via multi-background, each sized to the exact pixel
@@ -6807,7 +7655,13 @@ body.xl2-mode .gscroll::before{ display:block; }
    cell gaps) reveal pace boxes underneath because they're truly
    transparent and pace boxes share the parent stacking context
    under .grid. */
-.grid{display:inline-grid;border:1px solid rgba(0,217,255,0.12);background:transparent;flex-shrink:0;position:relative;z-index:1;}
+.grid{display:inline-grid;border:none;background:transparent;flex-shrink:0;position:relative;z-index:1;}
+/* [v4.24] Border on .grid removed. Was border:1px solid rgba(0,217,255,0.12)
+   — a faint outer frame around all cells. Contributed to the same
+   perimeter cyan line that the pace rings live in, "fighting" the
+   rings visually. Cells render their own borders/backgrounds so the
+   removal has no functional impact. Border can be revived by
+   restoring `border:1px solid rgba(0,217,255,0.12)`. */
 /* [v1.52] Cyan grid backdrop. Soft cyan tint along the four edges
    of the puzzle area, fading inward over the first ~12% of the
    grid's dimension. Edge opacity is 0.22 — about half as bright as
@@ -6892,6 +7746,14 @@ body.xl2-mode .gscroll::before{ display:block; }
      brightest at corners/edges and softest in the middle. */
   -webkit-mask-image: radial-gradient(ellipse at center, transparent 0%, transparent 25%, black 90%);
   mask-image: radial-gradient(ellipse at center, transparent 0%, transparent 25%, black 90%);
+  /* [v4.41] Lattice clip-path:inset(3px) removed. Was originally there
+     so the lattice's perimeter cyan lines didn't compete with the
+     pace rings at the grid's outer edge. With v4.41's grid gutter,
+     rings are now OUTSIDE the cells in the gutter band, so there's
+     no overlap to avoid. The lattice can extend to the cell perimeter
+     freely. Also, JS now positions the lattice with inline left/top/
+     right/bottom = GUTTER so it fills only the cell area, not the
+     gutter. */
 }
 /* [v1.52] Thin cyan outline traced around the outer rectangle of the
    zoomable grid area, a few pixels outside the grid itself so it
@@ -6909,6 +7771,13 @@ body.xl2-mode .gscroll::before{ display:block; }
    but since the only thing outside .grid-clip in .gscroll is the
    masthead row above and the bank below, no compositing-through
    was needed. */
+/* [v4.23] Attempted an inset box-shadow on .grid-clip to mask the
+   lattice's outer perimeter lines, but it didn't work because
+   .grid-clip's stacking context (z-index:0; position:relative)
+   contains the z-index:-1 lattice such that the lattice paints
+   above the parent's box-shadow layer. v4.24 moved the masking
+   onto the lattice itself via clip-path. The box-shadow is removed
+   here so we don't have a dead visual treatment lingering. */
 .grid-clip{overflow:hidden;flex-shrink:0;position:relative;z-index:0;}
 @keyframes shk{0%,100%{transform:translateX(0)}30%{transform:translateX(-3px)}70%{transform:translateX(3px)}}
 @keyframes vib{0%,100%{transform:translateX(0)}15%{transform:translateX(-2px)}35%{transform:translateX(2px)}55%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
@@ -8115,7 +8984,7 @@ window.onerror=function(msg,src,line,col,err){
        go nearly fully semi-circular like Play does. -->
   <div class="sel-cta-row"><button class="sel-play" id="playBtn"><span class="play-row"><span class="play-tri">▶</span><span class="play-stack"><span class="play-main">PLAY</span><span class="play-divider"></span><span class="play-resume" id="playResumeLbl">RESUME</span></span></span></button></div>
   <div class="sel-cta-row"><button id="statsBtn" style="margin-top:10px;width:auto;padding:10px 28px;background:transparent;border:1.5px solid rgba(0,217,255,0.4);border-radius:18px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;font-weight:700;">📊 Stats</button></div>
-  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v4.17</div>
+  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v4.44</div>
 </div>
 
 <!-- GAME SCREEN -->
@@ -8194,7 +9063,11 @@ window.onerror=function(msg,src,line,col,err){
        Replaced by a static "Best time: X:XX" label once elapsed
        crosses the best. -->
   <div id="mastGhost"><div id="mastGhostFill"></div></div>
-  <div id="mastGhostLabel"></div>
+  <div id="mastGhostLabel">&nbsp;</div><!-- [v4.35] &nbsp; placeholder
+       so the box has its natural line-height from the start. Without
+       content the box would collapse to 0 height even with
+       visibility:hidden. JS replaces the &nbsp; with "Best time: X:XX"
+       and flips visibility:hidden→visible when best is crossed. -->
   <!-- [v3.46] Removed: the .info-bar with the long "Tap a square ·
        then a number..." hints line. The puzzle's interaction model
        is straightforward enough that the always-on hint isn't
@@ -8216,7 +9089,67 @@ window.onerror=function(msg,src,line,col,err){
     <div id="paceBoxWorst" class="paceBox paceBox-worst"></div>
     <div id="paceBoxAvg"   class="paceBox paceBox-avg"></div>
     <div id="paceBoxBest"  class="paceBox paceBox-best"></div>
-  </div><div class="grid" id="grid"></div></div>
+  </div><div class="grid" id="grid"></div><!-- [v4.25] Perimeter mask. Sits ABOVE the cells (.grid is z-index:1)
+       so it paints over the outer borders of perimeter cells, but
+       BELOW the pace rings (which are siblings of .grid-clip outside
+       it, painting on top of grid-clip as a whole). Border-only div
+       with the same color as the page background — visually invisible
+       except where it covers what's underneath (the perimeter cell
+       borders that v4.24 left behind). 3 px wide on all sides. -->
+  <!-- [v4.28] #gridEdgeMask removed for diagnostic. The 3px bg-color
+       border was masking cell edges to hide cell borders at the grid
+       perimeter, but Sam's testing showed it was also clipping
+       cell content (sliver of top/left cells getting cut) AND
+       likely causing the faint perimeter lines via subpixel rendering
+       of the bg-color border against the surrounding bg. Markup
+       restored to pre-v4.25 state. To revive, paste back:
+         <div id="gridEdgeMask" style="position:absolute;inset:0;
+              pointer-events:none;z-index:2;border:3px solid var(--bg);">
+         </div>
+       --></div><!-- [v4.20] Pace RINGS moved OUTSIDE .grid-clip to be a sibling
+       within .gscroll. This lets the rings extend a few pixels
+       beyond the grid's outer edge into the .gscroll padding area
+       (16px top/bottom) rather than sitting on top of the cells
+       or hidden behind them. Position computed in JS from
+       gridClip.offsetTop/Left + RING_OUTSET. The SVG itself uses
+       overflow:visible so strokes can extend a bit; .gscroll has
+       overflow:hidden but the rings stay well within its content
+       box. The pace BOXES (#paceBoxes above) are still display:none
+       and their init/update calls are now commented out — see the
+       v4.20 notes elsewhere. -->
+  <svg id="paceRings" style="position:absolute;pointer-events:none;overflow:visible;display:none;z-index:1;left:0;top:0;width:0;height:0;" preserveAspectRatio="none" aria-hidden="true">
+    <!-- [v4.34] stroke-opacity 0.4. [v4.41] z-index back to 1 (was -1
+         in v4.34-v4.40). With the v4.41 grid gutter, rings sit in
+         the gutter band OUTSIDE the cells. They no longer need to
+         be behind cells for visual cleanliness. -->
+    <rect id="paceRingWorst" pathLength="100" stroke="#4a8fa0" stroke-opacity="0.4" stroke-width="2" fill="none" stroke-dasharray="100 100" stroke-dashoffset="0"></rect>
+    <rect id="paceRingAvg"   pathLength="100" stroke="#00ffff" stroke-opacity="0.4" stroke-width="2" fill="none" stroke-dasharray="100 100" stroke-dashoffset="0"></rect>
+    <rect id="paceRingBest"  pathLength="100" stroke="#c400ff" stroke-opacity="0.4" stroke-width="2" fill="none" stroke-dasharray="100 100" stroke-dashoffset="0"></rect>
+  </svg>
+  <!-- [v4.38] Fuse glow SVG. Separate from #paceRings because it needs
+       z-index above .grid-clip (so dots are visible) while the rings
+       themselves stay at z-index:-1 (behind cells). Each dot is a
+       small glowing circle that rides along its corresponding ring's
+       erasing front like a fuse being lit. JS computes the (cx,cy)
+       at each frame from the current progress and the rect dimensions
+       in _updatePaceRings.
+       [v4.39] Per Sam: shapes changed from glowing circles to plain
+       2×2 px squares matching stroke-width. The intent is "just the
+       very end of the line is bright" rather than a halo'd dot. The
+       feGaussianBlur filter is removed; the squares are full opacity
+       same-color as their ring (which is at 0.4 opacity), so they
+       read as a bright accent at the erasing front. JS positions them
+       by their top-left corner (x,y), offset by -1 from the perimeter
+       point to center the 2×2 box. -->
+  <!-- [v4.38/v4.43] Fuse SVG. Visibility now controlled by JS based
+       on the user setting window._paceFusesOn. SVG starts hidden;
+       _initPaceRings shows it when both _paceRingsOn and _paceFusesOn
+       are true. -->
+  <svg id="paceRingFuses" style="position:absolute;pointer-events:none;overflow:visible;display:none;z-index:2;left:0;top:0;width:0;height:0;" preserveAspectRatio="none" aria-hidden="true">
+    <rect id="paceFuseWorst" width="2" height="2" fill="#4a8fa0" style="display:none;"></rect>
+    <rect id="paceFuseAvg"   width="2" height="2" fill="#00ffff" style="display:none;"></rect>
+    <rect id="paceFuseBest"  width="2" height="2" fill="#c400ff" style="display:none;"></rect>
+  </svg>
 <!-- [Equil 1.04] Removed: seqPuz (Unified SEQ/PUZ toggle) button HTML — sequencer-only. -->
   </div>
   <!-- [v3.18b] DEBUG: template-name label. Outside .gscroll so the grid's
@@ -8771,8 +9704,8 @@ window.onerror=function(msg,src,line,col,err){
            (i.e. on clean solves the indicator slot is just blank). -->
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:baseline;line-height:1.6;padding-bottom:8px;border-bottom:1px solid rgba(0,217,255,0.35);">
         <span id="winCurMistakes" style="text-align:left;color:#ff6b6b;font-weight:700;font-size:12px;visibility:hidden;">0 ✕</span>
-        <span id="winMoves" style="text-align:center;color:#4ade80;font-weight:700;font-size:14px;">0</span>
-        <span id="winTimer" style="text-align:right;color:#4ade80;font-weight:700;font-size:14px;">0:00</span>
+        <span id="winMoves" style="text-align:center;color:var(--cyan);font-weight:700;font-size:14px;">0</span>
+        <span id="winTimer" style="text-align:right;color:var(--cyan);font-weight:700;font-size:14px;">0:00</span>
       </div>
       <!-- Historical stats — Best / Avg / Least Best. Each row is
            its own grid so we can put cyan-tinted dividing lines
@@ -14996,7 +15929,9 @@ window._mc113 = (function(){
     if(window._updateGhostBar) window._updateGhostBar(_curMs());
     // [v3.90] Same for the grid-edge pace boxes — they need elapsed
     // time to know when to intensify and when each one collapses.
-    if(window._updatePaceBoxes) window._updatePaceBoxes(_curMs());
+    // [v4.20] Pace BOXES tick disabled — see v4.20 note above.
+    // if(window._updatePaceBoxes) window._updatePaceBoxes(_curMs());
+    if(window._updatePaceRings) window._updatePaceRings(_curMs());
   }
 
   function _tick(){
@@ -15673,7 +16608,11 @@ function newPuzzle(){
   if(window._initGhostBar) window._initGhostBar();
   // [v3.90] Same for the grid-edge pace boxes — re-init so the new
   // puzzle's stats drive the boxes (or hide them if none exist).
-  if(window._initPaceBoxes) window._initPaceBoxes();
+  // [v4.20] Pace BOXES (inward-marching rectangles) disabled.
+  // Function preserved (see _initPaceBoxes definition) but not called.
+  // To revive: uncomment this line and hide #paceRings.
+  // if(window._initPaceBoxes) window._initPaceBoxes();
+  if(window._initPaceRings) window._initPaceRings();
   // [v4.03] READY overlay/GO button removed from the flow — start
   // the timer immediately on new puzzle. The overlay machinery
   // (_showReady/_hideReady) is intentionally left intact for
@@ -15866,7 +16805,13 @@ function getCellSize(cols){
   // gone. Only the grid border (4px) and a small safety margin
   // (6px) remain. Lets cells get noticeably bigger on smaller
   // screens.
-  var avail=Math.min(bodyW,cap)-10;
+  // [v4.42] Subtract an additional 16 px to leave room for v4.41's
+  // grid-clip gutter (8 px on each side). Without this, grids that
+  // were already near viewport-width before v4.41 push their gutter
+  // (and pace rings) past the .gscroll overflow:hidden boundary on
+  // left/right edges. Per Sam's report on the Small/Medium screenshot
+  // showing rings cut off at screen edges.
+  var avail=Math.min(bodyW,cap)-10-16;
   // [v3.05] Use tier-canonical cols instead of the actual template's cols,
   // so all templates within a tier render at the same cell size. The widest
   // template in the tier sets the canonical width — narrower templates
@@ -18489,21 +19434,47 @@ function render(){
   // cross through). Cells stay opaque so they cover pace boxes
   // in cell pixels — only the inter-cell gaps and the area
   // outside the grid show the boxes.
-  grid.style.cssText='display:inline-grid;grid-template-columns:repeat('+cols+','+CS+'px);grid-template-rows:repeat('+rows+','+CS+'px);gap:1px;background:transparent;border:1px solid rgba(0,217,255,0.12);';
+  // [v4.31] FOUND IT. The perimeter line that persisted through
+  // v4.24-v4.30 diagnostic was coming from this JS-set inline border.
+  // The CSS rule .grid{border:none} added in v4.24 was being overridden
+  // every grid render by this cssText assignment. Removed the border
+  // segment from the cssText below; cells still have their own borders
+  // (defining cell boundaries) but the outer grid frame is gone.
+  grid.style.cssText='display:inline-grid;grid-template-columns:repeat('+cols+','+CS+'px);grid-template-rows:repeat('+rows+','+CS+'px);gap:1px;background:transparent;';
   // Size the clip container exactly to the grid's natural pixel size so overflow:hidden clips correctly
   var clipEl=document.getElementById('gridClip');
   if(clipEl){
-    // [v1.95] Bumped clip-padding from +3 to +6 on both axes
-    // because the bottom edge of the grid (and the right edge,
-    // by symmetry) was still being clipped at certain zooms.
-    // The grid's natural border-box is rows*CS + (rows-1) + 2,
-    // but subpixel rendering, cell outline-style borders, and
-    // the inner box-shadow seem to push things a couple pixels
-    // beyond. +6 gives comfortable headroom on both edges.
-    var gridW=cols*CS+(cols-1)+2+6;
-    var gridH=rows*CS+(rows-1)+2+6;
-    clipEl.style.width=gridW+'px';
-    clipEl.style.height=gridH+'px';
+    // [v4.33] gridW/gridH formula simplified. Was:
+    //   gridW=cols*CS+(cols-1)+2+6
+    //   where +2 = 1px border on each side of .grid
+    //         +6 = subpixel rendering headroom
+    // v4.31 removed .grid's border, so the +2 became excess width
+    // — the grid-clip became 2px wider than the actual cells, leaving
+    // empty space on right/bottom that the lattice and pace rings
+    // happily filled. Cells sat flush at top-left of grid-clip, so the
+    // overflow was visible on right/bottom only (asymmetric — matching
+    // Sam's report of "pace lines off the cells a little to the right"
+    // and "lattice extends past cells").
+    //
+    // New: gridW=cols*CS+(cols-1). No extra headroom either — modern
+    // browsers handle subpixel rendering fine without it now that the
+    // border isn't there to interact with cell box-shadows. If clipping
+    // issues return, can re-add +2 px of headroom and re-center the grid.
+    // [v4.41] Add a small GUTTER between the grid edge and grid-clip's
+    // outer edge. Pace rings sit at the grid-clip outer edge, so this
+    // gutter pushes the rings OUT from the cells — they "kiss" the
+    // outer edge of the cells from outside instead of overlapping
+    // them. .grid-clip is given flex display below so the grid centers
+    // inside the larger clip box.
+    var GUTTER = 8;  // px on each side
+    var gridW=cols*CS+(cols-1);
+    var gridH=rows*CS+(rows-1);
+    clipEl.style.width =(gridW + 2*GUTTER)+'px';
+    clipEl.style.height=(gridH + 2*GUTTER)+'px';
+    // [v4.41] Flex-center the grid inside the now-larger clip.
+    clipEl.style.display='flex';
+    clipEl.style.alignItems='center';
+    clipEl.style.justifyContent='center';
   }
   // [v4.02] Drive the grid-lattice CSS background-size at the cell
   // stride (CS px + 1px gap = one cell-to-cell period). Also nudge
@@ -18518,11 +19489,19 @@ function render(){
   if(latticeEl){
     var stride=(CS+1)+'px';
     latticeEl.style.backgroundSize=stride+' '+stride;
-    // Background-position offsets the pattern so the first line falls
-    // at the grid's left/top edge. .grid sits at top:0 left:0 inside
-    // .grid-clip (no offset), and has a 1px border, so lines should
-    // start at position 1px inset.
-    latticeEl.style.backgroundPosition='1px 1px';
+    // [v4.32] backgroundPosition '0px 0px' since cells start at 0
+    // within their container.
+    latticeEl.style.backgroundPosition='0px 0px';
+    // [v4.41] Lattice is now positioned to fill only the grid area
+    // within grid-clip (not the gutter), via inline left/top/width/
+    // height. Without this, the lattice pattern starts at grid-clip
+    // origin, GUTTER pixels left of where cells begin — pattern would
+    // be misaligned and lattice lines would extend into the gutter.
+    var _gutter = 8;  // must match GUTTER above
+    latticeEl.style.left   = _gutter + 'px';
+    latticeEl.style.top    = _gutter + 'px';
+    latticeEl.style.right  = _gutter + 'px';
+    latticeEl.style.bottom = _gutter + 'px';
   }
   if(window._reapplyGridZoom)_reapplyGridZoom();
   grid.innerHTML='';
@@ -18560,6 +19539,15 @@ function render(){
       // (op / eq / given) still need an opaque wrapper because their
       // inner content paints at translucent rgba so the pill would
       // otherwise pick up pace box lines bleeding through.
+      // [v4.44] Wrapper background restored for op/eq/given cells.
+      // v4.37 removed it (Sam misread the dark wrapper square as
+      // "black border on cells"). Without it, the inner rounded pill
+      // floats inside the cell slot with empty space at corners and
+      // edges — which read as visual misalignment with the lattice
+      // and felt "empty" during gameplay. Restoring the var(--bk)
+      // wrapper gives each cell a visible square slot the size of
+      // CS×CS that aligns with the lattice gridlines; the rounded
+      // pill sits inside that slot as a colored chip.
       var wrapBg = '';
       if(cell && (cell.role==='op' || cell.role==='eq' || cell.isGiven)){
         wrapBg = 'background:var(--bk);';
@@ -18579,21 +19567,30 @@ function render(){
         // Bigger inset (smaller box), square corners
         var opInset=Math.max(1,Math.round(CS*0.08))+'px';
         var opSolved=doAnim&&!isNewly;
-        if(opSolved||isDim) d.style.cssText='position:absolute;inset:'+opInset+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:'+Math.round(FS*0.88)+'px;font-family:IBM Plex Mono,monospace;border-radius:2px;background:rgba(0,217,255,0.05);color:rgba(107,207,255,0.3);';
-        else d.style.cssText='position:absolute;inset:'+opInset+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:'+Math.round(FS*0.88)+'px;font-family:IBM Plex Mono,monospace;border-radius:2px;background:rgba(0,217,255,0.22);color:#6bcfff;';
+        // [v4.37] Tint layered over var(--bk) opaque base so the pace
+        // rings (z-index:-1 in .gscroll) don't show through the pill.
+        // Was: 'background:rgba(...)' which is translucent.
+        // [v4.40] Base alpha lowered from 1.0 (var(--bk) = #151515) to
+        // 0.7 (rgba(21,21,21,0.7)) so rings/fuse show through subtly.
+        // Per Sam: "make the cells like .7 opacity maybe." Same change
+        // applies to eq, given, and blank cell backgrounds below.
+        if(opSolved||isDim) d.style.cssText='position:absolute;inset:'+opInset+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:'+Math.round(FS*0.88)+'px;font-family:IBM Plex Mono,monospace;border-radius:2px;background:linear-gradient(rgba(0,217,255,0.05),rgba(0,217,255,0.05)),var(--bk);color:rgba(107,207,255,0.3);';
+        else d.style.cssText='position:absolute;inset:'+opInset+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:'+Math.round(FS*0.88)+'px;font-family:IBM Plex Mono,monospace;border-radius:2px;background:linear-gradient(rgba(0,217,255,0.22),rgba(0,217,255,0.22)),var(--bk);color:#6bcfff;';
         d.textContent=cell.display||'+';
       } else if(cell.role==='eq'){
         var eqInset=Math.max(1,Math.round(CS*0.08))+'px';
         var eqSolved=doAnim&&!isNewly;
-        if(eqSolved||isDim) d.style.cssText='position:absolute;inset:'+eqInset+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:'+Math.round(FS*0.88)+'px;font-family:IBM Plex Mono,monospace;border-radius:2px;background:rgba(0,217,255,0.05);color:rgba(0,217,255,0.3);';
-        else d.style.cssText='position:absolute;inset:'+eqInset+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:'+Math.round(FS*0.88)+'px;font-family:IBM Plex Mono,monospace;border-radius:2px;background:rgba(157,78,221,0.25);color:#c084fc;';
+        // [v4.37] Same layering pattern as op — see note above.
+        if(eqSolved||isDim) d.style.cssText='position:absolute;inset:'+eqInset+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:'+Math.round(FS*0.88)+'px;font-family:IBM Plex Mono,monospace;border-radius:2px;background:linear-gradient(rgba(0,217,255,0.05),rgba(0,217,255,0.05)),var(--bk);color:rgba(0,217,255,0.3);';
+        else d.style.cssText='position:absolute;inset:'+eqInset+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:'+Math.round(FS*0.88)+'px;font-family:IBM Plex Mono,monospace;border-radius:2px;background:linear-gradient(rgba(157,78,221,0.25),rgba(157,78,221,0.25)),var(--bk);color:#c084fc;';
         d.textContent='=';
       } else if(cell.isGiven){
         var isSolved=doAnim&&!isNewly;
         var givenDim=isDim&&!hi&&SEL!==k;
         var givenBg=givenDim?'rgba(0,217,255,0.06)':isSolved?'rgba(0,217,255,0.18)':(hi?'rgba(0,217,255,0.2)':'rgba(255,255,255,0.10)');
         var givenCol=givenDim?'rgba(0,217,255,0.35)':isSolved?'#00d9ff':(hi?'#00d9ff':'#d8d8d8');
-        d.style.cssText+='background:'+givenBg+';color:'+givenCol+';border-radius:'+RR+';';
+        // [v4.37] Layered over var(--bk) so rings don't show through.
+        d.style.cssText+='background:linear-gradient('+givenBg+','+givenBg+'),var(--bk);color:'+givenCol+';border-radius:'+RR+';';
         d.textContent=cell.answer;
       } else if(cell.isBlank){
         var st=cstat(k,PZ);
@@ -18645,6 +19642,9 @@ function render(){
         if(isSolvedBlank||st==='ok'||blankDim) _bord='';
         else if(SEL===k) _bord='border:1px solid rgba(168,85,247,0.85);';
         else _bord='border:1px solid rgba(0,217,255,0.25);';
+        // [v4.37] Restored cyan border on default blank cells per Sam.
+        // The "black borders" he wanted removed are on non-blank tiles
+        // (numbers/operators) — see the non-blank branch below.
         // [v2.48] touch-action:manipulation tells the browser this
         // element handles taps (and pinch-zoom) but is NOT involved
         // in pan gestures. Without this, blank cells inherit
@@ -18656,7 +19656,29 @@ function render(){
         // Result on Firefox before this fix: cells felt like they
         // had pinhead-sized hitboxes because most taps got
         // reclassified as pan attempts and the click never fired.
-        d.style.cssText+='background:'+bg+';color:'+col+';cursor:pointer;border-radius:'+RR+';touch-action:manipulation;'+_bord;
+        // [v4.35] Layer background over an opaque var(--bg) base so
+        // that rgba/transparent cell backgrounds don't let the pace
+        // rings (z-index:-1 under .gscroll) show through cell pixels.
+        // Per Sam: blank cells should mask the rings; rings should
+        // only be visible through the gaps between cells.
+        // [v4.36] FIX: previous version used `background:`+bg+', var(--bg)'
+        // which is invalid CSS — background shorthand can only take
+        // ONE color, and additional comma-separated values are
+        // interpreted as additional background images (not colors).
+        // Browser silently ignored the second value, so rings still
+        // showed through. Wrapped the rgba tint in linear-gradient()
+        // to make it a background IMAGE layer, which composites
+        // correctly over var(--bg) as background-color.
+        // [v4.40] Bg base alpha lowered from 1.0 to 0.7 (was var(--bg)
+        // which is #0f0f0f opaque; now var(--bg)). Per Sam:
+        // "make the cells like .7 opacity maybe". Goal is for the
+        // rings + fuse glow underneath to be subtly visible through
+        // cells so they're easier to track. Text/borders unaffected
+        // because only the background alpha changes.
+        var bgLayer = (bg === 'transparent')
+          ? 'var(--bg)'
+          : 'linear-gradient('+bg+','+bg+'), var(--bg)';
+        d.style.cssText+='background:'+bgLayer+';color:'+col+';cursor:pointer;border-radius:'+RR+';touch-action:manipulation;'+_bord;
         if(cell.value!=null){
           d.textContent=cell.value;
           if(!isSolvedBlank&&st!=='ok'&&st!=='bad'){
@@ -19065,7 +20087,11 @@ function showGame(opts){
   // from the ghost-runner bar above; gated by per-box toggles in
   // settings, not by mode (a chalant player can disable all three
   // and a nonchalant player can enable them, though defaults differ).
-  if(window._initPaceBoxes) window._initPaceBoxes();
+  // [v4.20] Pace BOXES (inward-marching rectangles) disabled.
+  // Function preserved (see _initPaceBoxes definition) but not called.
+  // To revive: uncomment this line and hide #paceRings.
+  // if(window._initPaceBoxes) window._initPaceBoxes();
+  if(window._initPaceRings) window._initPaceRings();
   // [v4.03] READY overlay/GO button removed from the flow — start
   // the timer immediately on new puzzle. Still skip on resume since
   // the resume path was already a no-op. Overlay machinery
@@ -19113,8 +20139,8 @@ function showGame(opts){
     // Force reflow so the next transition fires from this start state.
     void fill.offsetWidth;
     fill.style.transition = prevTransition;
-    label.textContent = '';
-    label.style.display = 'none';
+    label.textContent = '\u00a0'; // [v4.35] reset to nbsp placeholder
+    label.style.visibility = 'hidden'; // [v4.35] keep space reserved
     bar.style.display = 'none';
     // [v3.87] Default to no body class until we confirm the bar will
     // show. Clearing it here makes sure we don't carry over from a
@@ -19162,8 +20188,11 @@ function showGame(opts){
         // Brief overlap: bar fades to 0 over its transition, then we
         // hide the bar row and reveal the label.
         setTimeout(function(){
-          bar.style.display = 'none';
-          label.style.display = 'block';
+          // [v4.35] visibility:hidden instead of display:none so the
+          // bar's 3 px row stays in layout. Without this, label below
+          // would shift UP by 3 px when bar disappeared.
+          bar.style.visibility = 'hidden';
+          label.style.visibility = 'visible';
         }, 400);
       }
       return;
@@ -19338,6 +20367,274 @@ function showGame(opts){
             el.classList.remove('pace-done', 'pace-intense');
           }, 480);
         })(b.el);
+      }
+    }
+  };
+})();
+
+// [v4.19] Pace RINGS: three concentric SVG rect strokes around the
+// grid that erase clockwise from the top-left corner as time passes.
+// Replaces the visible behavior of the old pace boxes (which used
+// nested rectangles marching inward — too distracting per Sam). The
+// pace boxes' machinery is untouched and still runs against hidden
+// DOM, so reverting just means flipping #paceBoxes back to visible
+// and hiding #paceRings.
+//
+// Design: each ring corresponds to one of best/avg/worst times.
+//   - Best ring is OUTERMOST — touches the grid edge. Erases fastest
+//     since it has the shortest time budget. Watch it disappear to
+//     know you're racing your best time.
+//   - Avg ring is in the middle, inset a few px from the outer.
+//   - Worst ring is INNERMOST, further inset. Erases slowest; if it's
+//     still visible when you finish, you beat your worst time.
+//
+// Implementation: SVG with no viewBox, sized to grid-clip's px box.
+// Each rect uses pathLength=100 so stroke-dashoffset is in 0-100
+// percentages. Erase direction: stroke-dashoffset goes from 0 (full
+// ring drawn) to -100 (fully erased). NEGATIVE offset is the key —
+// positive offset would erase from the END of the path inward toward
+// the start, but we want the FRONT of the path (top-left corner
+// going clockwise along the top edge) to disappear first.
+(function(){
+  var rings = [];  // {el, targetMs}
+  // [v4.43] Master flag for fuse glow squares — now driven by user
+  // setting window._paceFusesOn (set in _applyTuning from
+  // window._optPaceFuses / DEF.paceFuses). Used to be a hardcoded
+  // _FUSES_ON in v4.42. The function references below check the
+  // window-level global at call time so toggles in the settings
+  // panel take effect on the next init.
+  var RING_STROKE_W = 2;
+  // [v4.22] No outset — outermost ring (worst) sits right AT the
+  // grid's outer edge instead of extending beyond it. This permanently
+  // resolves the .gscroll-overflow-clipping issue on Large/Hard
+  // puzzles where the grid extends close to gscroll's width.
+  // Trade-off: rings now sit just inside the grid bounds, overlapping
+  // the perimeter cells. At 0.2 opacity (v4.21) they read as soft
+  // borders rather than visual noise on top of the cells.
+  //
+  // Ring stack: three 2-px strokes with their CENTERS at insets
+  // 0/2/4 from the outer edge. With stroke-width 2, that means
+  // each ring's stroke spans from (inset - 1) to (inset + 1) px
+  // from the outer edge — so they touch edge-to-edge with no gap.
+  var RING_OUTSET = 0;
+  var INSET_WORST = 0;
+  var INSET_AVG = 2;
+  var INSET_BEST = 4;
+
+  function _showRingsForCount(count){
+    // Match the existing pace-box visibility gating exactly so the
+    // two systems behave identically with respect to "do we have
+    // enough data to draw this ring."
+    if(count >= 3){
+      return {best: true, avg: true, worst: true};
+    } else if(count === 2){
+      return {best: true, avg: false, worst: true};
+    } else if(count === 1){
+      return {best: true, avg: false, worst: false};
+    }
+    return {best: false, avg: false, worst: false};
+  }
+
+  function _sizeRect(el, insetPx, gridW, gridH){
+    // Half the stroke width sits OUTSIDE the geometric rect, so to
+    // keep all of the stroke inside the grid bounds we inset by
+    // (insetPx + stroke/2). The rect's x/y/width/height shrink by
+    // (insetPx + stroke/2) on each side.
+    var off = insetPx + (RING_STROKE_W / 2);
+    el.setAttribute('x', off);
+    el.setAttribute('y', off);
+    el.setAttribute('width',  Math.max(0, gridW - 2 * off));
+    el.setAttribute('height', Math.max(0, gridH - 2 * off));
+    el.setAttribute('stroke-dashoffset', 0);
+  }
+
+  window._initPaceRings = function(){
+    var svg = document.getElementById('paceRings');
+    if(!svg) return;
+    rings = [];
+
+    // Reset all three to hidden / fully drawn / no transition.
+    ['paceRingBest','paceRingAvg','paceRingWorst'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(!el) return;
+      el.style.display = 'none';
+      el.setAttribute('stroke-dashoffset', 0);
+    });
+    svg.style.display = 'none';
+    // [v4.38] Also reset all fuses to hidden. Active ones get re-shown
+    // and positioned once we know which rings are being drawn.
+    // [v4.43] Master gate: when the global pace-rings setting is off,
+    // hide all fuses and exit early so nothing pace-ring-related is
+    // drawn or computed for this puzzle. Toggles in the settings panel
+    // call _applyTuning which re-invokes _initPaceRings, so flipping
+    // this off mid-puzzle clears the rings on next init.
+    var _fuseSvg = document.getElementById('paceRingFuses');
+    if(_fuseSvg){
+      ['paceFuseBest','paceFuseAvg','paceFuseWorst'].forEach(function(id){
+        var fEl = document.getElementById(id);
+        if(fEl) fEl.style.display = 'none';
+      });
+      _fuseSvg.style.display = 'none';
+    }
+    if(window._paceRingsOn === false) return;
+
+    // Need the same stats the pace boxes use.
+    if(!(window._paceBox)) return;
+    if(!(window._mc113 && window._mc113.getGhostStats)) return;
+    var size = (typeof SIZE !== 'undefined') ? SIZE : null;
+    var diff = (typeof DIFF !== 'undefined') ? DIFF : null;
+    var tpl  = window._currentTplName || null;
+    if(!size || !diff || !tpl) return;
+    var stats = window._mc113.getGhostStats(size, diff, tpl);
+    if(!stats) return;
+
+    var allowed = _showRingsForCount(stats.count);
+    var prefs   = window._paceBox;
+
+    // [v4.20] Measure grid-clip's position WITHIN its offsetParent
+    // (which is .gscroll, since .gscroll is position:relative). Then
+    // position the SVG to wrap the grid-clip with RING_OUTSET padding
+    // on all sides. This puts the rings just outside the actual
+    // grid edge, in the .gscroll padding region.
+    var clip = document.getElementById('gridClip');
+    if(!clip) return;
+    var gridW = clip.offsetWidth;
+    var gridH = clip.offsetHeight;
+    if(gridW <= 0 || gridH <= 0) return;
+    var gridX = clip.offsetLeft;
+    var gridY = clip.offsetTop;
+
+    // SVG total size includes outset on all sides.
+    var svgX = gridX - RING_OUTSET;
+    var svgY = gridY - RING_OUTSET;
+    var svgW = gridW + 2 * RING_OUTSET;
+    var svgH = gridH + 2 * RING_OUTSET;
+    svg.style.left   = svgX + 'px';
+    svg.style.top    = svgY + 'px';
+    svg.style.width  = svgW + 'px';
+    svg.style.height = svgH + 'px';
+
+    var specs = [];
+    if(allowed.worst && prefs.showWorst && stats.worst > 0){
+      specs.push({id:'paceRingWorst', fuseId:'paceFuseWorst', ms:stats.worst, inset:INSET_WORST});
+    }
+    if(allowed.avg   && prefs.showAvg   && stats.avg   > 0){
+      specs.push({id:'paceRingAvg',   fuseId:'paceFuseAvg',   ms:stats.avg,   inset:INSET_AVG});
+    }
+    if(allowed.best  && prefs.showBest  && stats.best  > 0){
+      specs.push({id:'paceRingBest',  fuseId:'paceFuseBest',  ms:stats.best,  inset:INSET_BEST});
+    }
+    if(!specs.length) return;
+
+    // [v4.38] Position and size the fuse SVG to match the rings SVG.
+    // [v4.42] Skipped entirely when _FUSES_ON is false. SVG stays
+    // display:none from its inline style; child rects also stay hidden.
+    var fuseSvg = document.getElementById('paceRingFuses');
+    if(window._paceFusesOn && fuseSvg){
+      fuseSvg.style.left   = svgX + 'px';
+      fuseSvg.style.top    = svgY + 'px';
+      fuseSvg.style.width  = svgW + 'px';
+      fuseSvg.style.height = svgH + 'px';
+      fuseSvg.style.display = 'block';
+      // Hide all fuses first; the active ones get re-shown below.
+      ['paceFuseBest','paceFuseAvg','paceFuseWorst'].forEach(function(id){
+        var fEl = document.getElementById(id);
+        if(fEl) fEl.style.display = 'none';
+      });
+    }
+
+    svg.style.display = 'block';
+    // [v4.43] Read user-configurable opacity (set in _applyTuning from
+    // the settings slider). Applied as stroke-opacity attribute on
+    // every active ring so the slider takes effect on next init.
+    var _ringOpacity = (typeof window._paceRingOpacity === 'number')
+      ? window._paceRingOpacity : 0.4;
+    specs.forEach(function(spec){
+      var el = document.getElementById(spec.id);
+      if(!el) return;
+      _sizeRect(el, spec.inset, svgW, svgH);
+      el.setAttribute('stroke-opacity', _ringOpacity);
+      el.style.display = 'block';
+      // [v4.38] Capture the rect's geometry so _updatePaceRings can
+      // compute the fuse position at any progress without re-reading
+      // the DOM. Same geometry as set by _sizeRect.
+      var off = spec.inset + (RING_STROKE_W / 2);
+      var rx = off;
+      var ry = off;
+      var rw = Math.max(0, svgW - 2 * off);
+      var rh = Math.max(0, svgH - 2 * off);
+      var fuseEl = window._paceFusesOn ? document.getElementById(spec.fuseId) : null;
+      if(fuseEl){
+        // [v4.39] Place fuse at top-left start point of ring, offset
+        // by -1 to center the 2×2 square on the perimeter point.
+        fuseEl.setAttribute('x', rx - 1);
+        fuseEl.setAttribute('y', ry - 1);
+        fuseEl.style.display = 'block';
+      }
+      rings.push({
+        el: el,
+        fuseEl: fuseEl,
+        targetMs: spec.ms,
+        done: false,
+        rx: rx, ry: ry, rw: rw, rh: rh
+      });
+    });
+  };
+
+  // [v4.38] Helper: given a rect's geometry and a progress 0..1, return
+  // the {x,y} point at that fraction of the way around the rect's
+  // perimeter, starting at top-left and going clockwise.
+  function _pointOnRect(rx, ry, rw, rh, progress){
+    if(progress <= 0) return {x: rx, y: ry};
+    if(progress >= 1) return {x: rx, y: ry};  // back to start
+    var perim = 2 * (rw + rh);
+    var d = progress * perim;
+    if(d < rw){
+      // top edge
+      return {x: rx + d, y: ry};
+    } else if(d < rw + rh){
+      // right edge
+      return {x: rx + rw, y: ry + (d - rw)};
+    } else if(d < 2 * rw + rh){
+      // bottom edge
+      return {x: rx + rw - (d - rw - rh), y: ry + rh};
+    } else {
+      // left edge
+      return {x: rx, y: ry + rh - (d - 2 * rw - rh)};
+    }
+  }
+
+  window._updatePaceRings = function(elapsedMs){
+    if(!rings.length) return;
+    for(var i = 0; i < rings.length; i++){
+      var r = rings[i];
+      if(r.done) continue;
+      var progress = elapsedMs / r.targetMs;  // 0..1+
+      if(progress >= 1){
+        // Fully erased. Mark done; the dashoffset will be set to
+        // -100 below to ensure the visual matches the state.
+        r.done = true;
+        progress = 1;
+        // Hide once erased so subsequent layout reflows don't repaint
+        // a fragment.
+        r.el.style.display = 'none';
+        // [v4.38] Also hide the fuse glow now that the ring is gone.
+        if(r.fuseEl) r.fuseEl.style.display = 'none';
+      }
+      // NEGATIVE dashoffset shifts the dash pattern RIGHT relative
+      // to path-start, so the start-of-path falls in the GAP portion
+      // first — i.e. the part of the ring near the top-left corner
+      // (going clockwise) disappears first. That's the visual Sam
+      // asked for: "top line of each rectangle gets erased from the
+      // start point going clockwise."
+      r.el.setAttribute('stroke-dashoffset', -progress * 100);
+      // [v4.38] Update fuse position to ride the erasing front.
+      // [v4.39] Square fuses use x/y (top-left corner) instead of
+      // cx/cy. Offset by -1 to center the 2×2 box on the perimeter.
+      if(r.fuseEl && !r.done){
+        var pt = _pointOnRect(r.rx, r.ry, r.rw, r.rh, progress);
+        r.fuseEl.setAttribute('x', pt.x - 1);
+        r.fuseEl.setAttribute('y', pt.y - 1);
       }
     }
   };
@@ -23327,7 +24624,11 @@ window._savePaceBoxPrefs = function(){
   }catch(_){}
   // If a puzzle is in flight, re-init the boxes so toggles take
   // effect immediately rather than waiting for the next puzzle.
-  if(window._initPaceBoxes) window._initPaceBoxes();
+  // [v4.20] Pace BOXES (inward-marching rectangles) disabled.
+  // Function preserved (see _initPaceBoxes definition) but not called.
+  // To revive: uncomment this line and hide #paceRings.
+  // if(window._initPaceBoxes) window._initPaceBoxes();
+  if(window._initPaceRings) window._initPaceRings();
 };
 // Called from the mode click handler. Swaps window._paceBox to point
 // at the new mode's bucket. The settings panel's getter/setter
@@ -23340,7 +24641,11 @@ window._swapPaceBoxModePrefs = function(){
   window._paceBox = bucket;
   // Re-init in case a puzzle's in progress so the visible boxes
   // update to the new mode's preferences right away.
-  if(window._initPaceBoxes) window._initPaceBoxes();
+  // [v4.20] Pace BOXES (inward-marching rectangles) disabled.
+  // Function preserved (see _initPaceBoxes definition) but not called.
+  // To revive: uncomment this line and hide #paceRings.
+  // if(window._initPaceBoxes) window._initPaceBoxes();
+  if(window._initPaceRings) window._initPaceRings();
 };
 
 // [v3.50] Play button — checks if a saved game exists for the
@@ -24174,10 +25479,10 @@ function _showWinCard(opts){
         // color here so the row visually celebrates a PB alongside
         // the matching Best row value below.
         if(tEl){
-          tEl.style.color = _newTimeBest  ? 'var(--magenta)' : '#4ade80';
+          tEl.style.color = _newTimeBest  ? 'var(--magenta)' : 'var(--cyan)';
         }
         if(mEl){
-          mEl.style.color = _newMovesBest ? 'var(--magenta)' : '#4ade80';
+          mEl.style.color = _newMovesBest ? 'var(--magenta)' : 'var(--cyan)';
         }
       } else {
         tplRow.style.display = 'none';
@@ -24599,7 +25904,16 @@ if(winMenuBtn){
     // v3.52/v3.53. Slider range 1.2 → 7.0 lets the player dial from
     // a quick attention-getting pulse down to a slow, almost
     // imperceptible breath.
-    pulseSpeed:     3.6
+    pulseSpeed:     3.6,
+    // [v4.43] Pace rings + fuses + ring opacity.
+    //   paceRings: master on/off for the whole ring system (rings AND
+    //     fuses). When off, nothing pace-related renders.
+    //   paceFuses: bright 2×2 square that rides each ring's erasing
+    //     front. Only matters when paceRings is true.
+    //   paceRingOpacity: stroke-opacity of all three rings, slider 0.1 → 1.0.
+    paceRings:        true,
+    paceFuses:        true,
+    paceRingOpacity:  0.4
   };
 
   // ── Load saved options (apply to globals) ──
@@ -24645,6 +25959,19 @@ if(winMenuBtn){
     window._pulsePeak    = (typeof window._optPulsePeak   ==='number')  ? window._optPulsePeak    : DEF.pulsePeak;
     window._pulseSync    = (typeof window._optPulseSync   ==='boolean') ? window._optPulseSync    : DEF.pulseSync;
     window._pulseSpeed   = (typeof window._optPulseSpeed  ==='number')  ? window._optPulseSpeed   : DEF.pulseSpeed;
+    // [v4.43] Pace ring system globals. These are read by the pace
+    // ring init/update code in the IIFE further down.
+    //   _paceRingsOn: master gate. When false, _initPaceRings hides
+    //     the rings SVG and exits early.
+    //   _paceFusesOn: gate for the fuse squares. When false, the fuse
+    //     SVG stays hidden even when rings are on.
+    //   _paceRingOpacity: ring stroke-opacity. Applied as an SVG
+    //     attribute on each ring at init time.
+    window._paceRingsOn     = (typeof window._optPaceRings      ==='boolean') ? window._optPaceRings       : DEF.paceRings;
+    window._paceFusesOn     = (typeof window._optPaceFuses      ==='boolean') ? window._optPaceFuses       : DEF.paceFuses;
+    window._paceRingOpacity = (typeof window._optPaceRingOpacity==='number')  ? window._optPaceRingOpacity : DEF.paceRingOpacity;
+    // If a puzzle is in flight, re-init rings so changes take effect.
+    try{ if(window._initPaceRings) window._initPaceRings(); }catch(_){}
     // Update the dynamic keyframes + .ok-breath rule whenever peak
     // or speed changes.
     _writePulseKeyframes(window._pulsePeak, window._pulseSpeed);
@@ -24694,6 +26021,10 @@ if(winMenuBtn){
       if(typeof o.pulsePeak     ==='number')  window._optPulsePeak     = o.pulsePeak;
       if(typeof o.pulseSync     ==='boolean') window._optPulseSync     = o.pulseSync;
       if(typeof o.pulseSpeed    ==='number')  window._optPulseSpeed    = o.pulseSpeed;
+      // [v4.43] Pace ring system options.
+      if(typeof o.paceRings       ==='boolean') window._optPaceRings       = o.paceRings;
+      if(typeof o.paceFuses       ==='boolean') window._optPaceFuses       = o.paceFuses;
+      if(typeof o.paceRingOpacity ==='number')  window._optPaceRingOpacity = o.paceRingOpacity;
     }catch(e){}
     _applyTuning();
   }
@@ -24731,7 +26062,11 @@ if(winMenuBtn){
         pulseEnabled:   (typeof window._optPulseEnabled ==='boolean') ? window._optPulseEnabled : DEF.pulseEnabled,
         pulsePeak:      (typeof window._optPulsePeak    ==='number')  ? window._optPulsePeak    : DEF.pulsePeak,
         pulseSync:      (typeof window._optPulseSync    ==='boolean') ? window._optPulseSync    : DEF.pulseSync,
-        pulseSpeed:     (typeof window._optPulseSpeed   ==='number')  ? window._optPulseSpeed   : DEF.pulseSpeed
+        pulseSpeed:     (typeof window._optPulseSpeed   ==='number')  ? window._optPulseSpeed   : DEF.pulseSpeed,
+        // [v4.43] Pace ring system options.
+        paceRings:        (typeof window._optPaceRings      ==='boolean') ? window._optPaceRings       : DEF.paceRings,
+        paceFuses:        (typeof window._optPaceFuses      ==='boolean') ? window._optPaceFuses       : DEF.paceFuses,
+        paceRingOpacity:  (typeof window._optPaceRingOpacity==='number')  ? window._optPaceRingOpacity : DEF.paceRingOpacity
       }));
     }catch(e){}
     _applyTuning();
@@ -25318,6 +26653,54 @@ if(winMenuBtn){
       ); }
     ]));
 
+    // [v4.43] Pace ring system — master toggle containing an opacity
+    // slider, plus a fuse toggle. The three per-ring toggles (best/
+    // avg/worst) below still control which rings draw; this new
+    // section gates the whole system on/off and tunes opacity.
+    box.appendChild(_mkSection('Pace rings', [
+      function(){ return _mkToggleRow(
+        'Show pace rings',
+        'Concentric rings around the grid that erase clockwise from the top-left over your best, average, and worst times for this template.',
+        function(){
+          var v = window._paceRingsOn;
+          return (typeof v === 'boolean') ? v : DEF.paceRings;
+        },
+        function(v){
+          window._optPaceRings = v;
+          _applyTuning();
+          _saveOpts();
+        },
+        [
+          // Opacity slider — only visible when rings are on.
+          function(){ return _mkSliderRow(
+            'Ring opacity',
+            function(){
+              var v = window._paceRingOpacity;
+              return (typeof v === 'number') ? v : DEF.paceRingOpacity;
+            },
+            function(v){
+              window._optPaceRingOpacity = v;
+              _applyTuning();
+            },
+            0.1, 1.0, 0.05, 2, ''
+          ); }
+        ]
+      ); },
+      function(){ return _mkToggleRow(
+        'Fuse glow',
+        'A bright square that rides each ring\u2019s erasing front like a lit fuse, making the motion easier to track.',
+        function(){
+          var v = window._paceFusesOn;
+          return (typeof v === 'boolean') ? v : DEF.paceFuses;
+        },
+        function(v){
+          window._optPaceFuses = v;
+          _applyTuning();
+          _saveOpts();
+        }
+      ); }
+    ], {defaultOpen: true}));
+
     // [v3.90] Pace boxes — three concentric rectangles around the
     // grid that shrink toward center over your best / average /
     // worst times for the current template. Each toggle is an
@@ -25402,6 +26785,10 @@ if(winMenuBtn){
       window._optPulsePeak    = DEF.pulsePeak;
       window._optPulseSync    = DEF.pulseSync;
       window._optPulseSpeed   = DEF.pulseSpeed;
+      // [v4.43] Pace ring system reset.
+      window._optPaceRings       = DEF.paceRings;
+      window._optPaceFuses       = DEF.paceFuses;
+      window._optPaceRingOpacity = DEF.paceRingOpacity;
       _applyTuning();
       _saveOpts();
       // [v3.55] Also wipe section-state so all sections collapse
