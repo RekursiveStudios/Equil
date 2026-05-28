@@ -1,3 +1,757 @@
+<!-- Equil v4.62 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.62: Pinned header for settings panels; default-closed
+     sections per panel type.
+
+     PER SAM:
+     "Have them all default to closed to begin with, but if they
+      were left maximized, keep that memory? Actually, have that
+      behavior for dev tools because I'm sometimes in and out of
+      there. But for the settings, have that just always default to
+      both being minimized."
+     Plus from the prior message: "have a done button at the top so
+      you can close out by hitting a done button at top. And then
+      also the restore defaults should also be pinned to the top
+      somewhere. So those shouldn't scroll around with everything
+      else."
+
+     PER-PANEL DEFAULT BEHAVIOR.
+     New _mkSection opts.forceClosed: when true, the section starts
+     closed every time the panel opens regardless of saved state,
+     and toggling it inside the panel doesn't persist to localStorage.
+     - User panel ("OPTIONS"): Tile interaction + Audio sections
+       both pass `{forceClosed: true}` → always start collapsed.
+     - Dev panel ("DEV TOOLS"): unchanged — sections remember their
+       expanded/collapsed state across opens (Sam is "in and out of
+       there").
+
+     PINNED HEADER LAYOUT.
+     The box element is now a flex column with two children:
+       - hdr: padding+border-bottom, doesn't scroll. Holds:
+           - Title ("OPTIONS" or "DEV TOOLS")
+           - Action row: [Restore defaults] [Done] (50/50 split)
+           - Dev-mode only: TIMES/COUNTS launcher row below
+       - body: overflow-y:auto, flex:1. Holds all the sections.
+     Previously the entire panel was one scrollable region with
+     Reset and Close at the bottom — required scrolling past every
+     section to dismiss. Now they're always reachable.
+
+     The old reset click handler is preserved verbatim (50-line
+     reset of every option) — just rebound to the new header
+     `reset` button. The old `close` button is replaced by `done`
+     which has the same close behavior with a different label
+     matching the pinned-header context.
+
+     Backdrop tap-to-dismiss unchanged.
+-->
+
+<!-- Equil v4.61 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.61: Settings panel anchored at top instead of centered.
+
+     PER SAM:
+     "On that new settings window, when you maximize one of the two
+      things in there, it makes the whole window grow from the
+      center. I don't like that. I would like it to stay anchored at
+      the top — then maybe have the bottom move down. It jumps
+      around when it moves from the center like that."
+
+     CAUSE: panel overlay used `align-items:center` so the modal
+     centered vertically. When a collapsible section expanded, the
+     panel grew taller and had to move UP to stay centered — both
+     edges shifted, creating the "jumping from center" feel.
+
+     FIX: changed `align-items` to `flex-start` and added
+     `padding-top:8vh` to the overlay. Panel now anchors near the
+     top of the viewport. Section expansions only push the bottom
+     down — the title and top sections stay in place.
+
+     max-height stays at 88vh which fits within the viewport even
+     with the 8vh top padding (8 + 88 = 96vh total).
+-->
+
+<!-- Equil v4.60 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.60: Split settings into user + dev panels. New DEV button in
+     the toolbar (replaces TIMES + COUNTS). Master sound effects
+     toggle in user panel's Audio section.
+
+     PER SAM:
+     "Add times and counts buttons into the settings. And I want the
+      settings to be activated by a new button in the place where
+      times and counts was, just called 'dev'. Keep the old settings
+      button in the upper right, but that is going to be just a
+      simpler settings for users, it will keep the audio and tile
+      interaction sections, the rest can go to dev tools button. And
+      in audio just also add an option to turn off sound effects."
+
+     PANEL SPLIT.
+     _buildPanel now takes a `mode` argument: 'user' or 'dev'. Each
+     section gated by mode.
+       USER (⚙ button, top-right of masthead, unchanged location):
+         - Tile interaction
+         - Audio (with new Sound effects toggle at the top)
+       DEV (new DEV button, replaces TIMES + COUNTS pair):
+         - Top row: TIMES + COUNTS launchers (close dev panel, open
+           the corresponding debug overlay)
+         - Visual effects
+         - Placed-tile pulse
+         - Legibility
+         - Debug — win card
+         - Debug — snap tuning
+         - Pace stats
+         - Pace rings
+         - Pace boxes
+
+     TITLE swaps to "OPTIONS" or "DEV TOOLS" by mode. Both panels
+     share the Reset / Close buttons at the bottom (reset preserves
+     current mode).
+
+     SOUND EFFECTS MASTER TOGGLE.
+     New DEF.sfxOn (default true). Gated at the top of:
+       - All dispatch entry points: playSelEmpty / playSelFilled /
+         playPlace / playReturn / playError / playNewGame / playFanfare
+       - Standalone: playScaleNote / playTilePickup / playTileSnap /
+         playTileSnapWhoosh / playTileReturn / playUIClick / playGreeting
+       - Modal chirps: _modalOpenChirp / _modalCloseChirp
+       - Button SFX: window._btnFx
+     Pattern: `if(window._sfxOn===false||!AC)return;` piggybacks on
+     the existing AC short-circuit so no extra lines.
+
+     TOOLBAR.
+     The TIMES and COUNTS buttons (#_dbgTimesBtn, #_dbgCountsBtn)
+     are gone from the toolbar. Replaced by a single #_dbgDevBtn
+     labeled "DEV". Its click handler is in the same IIFE that used
+     to wire the old pair (around line 12398); the old IDs are still
+     queried but guarded since they no longer exist in the toolbar.
+     The actual debug-overlay close buttons (_dbgPanelClose,
+     _dbgTimesPanelClose) inside the floating overlays themselves
+     still get their handlers wired since those IDs do exist.
+
+     Light-mode CSS extended to also target #_dbgDevBtn so the new
+     button picks up the same deep-teal styling.
+
+     Exposed `window._openDevPanel` and `window._openOptionsPanel`
+     for any future call sites that need to launch a specific panel.
+
+     APIs UNCHANGED for any of the debug-overlay opacity buttons,
+     tabs, reset buttons inside the TIMES and COUNTS panels — all
+     wired separately and still work as before. Only the way you
+     OPEN those panels changed (now via dev panel button instead of
+     directly from the toolbar).
+-->
+
+<!-- Equil v4.59 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.59: Experiment — remove cell wrapper frames in light mode.
+
+     PER SAM:
+     "Can I see what it looks like if on only the light mode you get
+      rid of borders around the cells. Except for blank cells, they
+      need that thin outline. Oh, that's right, it's not actually a
+      border, it's like a container the other cells sit on that look
+      like a border because only the edges show through. That's what
+      I want to remove in light mode and see how it looks."
+
+     What he's describing: op/eq/given cells render with a wrapper
+     div sized CS×CS that has `background:var(--bk);` plus an inner
+     pill (the rounded colored chip) that sits inside it. The visible
+     "frame" is just var(--bk) peeking around the pill edges since
+     the pill is smaller than the wrapper.
+
+     CHANGE:
+     --bk in body.light-mode flipped from #e6dcbe (slightly deeper
+     cream) to #f4ecd8 (same as --bg, the page bg). Wrappers become
+     invisible — pills appear to float directly on the cream page.
+
+     This also affects:
+     - Pill background compositing. Pills use bgLayer:
+         linear-gradient(rgba,rgba), var(--bk)
+       So the alpha-tinted pill colors now composite over plain cream
+       instead of the deeper-cream wrapper. Effective pill colors
+       shift slightly lighter, which is the intended look for the
+       wrapperless aesthetic.
+     - Blank cells already used var(--bg) as their base layer
+       (different code path) so blank-cell visuals are unchanged.
+
+     Easy revert: change --bk back to #e6dcbe in body.light-mode.
+
+     Dark mode unchanged.
+-->
+
+<!-- Equil v4.58 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.58: Win-card PB bursts no longer force-show; new settings
+     toggle for troubleshooting visibility.
+
+     PER SAM:
+     "We can take off the part where best moves always shows up on the
+      win card. Maybe add a toggle in settings to turn the display on
+      for troubleshooting. But I want people to play this without it
+      showing up every time they win."
+
+     ROOT CAUSE:
+     v4.11 set `window._forceMovesBurst = true` as a dev shortcut so
+     Sam could see the moves-burst visual treatment without organically
+     beating his best (his test puzzles were tying his record). A note
+     said "Flip both to false for normal play" but it never got flipped.
+     The burst display logic OR's the real PB detection with this flag:
+       _showMovesBurst = _newMovesBest || !!window._forceMovesBurst
+     So with the flag stuck at true, the moves burst fired on every
+     solve regardless of whether the run was an actual PB.
+
+     FIX:
+     1) Flipped the v4.11 hardcoded `_forceMovesBurst = true` to false.
+        Initial values now both false at script-load time.
+     2) Added new DEF entry `forceWinBursts: false`.
+     3) _applyTuning now sets `_forceTimeBurst` and `_forceMovesBurst`
+        from `window._optForceWinBursts` (or DEF if unset). When the
+        toggle is OFF (default), bursts only appear on legit PBs.
+        When ON, both bursts force-show on every solve.
+     4) Load/save plumbing in _loadOpts/_saveOpts/reset section.
+     5) New settings section "Debug — win card" with single toggle
+        "Always show PB bursts" + description explaining troubleshooting
+        use. Section default closed (most players won't touch it).
+        Sits right after the "Audio" section in the panel.
+
+     Burst visuals themselves unchanged (vibrant yellow + dense
+     drop-shadow stack from v4.57).
+-->
+
+<!-- Equil v4.57 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.57: Restore vibrant yellow burst with denser shadow + add UI
+     click to mode buttons.
+
+     PER SAM:
+     "The new burst looks bad. I want the same vibrant yellow, just
+      either more dark shadow or more dense glow for the shadow. And
+      chalant and nonchalant buttons should have the same sound other
+      menu buttons have."
+
+     1) WIN BURST — VIBRANT YELLOW + DENSER SHADOW.
+        Reverted v4.56's amber color swap. The yellow stays the
+        original #ffd84a vibrant brand color. Contrast on cream
+        achieved entirely via a denser layered drop-shadow filter:
+          drop-shadow(0 0 1px rgba(42,36,24,0.95))  ← tight outline 1
+          drop-shadow(0 0 1px rgba(42,36,24,0.95))  ← tight outline 2
+          drop-shadow(0 1px 2px rgba(42,36,24,0.6)) ← soft drop
+        The two stacked zero-spread outlines build up a near-black
+        edge around every yellow pixel without compositing under the
+        strokes (drop-shadow only shadows non-transparent pixels —
+        so the yellow stays yellow, the dark just outlines it).
+        Kept v4.56's font-size:16 (up from 14).
+
+     2) MODE BUTTONS — CLICK SOUND.
+        [data-mode] selector wasn't included in the sel-screen
+        click-sound bootstrap (where size, diff, sound, play buttons
+        get playUIClick). Added a parallel forEach for [data-mode]
+        right after the data-diff one. Capture-phase listener like
+        the others so it fires before the state handler.
+-->
+
+<!-- Equil v4.56 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.56: Burst readability + menu screen cyan cleanup.
+
+     PER SAM:
+     "Darker on the shadow for best moves text and burst though, it
+      almost looks gray now. Possibly because of how small it is,
+      maybe increase text size just a bit as well? And on menu screen,
+      version number in light mode is that bright cyan I dont want,
+      as well as the stats button outline."
+
+     1) WIN BURST READABILITY.
+        v4.55's drop-shadow approach was muddying the yellow because
+        the dual filter shadows composited UNDER the already-low-
+        opacity (0.85 outer, 0.6 inner) yellow strokes, mixing to
+        gray-brown.
+
+        New approach: swap stroke + text fill to saturated darker
+        amber (#b45309) in light mode — it holds up on cream without
+        relying on heavy shadow. Plus:
+          - Group opacity 0.85 → 1.0 (full saturation)
+          - Inner polygon opacity stays at 0.7 (subtle layered look)
+          - Text font-size 14 → 16 (more readable per Sam)
+          - Single tight drop-shadow at 0.25 alpha for subtle outline
+        Dark mode unchanged — bursts stay the original #ffd84a yellow
+        on black where they're already crisp.
+
+     2) MENU SCREEN CYAN.
+        Two inline rgba(0,217,255,...) sites I'd missed:
+          - #_seqVersionTag: version number → deep teal at 0.7 alpha
+          - #statsBtn border: → deep teal at 0.55 alpha
+-->
+
+<!-- Equil v4.55 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.55: Three tiny fixes.
+
+     PER SAM (screenshot showing pause/back buttons + win card):
+     1) "There is still some glow in the pause button, the pause icon."
+     2) "Back button has always been off center for the arrow in it."
+     3) "Yellow best time / best moves burst is hard to see in light
+         mode. Add slight shadow to make it more readable."
+
+     1) PAUSE ICON GLOW.
+        The two vertical bars inside #pauseBtn are <span> children
+        with inline `box-shadow:0 0 4px rgba(0,217,255,0.6)` each.
+        My v4.54 #pauseBtn rule only hit the button border, not the
+        children. Added `body.light-mode #pauseBtn > span { box-shadow:
+        none !important; }`.
+
+     2) BACK ARROW VERTICAL ALIGNMENT.
+        Long-standing issue. The `←` glyph has odd baseline metrics
+        that place it visually below center. The existing fix was
+        translateY(-3px) which wasn't enough. Bumped to -5px.
+
+     3) WIN CARD PB BURSTS.
+        #winBurstMoves and #winBurstTime are SVG with `stroke="#ffd84a"`
+        (light yellow) on a cream bg — minimal contrast. Added a CSS
+        `filter: drop-shadow(...)` in light mode: a soft brown shadow
+        + tight outline shadow so the yellow burst + text reads
+        clearly without changing the brand yellow color.
+
+     Dark mode unchanged for all three.
+-->
+
+<!-- Equil v4.54 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.54: Expanded light-mode glow→shadow coverage.
+
+     PER SAM:
+     "Glow in light mode around pause, new, and settings is still
+      there, I wanted like shadow looking but no shadows showed up.
+      All of the buttons on the bottom row still are glowing bright
+      cyan. Should be shadows."
+
+     ADDED COVERAGE:
+     - #backBtn / #pauseBtn / #newp / #optBtn — masthead buttons
+       carry inline `box-shadow:0 0 8px rgba(0,217,255,0.3)`. Light
+       mode override: `0 1px 3px rgba(42,36,24,0.18)` soft drop +
+       deep teal border.
+     - .tile-controls-row > button — TILE ADJUST / ×N / #### / ###
+       buttons have `box-shadow:0 0 8px rgba(0,217,255,0.3)` in
+       their CSS rule. Same soft drop-shadow + deep teal border +
+       deep teal text in light mode.
+     - .tile-controls-row > button.active — the purple "this mode
+       is on" state gets the same drop-shadow treatment with deep
+       purple instead of teal.
+
+     RE: "tile glow in dark mode got removed"
+     I traced through the CSS and all light-mode rules are correctly
+     scoped via `body.light-mode .selector`. Dark mode should be
+     fully restored to its v4.52 state when the toggle is off. If
+     Sam still sees missing dark-mode glow, suspect:
+       1. Browser CSS cache — hard reload might help
+       2. Transition mid-flight when toggling — wait 150ms after
+          toggle for transitions to settle
+       3. A specific element I missed — please screenshot of dark
+          mode and I'll investigate
+-->
+
+<!-- Equil v4.53 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.53: Soften neon-cyan glows to shadow-like in light mode.
+
+     PER SAM (screenshot of win card after solving):
+     "Can you darken the cyan glow around the menu and next puzzle
+      buttons, and turn the bright cyan text in upper left to be
+      darker, also darken glow around everything that glows in light
+      mode, I think they need to look more like shadows in light mode,
+      like around the timer and other places."
+
+     APPROACH:
+     Dark-mode glows are neon-cyan radiations (rgba(0,217,255, ...))
+     which reads as "this thing is electric" against black. On cream
+     they read as bright halos and feel out of place. Replaced major
+     glow surfaces with soft brown drop-shadows (rgba(42,36,24, ...)
+     — the dark text color, low alpha) so they read as subtle
+     shadows rather than emissive glow.
+
+     COVERAGE (body.light-mode CSS overrides with !important):
+       - .mast bottom shadow
+       - .gscroll outer + inset glow
+       - .bt inset glow
+       - .wcard outer drop shadow
+       - #winSplitBtns pill button glow
+       - #mastTimerWrap text-shadow (the cyan timer halo)
+       - .sel-mast / .sel-btn.on / .sel-play (menu screen)
+       - .seq-btn / .pro-btn variants (sequencer remnants)
+
+     WIN CARD CYAN TEXT FIXES:
+       - #winSizeDiff (the "SMALL · MEDIUM" line top-left): 
+         rgba(0,217,255,0.85) → #0e7490 deep teal
+       - #winHeader > div (TEMPLATE: line): deep teal at 0.85 alpha
+       - #winHeader > div > span:first-child (the "TEMPLATE:" label):
+         deep teal at 0.70 alpha
+       - #winMenuBtn divider stroke: deep teal at 0.4 alpha
+
+     Cyan text that uses var(--cyan) (like ".wt" Solved! title) was
+     already themed via the variable to #0e7490 and didn't need
+     explicit overrides.
+
+     Dark mode unchanged.
+-->
+
+<!-- Equil v4.52 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.52: Light-mode tweaks for AVG pace stat and debug template label.
+
+     PER SAM:
+     "The average time in light mode is too bright of a cyan color,
+      as is the template 2 letters by undo button. Maybe just make
+      it a darker cyan color, but different than the worst time."
+
+     CHANGES:
+     1) Pace stats palette adjusted for light mode (overrides via
+        body.light-mode CSS with !important to beat inline styles):
+          BEST:  #c400ff (magenta neon) → #7c3aed (deep purple)
+          AVG:   #00ffff (bright cyan)  → #0e7490 (deep teal,
+                                          distinct from worst)
+          WORST: #4a8fa0 (dark cyan)    → #355e6b (muted blue-gray,
+                                          darker than avg)
+        Order of distinctness: best clearly purple; avg/worst both
+        blue-cyan but avg more saturated/lighter, worst more muted.
+
+     2) _dbgTplLabel (debug template name shown next to UNDO):
+        - JS now sets color theme-conditionally on every update.
+        - body.light-mode CSS rule added as belt-and-suspenders.
+        - Theme toggle re-fires _updateDbgTplLabel() so label
+          re-themes immediately.
+
+     Dark mode unchanged for both.
+-->
+
+<!-- Equil v4.51 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.51: Just-solved given cells in light mode no longer stay bright
+     cyan.
+
+     PER SAM (screenshot showing 5 × 2 = 10 just solved):
+     "See that bright cyan in two cells right after I solved it,
+      thats what I dont want"
+
+     ROOT CAUSE:
+     Different from the placed-cell flash fixed in v4.50. This bug is
+     about GIVEN cells (the 5 and 10 in the example) in a just-solved
+     equation. The stagger reveal code fires a `givenpop` keyframe
+     animation on each given in the equation with `forwards` fill mode.
+     The dark-mode `@keyframes givenpop` ends with `color:#00d9ff;
+     background:rgba(0,217,255,0.2)` — neon cyan. With `forwards`,
+     those colors PERSIST on the cell until the next render() call.
+
+     On the placed-cell flash (the 2 in the screenshot) the v4.50 fix
+     applied — those use inline-style setting which I made theme-aware.
+     But the givens go through a different code path (animation only,
+     no inline color/bg set) so they stayed locked at the keyframe's
+     end state regardless of theme.
+
+     FIX:
+     New `@keyframes givenpop-light` variant with deep teal palette
+     (background:rgba(14,116,144,...); color:#0e7490 end state).
+     Stagger code picks variant by `window._lightModeOn`:
+       light → 'givenpop-light'
+       dark  → 'givenpop'
+     Given cells in just-solved equations now end on the same deep
+     teal they'd render to anyway. No persistent neon flash.
+
+     Dark mode unchanged.
+-->
+
+<!-- Equil v4.50 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.50: Light-mode just-solved flash fix.
+
+     PER SAM (clarified from v4.49 attempt):
+     "I still want the breathing pulse for green numbers. I was
+      referring to when you place all the correct numbers in an
+      equation, and that equation is still highlighted, there is some
+      different color scheme being applied than the other green when
+      you deselect that equation. I just dont want them to turn that
+      super bright green as soon as it sees you have solved it
+      correctly."
+
+     ROOT CAUSE (different from v4.49's fix):
+     The bright flash wasn't the .ok-breath animation peak (that's
+     for fully-dimmed cells with no unsolved-equation intersections).
+     It was the STAGGER REVEAL inside render() around line 20215 —
+     the setTimeout sequence that fires per-cell as each newly-
+     completed cell animates in. That code hardcoded:
+       el.style.background='rgba(74,222,128,0.28)'
+       el.style.color='#4ade80'
+       el.style.boxShadow='0 0 8px rgba(74,222,128,0.6)'
+     Neon green which on cream reads as "bright flash that calms
+     down" once render() takes over with the deeper palette.
+
+     v4.49's _writePulseKeyframes change was still correct (breath
+     animation should also be hunter green in light mode) but it
+     wasn't the visible bug.
+
+     FIX:
+     Made the stagger reveal theme-aware. Reads window._lightModeOn
+     at fire time and uses:
+       light: rgba(22,101,52,...) + #166534 (hunter green)
+       dark:  rgba(74,222,128,...) + #4ade80 (neon green)
+     Same logic for the eq cell cyan in the same block.
+
+     The "just solved → still highlighted" cells now show calm hunter
+     green in light mode from the moment they reveal. No more bright
+     flash that settles.
+-->
+
+<!-- Equil v4.49 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.49: Light-mode bug fixes (pace stats not showing) + palette
+     tuning per Sam's tester feedback.
+
+     PER SAM:
+     1) Pace stats don't show up even with toggle on.
+     2) Solved-cell green is too light/neon in light mode.
+     3) Selected-equation cyan highlight too bright in light mode.
+     4) Already-placed numbers turn really light cyan briefly.
+     5) Bank tile numbers look dimmed/desaturated.
+
+     FIXES:
+
+     1) PACE STATS REGRESSION.
+        Root cause: _initPaceStats had a `if(_equilMode==='nonchalant')
+        return;` gate copied from the ghost bar. _equilMode defaults
+        to 'nonchalant' on fresh installs, so pace stats never
+        appeared. Pace RINGS don't have this gate and worked fine.
+        Pace stats now match: gate removed. Master toggle in settings
+        is the only on/off. Players who don't want pace pressure can
+        toggle "Show pace stats" off.
+
+     2 & 4) BREATHING GREEN PULSE BRIGHT IN LIGHT MODE.
+        The "really light cyan" Sam saw was actually the .ok-breath
+        animation peak — rgba(74,222,128,0.95) — on solved blank cells
+        when no unsolved equations are touching them. The animation
+        keyframes are written by _writePulseKeyframes (hardcoded green
+        RGB). Made theme-aware: light mode uses rgba(22,101,52,...)
+        for a deep hunter green. Also call _writePulseKeyframes from
+        _applyTheme so the keyframes get rewritten on theme toggle.
+
+     3) DEEPER GREEN PALETTE for light mode.
+        Bumped from forest #15803d to hunter #166534. _P map values:
+          green06   0.10 → 0.12
+          green20   0.28 → 0.30
+          green25   0.32 → 0.35
+          greenText #15803d → #166534
+          greenTextDim 0.55 alpha kept
+
+     5) BANK TILE TEXT/BORDER LIGHT-MODE OVERRIDES.
+        The .bt CSS rule hardcodes `color:#c8c8d0` (light gray) and
+        `border:rgba(0,217,255,0.5)` (neon cyan). On cream both read
+        washed out. Added body.light-mode .bt rule with !important:
+          color: #2a2418  (dark brown-near-black)
+          border-color: rgba(14,116,144,0.55) (deep teal)
+          box-shadow: rgba(14,116,144,0.15) inset
+        !important needed to beat applyTileColor's inline border
+        shorthand on uncolored tiles.
+
+     Remaining for next pass (not addressed this version):
+       - Mini-number badges on tiles (._btMiniNum) hardcode #0093aa.
+         Probably still OK on cream but worth checking.
+       - Win card, settings panel, splash, modals not yet themed.
+-->
+
+<!-- Equil v4.48 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.48: Light mode (first pass) + theme toggle button.
+
+     PER SAM:
+     "Make a light mode toggle. Her version was yellowish off-white.
+      Still force testers to try this new dark version first. Toggle
+      button shows sun in dark mode (tap for light), moon in light
+      mode (tap for dark). Centered above tile bank, right of UNDO.
+      Make button push sound on tap."
+
+     PALETTE (warm parchment / cream feel):
+       bg            #0f0f0f → #f4ecd8 (cream)
+       bg-secondary  #1a1a1a → #ede4cc (deeper cream)
+       bg-tertiary   #151515 → #e6dcbe (deepest cream)
+       text-primary  #f0f0f0 → #2a2418 (dark brown-tinted near-black)
+       text-secondary#b0b0b0 → #5a5040 (warm gray)
+       cyan          #00d9ff → #0e7490 (deep teal)
+       magenta       #c400ff → #7c3aed (deep purple)
+       green         #2afc8a → #15803d (forest)
+       red           #ff2a55 → #b91c1c (brick)
+
+     IMPLEMENTATION:
+     1) Light-mode CSS variables defined under body.light-mode. The
+        existing variable system (--bg, --bk, --br, etc.) themes
+        automatically.
+     2) Inline-styled cell colors converted to a per-render() palette
+        map (_P) that picks dark or light values based on
+        window._lightModeOn. ~25 color references in render() are
+        now theme-aware.
+     3) Lattice CSS gets a body.light-mode override (deep teal at
+        0.18 alpha vs neon cyan at 0.32).
+     4) Toolbar buttons (UNDO, theme, TIMES, COUNTS) get inline-style
+        overrides via body.light-mode selectors with !important.
+
+     TOGGLE BUTTON:
+     - <button id="themeToggle"> in the toolbar row above bank,
+       centered between UNDO and TIMES/COUNTS.
+     - Sun icon (☀) in dark mode, moon icon (☽) in light mode.
+     - Same pill styling as UNDO so the row reads as a coherent strip.
+     - Click → playUIClick() + toggle + localStorage save.
+
+     PERSISTENCE:
+     - Separate localStorage key 'equil_theme' (string 'dark'|'light').
+       Kept out of equil_opts_v2 because theme is a more global setting
+       and shouldn't trigger full opts re-save on toggle.
+     - Default: 'dark'. Testers see the polished dark version first
+       and must opt into light explicitly.
+
+     SCOPE (first pass):
+     Main play surface (grid, cells, bank, masthead, toolbar) themes
+     fully. Modals, win card, settings panel, splash, particle colors
+     may still read as dark-on-cream in spots — those need follow-up
+     polish. The framework is in place; subsequent versions can pick
+     off the remaining inline color sites.
+-->
+
+<!-- Equil v4.47 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.47: Pace stats labels replace pace rings as default feedback;
+     defaults flipped per testers (high contrast on, lattice off,
+     pace rings off).
+
+     PER SAM:
+     "Change default to high contrast on, and grid lattice off. It
+      really is just easier to play that way. And also turn off the
+      timer lines, they are distracting. Maybe keep them around just
+      in case, but I think something better would just to have a best
+      time, average time, and least worst time displayed by the timer,
+      and each one grays out when you get past it."
+
+     NEW: PACE STATS
+     New element #paceStats sits where the ghost bar used to live
+     (right below the timer row). Shows three time targets in a
+     single line: "BEST 0:15 · AVG 0:23 · WORST 0:31"
+     Color-matched to the pace ring palette so the two feedback modes
+     stay visually consistent if anyone enables both:
+       best  → magenta  (#c400ff)
+       avg   → bright cyan (#00ffff)
+       worst → dark cyan (#4a8fa0)
+     Each label drops to 0.25 opacity ("grayed out") when elapsed
+     passes its target. Passed targets stay visible so you can still
+     see what you beat.
+
+     Stats are gated by count exactly like pace rings:
+       count 1: best only
+       count 2: best + worst
+       count 3+: best + avg + worst
+     Separators between stats auto-hide if a neighboring stat is empty.
+
+     New IIFE adds _initPaceStats / _updatePaceStats on window. Hooks
+     into all four _initPaceRings call sites + _applyTuning, and into
+     _renderTimer's per-tick update alongside _updatePaceRings.
+
+     The ghost-runner bar and its "Best time: X:XX" label are hidden
+     via inline style display:none. The machinery (_initGhostBar /
+     _updateGhostBar, state, CSS) is intact — to revive, remove the
+     inline display:none and toggle the visibility-vs-display logic.
+
+     DEFAULTS FLIPPED:
+       paceRings:    true   → false   (replaced by pace stats)
+       highContrast: false  → true    (cell borders read clearly)
+       showLattice:  true   → false   (lattice was the main legibility
+                                       complaint from older testers)
+     New default added:
+       paceStats:    true            (the new feedback mode)
+
+     UI:
+     New "Pace stats" section in the options panel above "Pace rings".
+     Single "Show pace stats" toggle. Pace rings section stays as-is
+     for users who liked the rings.
+
+     Reset button also resets paceStats to default.
+-->
+
+<!-- Equil v4.46 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.46: Legibility Path B — quick contrast fixes before the full
+     light mode in a later version.
+
+     PER SAM:
+     "Two testers in 60s/70s. One says it's too dark, the other found
+      it hard to tell empty cells from grid lattice. Start with Path B
+      (high-contrast toggle + lattice toggle), then build full light
+      mode later."
+
+     ROOT (visual hierarchy bug):
+     - Lattice gridlines: rgba(0,217,255,0.32) — alpha 0.32
+     - Blank-cell borders: rgba(0,217,255,0.25) — alpha 0.25
+     The lattice was BRIGHTER than the cell borders that defined empty
+     cells, so testers couldn't tell which squares were actual cells
+     vs grid pattern. Fixing this required either reducing lattice
+     alpha, increasing border alpha, or both.
+
+     NEW SETTINGS SECTION: "Legibility" (default open, near top of
+     options panel just above Audio):
+       - "High contrast" toggle (default OFF — preserves existing look)
+         When ON:
+           * blank-cell border alpha: 0.25 → 0.6
+           * given-number text: #d8d8d8 → #ffffff
+           * given-cell bg alpha: 0.10 → 0.18
+           * lattice opacity: 1.0 → 0.4
+       - "Show grid lattice" toggle (default ON)
+         Master switch that hides the lattice gridlines entirely.
+         Independent of high contrast.
+
+     PERSISTENCE:
+       - DEF.highContrast=false, DEF.showLattice=true.
+       - Load/save handlers in equil_opts_v2.
+       - Reset button restores defaults.
+
+     PLUMBING:
+       - _applyTuning sets window._highContrastOn and window._showLatticeOn,
+         applies lattice display/opacity directly to the DOM, then
+         calls window.render() (newly exposed) so cell borders
+         re-render.
+       - window.render added at top-level so the options IIFE can
+         reach it cross-scope.
+       - Cell render code reads window._highContrastOn at draw time:
+         blank-cell border alpha and given-cell colors switch based
+         on the flag.
+
+     This is intentionally NOT a theme — just a contrast adjustment.
+     Full light mode (white bg, dark elements, brand-respectful palette)
+     in v4.47+.
+-->
+
+<!-- Equil v4.45 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.45: Bluetooth/wireless audio latency compensation.
+
+     PER SAM:
+     "Is there any way to adjust for if there are blue... Bluetooth
+      headphones in since there's a little bit of a delay to kind of
+      start some of the audio in advance? for the victory sound or
+      when the victory sign pops up, make it go a little bit earlier
+      so that it shows up right when the victory sign pops up."
+
+     APPROACH:
+     Web Audio's AC.outputLatency reports actual output latency in
+     seconds. Bluetooth typically reports 40-200ms; wired/built-in
+     reports 5-15ms. We use the latency value itself as the signal
+     (no Bluetooth-specific detection — privacy-restricted anyway,
+     and this catches AirPlay/HDMI/etc too).
+
+     Strategy:
+       - INPUT-triggered sounds (tap/drag tiles, UI clicks, errors):
+         not compensated. The latency is baked in regardless of when
+         we schedule. Visual feedback has its own delay so they
+         feel mostly aligned anyway.
+       - SCHEDULED sounds tied to a known visual event:
+         * win wave per-tile pops — audio fires `comp` ms before
+           visual burst so they land in sync
+         * post-wave fanfare→win card — card pop delayed by `comp`
+           ms so it lands on actual audio finish
+
+     HELPER:
+     _audioCompensateMs() — returns compensation in ms, or 0 if:
+       - user disabled the feature
+       - AC.outputLatency missing/zero (some browsers don't report)
+       - reported latency < 20ms (wired output, no help needed)
+     Clamped to 250ms max.
+
+     UI:
+     New "Audio" section in the options panel between "Tile
+     interaction" and "Debug — snap tuning":
+       - "Latency compensation" toggle. Default ON. Persists in
+         equil_opts_v2 alongside other options.
+
+     The toggle reads in _applyTuning, exposed as
+     window._audioCompensateOn. _audioCompensateMs() checks this at
+     every call so toggling takes effect immediately.
+-->
+
 <!-- Equil v4.44 | Built: 2026-05-19 CT | github.com/Spamboni
      v4.44: Restored the dark CS×CS wrapper bg behind op/eq/given pills.
 
@@ -7293,6 +8047,231 @@ if('serviceWorker' in navigator){
      render time). */
   --w:#f0f0f0;--bk:#151515;--br:#00d9ff;--ac:#c400ff;--bl:#9d4edd;--gn:#00d9ff;--mu:#b0b0b0;
 }
+/* [v4.48] Light mode — applied when body has class .light-mode. The
+   theme is a warm parchment/cream feel per Sam's mom's preference for
+   "yellowish off-white". Variables are overridden so any CSS or inline
+   styles using them retheme automatically. Inline styles that hardcode
+   colors (rgba(0,217,255,...) etc.) won't pick this up — those need
+   per-site adjustments in JS render code (see _lightModeOn checks).
+   This first pass focuses on the main play surface; modals/win card/
+   settings panel may need polish in a later version.
+
+   Palette rationale:
+     bg / bg-secondary / bg-tertiary: cream tones, slightly deepening
+       for layered panels.
+     w / text-primary: dark brown-tinted near-black so primary text
+       reads warm against the cream.
+     bk: cell wrapper bg in dark was #151515; in light it's a slightly
+       deeper cream so wrappers still read as a frame around pills.
+     cyan family: deep teal (#0e7490) since neon cyan is unreadable
+       on cream; still recognizably the brand cyan.
+     magenta/purple: deep purple, darkened for legibility.
+     green/red: status colors darkened. */
+body.light-mode{
+  --bg:#f4ecd8;--bg-secondary:#ede4cc;--bg-tertiary:#e6dcbe;
+  --text-primary:#2a2418;--text-secondary:#5a5040;--text-muted:#8a7d65;
+  --cyan:#0e7490;--cyan-bright:#0891b2;--magenta:#7c3aed;--magenta-bright:#9333ea;--purple:#6d28d9;
+  --green:#15803d;--green-bright:#16a34a;
+  --red:#b91c1c;--red-bright:#dc2626;
+  /* [v4.59] --bk in light mode set to match --bg so the op/eq/given
+     cell wrappers (which fill their full CS×CS slot with background:
+     var(--bk) and show as a visible frame around the inner pill)
+     become invisible — pills float directly on the page. Sam wants
+     to see how that reads. Cell pill bg layers (which composite
+     alpha-tinted rgba over var(--bk)) also pick this up so the pills
+     stay opaque against cream rather than against the original
+     deeper-cream wrapper color.
+     If this doesn't read well, revert by setting --bk back to
+     #e6dcbe. */
+  --w:#2a2418;--bk:#f4ecd8;--br:#0e7490;--ac:#7c3aed;--bl:#6d28d9;--gn:#0e7490;--mu:#5a5040;
+}
+body.light-mode{background:#f4ecd8;color:#2a2418;}
+/* [v4.48] Light-mode lattice: deep teal at low alpha instead of
+   neon cyan. The lattice is off by default in v4.47+ but if turned
+   on, it should be visible on cream not invisible. */
+body.light-mode .grid-lattice{
+  background-image:
+    linear-gradient(to right, rgba(14,116,144,0.18) 0px, rgba(14,116,144,0.18) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(14,116,144,0.18) 0px, rgba(14,116,144,0.18) 1px, transparent 1px) !important;
+}
+/* [v4.48] Toolbar buttons (UNDO, theme toggle, TIMES, COUNTS) carry
+   hardcoded cyan rgba inline. Override via attribute selector so the
+   cream theme reads correctly. */
+body.light-mode #undo,
+body.light-mode #themeToggle,
+body.light-mode #_dbgTimesBtn,
+body.light-mode #_dbgCountsBtn,
+body.light-mode #_dbgDevBtn{
+  background:rgba(14,116,144,0.12) !important;
+  border-color:rgba(14,116,144,0.55) !important;
+  color:#0e7490 !important;
+}
+/* [v4.49] Bank tile styling for light mode. The .bt rule has
+   hardcoded color:#c8c8d0 (light gray) and border:rgba(0,217,255,0.5)
+   (neon cyan) which read as washed-out / desaturated on cream. Light
+   mode swaps both for a saturated dark numeric on cream — same
+   approach as cell text. */
+body.light-mode .bt{
+  color:#2a2418 !important;
+  border-color:rgba(14,116,144,0.55) !important;
+  box-shadow:0 0 4px rgba(14,116,144,0.15) inset !important;
+}
+body.light-mode .bt._btMain,
+body.light-mode .bt ._btMain{
+  color:#2a2418 !important;
+}
+/* [v4.52] Pace stats colors in light mode. Inline-style colors on
+   the spans (#c400ff, #00ffff, #4a8fa0) are bright neon — on cream
+   the avg's #00ffff reads as washed out. Light-mode palette:
+     BEST:  #7c3aed deep purple (darker but still magenta-leaning)
+     AVG:   #0e7490 deep teal (still cyan-leaning, distinct from worst)
+     WORST: #355e6b muted blue-gray (darker than avg, less saturated)
+   Order of distinctness: best (purple) clearly different; avg vs
+   worst both blue-cyan but avg more saturated/lighter, worst more
+   muted/darker. */
+body.light-mode #paceStatBest { color:#7c3aed !important; }
+body.light-mode #paceStatAvg  { color:#0e7490 !important; }
+body.light-mode #paceStatWorst{ color:#355e6b !important; }
+/* [v4.52] Debug template-name label (_dbgTplLabel) by the UNDO
+   button. Inline style sets cyan via rgba(0,217,255,0.55) which is
+   bright on cream. Override to a deeper teal at similar alpha. */
+body.light-mode #_dbgTplLabel{ color:rgba(14,116,144,0.85) !important; }
+/* [v4.53] LIGHT-MODE GLOW SOFTENING.
+   In dark mode, glows are neon-cyan radiations against black, which
+   read as the brand "this thing is electric" feel. In light mode the
+   same glows on cream read as bright neon halos and look out of
+   place. This block reskins the major glow surfaces so they read as
+   subtle drop-shadows rather than emissive halos.
+
+   Pattern: replace `rgba(0,217,255, X)` shadows with
+   `rgba(42,36,24, Y)` (dark brown-near-black, same as text color)
+   at lower alpha for a soft "this is a card sitting above the page"
+   feel.
+
+   Coverage:
+     - .mast bottom shadow
+     - .gscroll outer + inset glow
+     - .bt inset glow
+     - .wcard outer glow + #winSplitBtns pill glow + headline pills
+     - .sel-mast / .sel-btn.on / .sel-play / .pro-btn variants
+       (menu screen elements; lower priority but trivial to add)
+     - .seq-btn variants (sequencer remnants visible on bank toolbar)
+     - #mastTimerWrap text-shadow (the cyan timer glow)
+   Inline cyan text overrides on the win card header pieces. */
+body.light-mode .mast{
+  box-shadow:0 2px 8px rgba(42,36,24,0.10) !important;
+}
+body.light-mode .gscroll{
+  box-shadow:0 0 4px rgba(42,36,24,0.08), inset 0 0 3px rgba(42,36,24,0.04) !important;
+}
+body.light-mode .bt{
+  box-shadow:0 0 4px rgba(42,36,24,0.06) inset, 0 1px 2px rgba(42,36,24,0.08) !important;
+}
+body.light-mode .wcard{
+  box-shadow:0 6px 20px rgba(42,36,24,0.18) !important;
+}
+body.light-mode #winSplitBtns{
+  box-shadow:0 2px 8px rgba(42,36,24,0.15) !important;
+}
+/* Win card cyan text → darker teal text. Selectors target the
+   inline-styled spans by ID so they win over inline. */
+body.light-mode #winSizeDiff{ color:#0e7490 !important; }
+body.light-mode #winHeader > div{ color:rgba(14,116,144,0.85) !important; }
+body.light-mode #winHeader > div > span:first-child{ color:rgba(14,116,144,0.70) !important; }
+/* Win card buttons — text color and divider already use var(--cyan)
+   which themes via the variable to #0e7490 in light mode. The
+   divider stroke (border-right rgba) needs explicit darkening. */
+body.light-mode #winMenuBtn{
+  border-right-color:rgba(14,116,144,0.4) !important;
+}
+/* Mast timer text-shadow → soft brown shadow instead of cyan glow */
+body.light-mode #mastTimerWrap{
+  text-shadow:0 1px 2px rgba(42,36,24,0.20) !important;
+}
+/* Sel-screen (start menu) — same softening for the bigger buttons */
+body.light-mode .sel-mast{
+  box-shadow:0 2px 8px rgba(42,36,24,0.12) !important;
+}
+body.light-mode .sel-btn.on{
+  box-shadow:0 0 6px rgba(42,36,24,0.10) !important;
+}
+body.light-mode .sel-play{
+  box-shadow:0 2px 10px rgba(42,36,24,0.15) !important;
+}
+/* Sequencer buttons (remnants visible in toolbar / debug areas) */
+body.light-mode .seq-btn:hover,
+body.light-mode .seq-btn:active,
+body.light-mode .seq-btn.playing{
+  box-shadow:0 1px 4px rgba(42,36,24,0.15) !important;
+}
+body.light-mode .pro-btn,
+body.light-mode .pro-btn:hover,
+body.light-mode .pro-btn.active,
+body.light-mode .pro-slot.active{
+  box-shadow:0 0 4px rgba(42,36,24,0.10) !important;
+}
+/* [v4.54] Masthead buttons (←, ‖, NEW, ⚙) carry inline
+   box-shadow:0 0 8px rgba(0,217,255,0.3). Replace with soft brown
+   drop-shadow so they read as buttons sitting above the page rather
+   than glowing. */
+body.light-mode #backBtn,
+body.light-mode #pauseBtn,
+body.light-mode #newp,
+body.light-mode #optBtn{
+  box-shadow:0 1px 3px rgba(42,36,24,0.18) !important;
+  border-color:rgba(14,116,144,0.55) !important;
+}
+/* [v4.54] Tile-controls-row buttons (TILE ADJUST, ×N, ####, ###).
+   The .tile-controls-row > button CSS rule has
+   box-shadow:0 0 8px rgba(0,217,255,0.3) for the inactive (cyan)
+   state. Override to soft brown drop-shadow in light mode. */
+body.light-mode .tile-controls-row > button{
+  box-shadow:0 1px 3px rgba(42,36,24,0.18) !important;
+  border-color:rgba(14,116,144,0.55) !important;
+  color:#0e7490 !important;
+}
+body.light-mode .tile-controls-row > button.active{
+  box-shadow:0 1px 3px rgba(42,36,24,0.18) !important;
+  border-color:#7c3aed !important;
+  color:#7c3aed !important;
+  background:rgba(124,58,237,0.10) !important;
+}
+/* [v4.55] Pause icon spans — the two vertical bars inside #pauseBtn
+   carry inline `box-shadow:0 0 4px rgba(0,217,255,0.6)` (a glow on
+   each bar). The v4.54 #pauseBtn override only hit the button, not
+   the children. Drop the inner glows in light mode. */
+body.light-mode #pauseBtn > span{
+  box-shadow:none !important;
+}
+/* [v4.55] Win card PB bursts (#winBurstMoves, #winBurstTime).
+   The yellow #ffd84a stroke + text on cream is barely visible.
+   [v4.57] Reverted v4.56's amber color swap — Sam wants the original
+   vibrant yellow preserved. The contrast is achieved entirely via
+   denser shadow now: a layered drop-shadow stack that creates a
+   "dark glow" outline behind the yellow. Each layer adds outline
+   contribution without compositing under the strokes (drop-shadow
+   only shadows non-transparent pixels).
+   Also keeping the v4.56 font-size bump (16 vs original 14). */
+body.light-mode #winBurstMoves text,
+body.light-mode #winBurstTime text{
+  font-size:16px !important;
+}
+body.light-mode #winBurstMoves,
+body.light-mode #winBurstTime{
+  filter:
+    drop-shadow(0 0 1px rgba(42,36,24,0.95))
+    drop-shadow(0 0 1px rgba(42,36,24,0.95))
+    drop-shadow(0 1px 2px rgba(42,36,24,0.6)) !important;
+}
+/* [v4.56] Menu screen — version tag and stats button. Both carry
+   inline rgba(0,217,255,...) cyan styling. In light mode they read
+   as the neon cyan we're trying to avoid. Same deep-teal swap. */
+body.light-mode #_seqVersionTag{
+  color:rgba(14,116,144,0.7) !important;
+}
+body.light-mode #statsBtn{
+  border-color:rgba(14,116,144,0.55) !important;
+}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none;}
 /* v2.35: Cross-browser normalization layer. These rules prevent browser
    defaults from drifting between Chrome / Brave / DuckDuckGo / WebView /
@@ -7783,6 +8762,18 @@ body.xl2-mode .gscroll::before{ display:block; }
 @keyframes vib{0%,100%{transform:translateX(0)}15%{transform:translateX(-2px)}35%{transform:translateX(2px)}55%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
 @keyframes eqpop{0%{transform:scale(1)}40%{transform:scale(1.18)}70%{transform:scale(0.95)}100%{transform:scale(1)}}
 @keyframes givenpop{0%{transform:scale(1);background:rgba(0,217,255,0.05)}50%{transform:scale(1.15);background:rgba(0,217,255,0.3);color:#00ffff}100%{transform:scale(1);background:rgba(0,217,255,0.2);color:#00d9ff}}
+/* [v4.51] Light-mode variant of givenpop. The dark-mode keyframe
+   ends with bright neon cyan (#00d9ff) which persists on the cell
+   via `forwards` fill. On cream that reads as the placed-given
+   cells "stuck" in bright cyan after a just-solved equation. This
+   variant uses the deep teal palette so given cells settle into
+   their normal solved-light-mode color (`#0e7490`). JS picks
+   which animation to fire based on window._lightModeOn. */
+@keyframes givenpop-light{
+  0%{transform:scale(1);background:rgba(14,116,144,0.06);}
+  50%{transform:scale(1.15);background:rgba(14,116,144,0.32);color:#0e7490;}
+  100%{transform:scale(1);background:rgba(14,116,144,0.22);color:#0e7490;}
+}
 /* [v3.53] .ok-breath rule + @keyframes okBreath are written to a
    runtime <style> element by _writePulseKeyframes (in the OPTIONS-
    panel IIFE) so the user-tunable peak brightness AND animation
@@ -8839,13 +9830,17 @@ body.menu-active .tile-controls-row{ display:none!important; }
   // [v4.11] Dev overrides for the win-card PB bursts. When true, the
   // corresponding burst displays on EVERY solve regardless of whether
   // it was a real per-template PB. Useful for screenshots or design
-  // iteration when you can't organically beat your best (e.g. on a
-  // tiny puzzle where 9 moves is the optimum). Flip both to false
-  // for normal play. _forceMovesBurst is on for v4.11 so Sam can
-  // see the moves burst at all (previous builds never fired it
-  // since the puzzles tied move count rather than beating it).
+  // iteration when you can't organically beat your best.
+  // [v4.58] Both now default false here AND are wired to the settings
+  // panel ("Debug — win card → Always show PB bursts"). _applyTuning
+  // overwrites these from the saved option after this script runs;
+  // these initial values only matter for the brief window before
+  // _loadOpts/_applyTuning fires, which is well before any solve
+  // could occur. Sam's complaint that "best moves always shows up"
+  // was the v4.11 dev flag (line said _forceMovesBurst = true) that
+  // never got reverted.
   window._forceTimeBurst  = false;
-  window._forceMovesBurst = true;
+  window._forceMovesBurst = false;
 
   if(window._skipSplash) return;
 
@@ -8984,7 +9979,7 @@ window.onerror=function(msg,src,line,col,err){
        go nearly fully semi-circular like Play does. -->
   <div class="sel-cta-row"><button class="sel-play" id="playBtn"><span class="play-row"><span class="play-tri">▶</span><span class="play-stack"><span class="play-main">PLAY</span><span class="play-divider"></span><span class="play-resume" id="playResumeLbl">RESUME</span></span></span></button></div>
   <div class="sel-cta-row"><button id="statsBtn" style="margin-top:10px;width:auto;padding:10px 28px;background:transparent;border:1.5px solid rgba(0,217,255,0.4);border-radius:18px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;font-weight:700;">📊 Stats</button></div>
-  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v4.44</div>
+  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v4.62</div>
 </div>
 
 <!-- GAME SCREEN -->
@@ -9006,7 +10001,7 @@ window.onerror=function(msg,src,line,col,err){
            box midline, so a 3px lift gets the visual center of the
            arrow shape (not its bounding box) onto the button's
            geometric center. -->
-      <button class="mast-back" id="backBtn" style="height:28px;padding:0 12px;font-size:24px;line-height:1;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;" title="Menu"><span style="display:inline-block;transform:translateY(-3px);">←</span></button>
+      <button class="mast-back" id="backBtn" style="height:28px;padding:0 12px;font-size:24px;line-height:1;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;" title="Menu"><span style="display:inline-block;transform:translateY(-5px);">←</span></button>
       <!-- [v3.46] Pause locked to 28px to match. Vertical bars sized
            proportionally — 12px tall x 3px wide, slightly smaller
            than the previous 14px so they fit cleanly inside a 28px
@@ -9061,13 +10056,27 @@ window.onerror=function(msg,src,line,col,err){
        to size+diff). Width represents time remaining vs that best;
        symmetric shrink from both edges via scaleX with origin:center.
        Replaced by a static "Best time: X:XX" label once elapsed
-       crosses the best. -->
-  <div id="mastGhost"><div id="mastGhostFill"></div></div>
-  <div id="mastGhostLabel">&nbsp;</div><!-- [v4.35] &nbsp; placeholder
-       so the box has its natural line-height from the start. Without
-       content the box would collapse to 0 height even with
-       visibility:hidden. JS replaces the &nbsp; with "Best time: X:XX"
-       and flips visibility:hidden→visible when best is crossed. -->
+       crosses the best.
+       [v4.47] Hidden via display:none (was visibility:hidden). The
+       new paceStats element below replaces this. The ghost-bar
+       machinery (state, _initGhostBar, _updateGhostBar) is still
+       wired up but its DOM is hidden. To revive: remove the inline
+       display:none and adjust the ghost-bar JS accordingly. -->
+  <div id="mastGhost" style="display:none;"><div id="mastGhostFill"></div></div>
+  <div id="mastGhostLabel" style="display:none;">&nbsp;</div>
+  <!-- [v4.47] Pace stats — three time targets near the timer that
+       gray out as elapsed time passes them. Replaces the pace rings
+       (now off by default) and the ghost-runner bar as the primary
+       way to feel pace pressure. Numeric is more accessible than
+       peripheral-vision-dependent rings, especially for testers
+       with vision concerns. Style is set inline to keep this
+       self-contained; if it sticks, the inline styles should move
+       to a CSS rule. -->
+  <div id="paceStats" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:1.5px;text-align:center;padding:4px 12px;color:rgba(0,217,255,0.85);">
+    <span id="paceStatBest"  style="color:#c400ff;"></span><span id="paceStatSepAB" style="opacity:0.4;"> · </span><!--
+ --><span id="paceStatAvg"   style="color:#00ffff;"></span><span id="paceStatSepBC" style="opacity:0.4;"> · </span><!--
+ --><span id="paceStatWorst" style="color:#4a8fa0;"></span>
+  </div>
   <!-- [v3.46] Removed: the .info-bar with the long "Tap a square ·
        then a number..." hints line. The puzzle's interaction model
        is straightforward enough that the always-on hint isn't
@@ -9170,9 +10179,26 @@ window.onerror=function(msg,src,line,col,err){
       </button>
       <span id="_dbgTplLabel"></span>
     </div>
+    <!-- [v4.48] Theme toggle button. Centered in this toolbar row,
+         sits between the left UNDO group and the right TIMES/COUNTS
+         group. Shows the icon for what tapping it WILL DO:
+           - In dark mode: sun icon (tap → light)
+           - In light mode: moon icon (tap → dark)
+         The pill styling matches UNDO so the row reads as a coherent
+         control strip. Click fires playUIClick(). Persistence: see
+         _toggleTheme handler. -->
+    <button id="themeToggle" title="Toggle light/dark theme" style="background:rgba(0,217,255,0.12);border:1.5px solid rgba(0,217,255,0.55);color:rgba(0,217,255,0.95);font:13px/1 'IBM Plex Mono',monospace;padding:5px 10px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:opacity 0.15s ease,background 0.15s ease,border-color 0.15s ease,color 0.15s ease;min-width:34px;">
+      <span id="themeToggleIcon" style="line-height:1;font-size:14px;">☀</span>
+    </button>
     <div style="display:flex;gap:6px;">
-      <button id="_dbgTimesBtn" style="background:rgba(0,217,255,0.10);border:1px solid rgba(0,217,255,0.40);color:rgba(0,217,255,0.85);font:10px/1 monospace;letter-spacing:1px;padding:4px 8px;border-radius:6px;cursor:pointer;">TIMES</button>
-      <button id="_dbgCountsBtn" style="background:rgba(0,217,255,0.10);border:1px solid rgba(0,217,255,0.40);color:rgba(0,217,255,0.85);font:10px/1 monospace;letter-spacing:1px;padding:4px 8px;border-radius:6px;cursor:pointer;">COUNTS</button>
+      <!-- [v4.60] Single DEV button replacing the v3.35-era TIMES +
+           COUNTS pair. Opens the new dev tools panel which contains
+           the Times/Counts launchers along with the dev-side
+           settings sections (Visual effects, Placed-tile pulse,
+           Legibility, Debug — win card, Debug — snap tuning, Pace
+           stats/rings/boxes). The user-facing settings panel reached
+           by the ⚙ button keeps only Tile interaction + Audio. -->
+      <button id="_dbgDevBtn" style="background:rgba(0,217,255,0.10);border:1px solid rgba(0,217,255,0.40);color:rgba(0,217,255,0.85);font:10px/1 monospace;letter-spacing:1px;padding:4px 8px;border-radius:6px;cursor:pointer;">DEV</button>
     </div>
   </div>
 
@@ -11510,8 +12536,27 @@ function _dbgBumpFail(reason){
 // [v3.23] COUNTS button: simple toggle. Panel has its own RESET button
 // and X button. Long-press logic removed. Section headers in the panel
 // toggle their own collapse state.
+// [v4.60] The toolbar TIMES + COUNTS buttons are gone; replaced by a
+// single DEV button that opens the dev-tools panel (which has its own
+// TIMES / COUNTS launcher row). The existing toggle functions
+// (_dbgTogglePanel, _dbgToggleTimesPanel) still drive the actual
+// debug overlay open/close — the dev panel just calls them. Inner-
+// panel close buttons (_dbgPanelClose, _dbgTimesPanelClose) still
+// need their handlers since they live inside the debug overlays
+// themselves, not the toolbar.
 (function(){
   function hook(){
+    // [v4.60] New DEV button — opens the dev-tools panel built by
+    // the OPTIONS IIFE (window._openDevPanel set up there).
+    var devBtn=document.getElementById('_dbgDevBtn');
+    if(devBtn)devBtn.addEventListener('click',function(){
+      if(window._openDevPanel) window._openDevPanel();
+    });
+
+    // Legacy hooks — guard each since the toolbar buttons no longer
+    // exist as of v4.60. The IDs still get queried in case someone
+    // injects them (or for the inner-panel close buttons which DO
+    // still exist inside the debug overlays).
     var btn=document.getElementById('_dbgCountsBtn');
     if(btn)btn.addEventListener('click',window._dbgTogglePanel);
 
@@ -12082,7 +13127,15 @@ function _updateDbgTplLabel(){
   var name=window._currentTplName||'?';
   var fb=window._fallbackFrom;
   el.textContent=fb?(name+' ⚠ from '+fb):name;
-  el.style.color=fb?'rgba(255,140,80,0.85)':'rgba(0,217,255,0.55)';
+  // [v4.52] Theme-aware label color. Inline style is set every
+  // update so the CSS body.light-mode override needs !important
+  // OR we just pick the right value here.
+  var _light = (window._lightModeOn === true);
+  if(fb){
+    el.style.color = _light ? 'rgba(180,80,30,0.95)' : 'rgba(255,140,80,0.85)';
+  } else {
+    el.style.color = _light ? 'rgba(14,116,144,0.85)' : 'rgba(0,217,255,0.55)';
+  }
 }
 
 // ── XL TEMPLATES: 7-cell equations (A op1 B op2 C = D) ──
@@ -14345,6 +15398,53 @@ function winCheck(pz){
 var AC=(function(){try{return new(window.AudioContext||window.webkitAudioContext)({sampleRate:48000});}catch(e){try{return new(window.AudioContext||window.webkitAudioContext)();}catch(e2){return null;}}})();
 var _greetingPlayed=false;
 
+// [v4.45] Audio latency compensation for Bluetooth / wireless output.
+// Bluetooth audio adds ~40-200ms of latency between when we schedule
+// a sound and when it actually reaches the speaker. Web Audio reports
+// this via AC.outputLatency (seconds). For SCHEDULED sounds tied to a
+// known visual event, we can fire the audio call earlier (or delay
+// the visual) so they land in sync.
+//
+// We cannot help with INPUT-triggered sounds (tap a tile, drag a tile)
+// since the latency is baked in regardless of when we schedule —
+// "earlier than now" doesn't exist in real time. Those keep firing
+// immediately.
+//
+// Returns the compensation in MILLISECONDS to use as a setTimeout
+// offset:  setTimeout(fireAudio, intendedTime - _audioCompensateMs())
+// or:      setTimeout(visual,     intendedTime + _audioCompensateMs())
+// depending on which side you're delaying.
+//
+// Returns 0 if:
+//   - the user has disabled the feature
+//   - AC.outputLatency is missing/zero (some browsers don't report it)
+//   - the reported latency is below a small threshold (~20ms) where
+//     compensation would be imperceptible anyway
+function _audioCompensateMs(){
+  // Honor the user's setting. Default ON (set in _applyTuning).
+  if(window._audioCompensateOn === false) return 0;
+  if(!AC) return 0;
+  // outputLatency: seconds between the time we schedule a sample and
+  // when it reaches the speaker. baseLatency would be the AudioContext
+  // internal buffer only; outputLatency adds the OS/driver/device
+  // path on top, which is what catches Bluetooth.
+  var latencySec = (typeof AC.outputLatency === 'number')
+    ? AC.outputLatency
+    : (typeof AC.baseLatency === 'number' ? AC.baseLatency : 0);
+  if(!latencySec || latencySec <= 0) return 0;
+  var ms = latencySec * 1000;
+  // Floor: don't bother below 20ms (wired output is typically 5-15ms;
+  // compensation in that range is invisible and only adds risk if
+  // outputLatency is reporting noisily).
+  if(ms < 20) return 0;
+  // Ceiling: cap at 250ms. Beyond this, something is unusual (broken
+  // driver, virtual audio device); applying huge compensation would
+  // be more jarring than the original sync issue.
+  if(ms > 250) ms = 250;
+  return ms;
+}
+window._audioCompensateMs = _audioCompensateMs;
+
 // Escape the five special HTML chars so arbitrary user-assigned text (like
 // sample display names) can be safely embedded via innerHTML. Used by the
 // SVG-based pad labels.
@@ -14429,7 +15529,7 @@ function _sfxDest(){ return window._sfxGain || (AC ? AC.destination : null); }
 // Button sound effects. Variants used in Equil today: 'tool_on',
 // 'tool_off', 'tool', 'play', 'stop'. Others kept for forward use.
 window._btnFx = function(type){
-  if(!AC) return; resumeAC();
+  if(window._sfxOn===false||!AC) return; resumeAC();
   if(!window._sfxSettings.buttonFx) return;
   // [v2.90] One-shot suppression flag set by the display-mode
   // _relay click path so our new modal-style chirps aren't
@@ -15427,7 +16527,7 @@ function playSE_Fanfare(){
 
 // playScaleNote: plays one note of the completion scale, styled to match current sound style
 function playScaleNote(freq){
-  if(!AC)return;
+  if(window._sfxOn===false||!AC)return;
   try{
     var t=AC.currentTime;
     if(SOUND_STYLE==='B'){
@@ -15485,13 +16585,17 @@ function _dispatch(a,b,c,d,e){
   if(SOUND_STYLE==='E')return e();
   a();
 }
-function playSelEmpty(){  if(!AC)return;resumeAC();_dispatch(playSA_SelEmpty,playSB_SelEmpty,playSC_SelEmpty,playSD_SelEmpty,playSE_SelEmpty);}
-function playSelFilled(){ if(!AC)return;resumeAC();_dispatch(playSA_SelFilled,playSB_SelFilled,playSC_SelFilled,playSD_SelFilled,playSE_SelFilled);}
-function playPlace(){     if(!AC)return;resumeAC();_dispatch(playSA_Place,playSB_Place,playSC_Place,playSD_Place,playSE_Place);}
-function playReturn(){    if(!AC)return;resumeAC();_dispatch(playSA_Return,playSB_Return,playSC_Return,playSD_Return,playSE_Return);}
-function playError(){     if(!AC)return;resumeAC();_dispatch(playSA_Error,playSB_Error,playSC_Error,playSD_Error,playSE_Error);}
-function playNewGame(){   if(!AC)return;resumeAC();_dispatch(playSA_NewGame,playSB_NewGame,playSC_NewGame,playSD_NewGame,playSE_NewGame);}
-function playFanfare(){   if(!AC)return;resumeAC();_dispatch(playSA_Fanfare,playSB_Fanfare,playSC_Fanfare,playSD_Fanfare,playSE_Fanfare);}
+// [v4.60] Master sfx-off gate. Each dispatch entry point bails when
+// window._sfxOn === false. The hardcoded `!AC return` checks below
+// piggyback on this — adding the `_sfxOn` check at the top of the
+// same line preserves the original short-circuit pattern.
+function playSelEmpty(){  if(window._sfxOn===false||!AC)return;resumeAC();_dispatch(playSA_SelEmpty,playSB_SelEmpty,playSC_SelEmpty,playSD_SelEmpty,playSE_SelEmpty);}
+function playSelFilled(){ if(window._sfxOn===false||!AC)return;resumeAC();_dispatch(playSA_SelFilled,playSB_SelFilled,playSC_SelFilled,playSD_SelFilled,playSE_SelFilled);}
+function playPlace(){     if(window._sfxOn===false||!AC)return;resumeAC();_dispatch(playSA_Place,playSB_Place,playSC_Place,playSD_Place,playSE_Place);}
+function playReturn(){    if(window._sfxOn===false||!AC)return;resumeAC();_dispatch(playSA_Return,playSB_Return,playSC_Return,playSD_Return,playSE_Return);}
+function playError(){     if(window._sfxOn===false||!AC)return;resumeAC();_dispatch(playSA_Error,playSB_Error,playSC_Error,playSD_Error,playSE_Error);}
+function playNewGame(){   if(window._sfxOn===false||!AC)return;resumeAC();_dispatch(playSA_NewGame,playSB_NewGame,playSC_NewGame,playSD_NewGame,playSE_NewGame);}
+function playFanfare(){   if(window._sfxOn===false||!AC)return;resumeAC();_dispatch(playSA_Fanfare,playSB_Fanfare,playSC_Fanfare,playSD_Fanfare,playSE_Fanfare);}
 // [v2.16] Drag-related tile sounds.
 //
 // playTilePickup — quiet low pop when the user first picks up a tile
@@ -15503,7 +16607,7 @@ function playFanfare(){   if(!AC)return;resumeAC();_dispatch(playSA_Fanfare,play
 //   per user feedback that the click was too loud and the wrong
 //   character. Approximately half the perceived volume of the click.
 function playTilePickup(){
-  if(!AC) return; resumeAC();
+  if(window._sfxOn===false||!AC) return; resumeAC();
   if(!window._sfxSettings || !window._sfxSettings.buttonFx) return;
   try{
     var t = AC.currentTime;
@@ -15527,7 +16631,7 @@ function playTilePickup(){
 // reads as the inverse of the pickup. Quieter than pickup so high
 // snap-rates during cell-to-cell hopping aren't fatiguing.
 function playTileSnap(){
-  if(!AC) return; resumeAC();
+  if(window._sfxOn===false||!AC) return; resumeAC();
   if(!window._sfxSettings || !window._sfxSettings.buttonFx) return;
   try{
     var t = AC.currentTime;
@@ -15552,7 +16656,7 @@ function playTileSnap(){
 // down. Reads as the inverse of pickup: lift = pitch falls,
 // return = pitch rises back to where pickup started.
 function playTileReturn(){
-  if(!AC) return; resumeAC();
+  if(window._sfxOn===false||!AC) return; resumeAC();
   if(!window._sfxSettings || !window._sfxSettings.buttonFx) return;
   try{
     var t = AC.currentTime;
@@ -15577,7 +16681,7 @@ function playTileReturn(){
   }catch(e){}
 }
 function playTileSnapWhoosh(){
-  if(!AC) return; resumeAC();
+  if(window._sfxOn===false||!AC) return; resumeAC();
   if(!window._sfxSettings || !window._sfxSettings.buttonFx) return;
   try{
     var t = AC.currentTime;
@@ -15609,7 +16713,7 @@ function playTileSnapWhoosh(){
   }catch(e){}
 }
 function playUIClick(){
-  if(!AC)return;resumeAC();
+  if(window._sfxOn===false||!AC)return;resumeAC();
   try{
     var g=AC.createGain();g.connect(AC.destination);
     g.gain.setValueAtTime(0.15,AC.currentTime);
@@ -15621,7 +16725,7 @@ function playUIClick(){
   }catch(e){}
 }
 function playGreeting(){
-  if(!AC)return;resumeAC();
+  if(window._sfxOn===false||!AC)return;resumeAC();
   try{
     var notes=[392,523,659,784];
     for(var i=0;i<notes.length;i++){
@@ -15932,6 +17036,8 @@ window._mc113 = (function(){
     // [v4.20] Pace BOXES tick disabled — see v4.20 note above.
     // if(window._updatePaceBoxes) window._updatePaceBoxes(_curMs());
     if(window._updatePaceRings) window._updatePaceRings(_curMs());
+    // [v4.47] Pace stats — gray out passed targets.
+    if(window._updatePaceStats) window._updatePaceStats(_curMs());
   }
 
   function _tick(){
@@ -16613,6 +17719,7 @@ function newPuzzle(){
   // To revive: uncomment this line and hide #paceRings.
   // if(window._initPaceBoxes) window._initPaceBoxes();
   if(window._initPaceRings) window._initPaceRings();
+  if(window._initPaceStats) window._initPaceStats();
   // [v4.03] READY overlay/GO button removed from the flow — start
   // the timer immediately on new puzzle. The overlay machinery
   // (_showReady/_hideReady) is intentionally left intact for
@@ -16733,11 +17840,16 @@ function place(idx){
     // win card 600ms later. New flow lets the wave build into the
     // climax of the fanfare. _winWaveSequence handles its own
     // pacing based on tile count (~1.6s total budget).
+    // [v4.45] On Bluetooth output, the fanfare audio reaches the
+    // speaker `comp` ms after we call playFanfare(). Push the win
+    // card pop later by the same amount so it lands on the actual
+    // audio finish, not the scheduling moment. comp ≈ 0 on wired
+    // output, so no change there.
     _winWaveSequence(function(){
       playFanfare();
-      // Small pause after the wave finishes so the fanfare reads as
-      // its own moment, not just another sound in the wave.
-      setTimeout(function(){_showWinCard();},450);
+      var _postFanfareDelay = 450 + ((typeof window._audioCompensateMs === 'function')
+        ? window._audioCompensateMs() : 0);
+      setTimeout(function(){_showWinCard();}, _postFanfareDelay);
     });
   }
   // v8.97 — animate mini-mode count changes after the re-render.
@@ -19356,6 +20468,61 @@ function render(){
   var FS=Math.max(10,Math.min(16,Math.round(CS*0.46)));
   var RR=Math.max(2,Math.round(CS*0.18))+'px';
 
+  // [v4.48] Theme color palette. When light mode is on, swap the
+  // hardcoded neon colors in inline styles for deeper light-mode
+  // equivalents. Light-mode versions are darker/more saturated so
+  // they read on the cream bg. Each entry takes a key like 'cyan22'
+  // (22 alpha % of cyan) and returns the appropriate rgba string.
+  //
+  // Pure colors (#hex like '#6bcfff') map by lookup. The palette is
+  // built once per render() call which is cheap.
+  var _light = (window._lightModeOn === true);
+  function _c(darkRgba, lightRgba){ return _light ? lightRgba : darkRgba; }
+  // Common-use palette. Order: dark form first, light form second.
+  var _P = {
+    // CYAN family (RGB 0,217,255 dark → 14,116,144 light)
+    cyan05: _c('rgba(0,217,255,0.05)',  'rgba(14,116,144,0.08)'),
+    cyan06: _c('rgba(0,217,255,0.06)',  'rgba(14,116,144,0.10)'),
+    cyan10: _c('rgba(0,217,255,0.10)',  'rgba(14,116,144,0.14)'),
+    cyan12: _c('rgba(0,217,255,0.12)',  'rgba(14,116,144,0.18)'),
+    cyan18: _c('rgba(0,217,255,0.18)',  'rgba(14,116,144,0.22)'),
+    cyan20: _c('rgba(0,217,255,0.20)',  'rgba(14,116,144,0.25)'),
+    cyan22: _c('rgba(0,217,255,0.22)',  'rgba(14,116,144,0.28)'),
+    cyanBordLow:  _c('rgba(0,217,255,0.25)', 'rgba(14,116,144,0.55)'),
+    cyanBordHi:   _c('rgba(0,217,255,0.6)',  'rgba(14,116,144,0.8)'),
+    cyanText:     _c('#00d9ff',              '#0e7490'),
+    cyanTextDim:  _c('rgba(0,217,255,0.3)',  'rgba(14,116,144,0.55)'),
+    cyanTextSoft: _c('#6bcfff',              '#0e7490'),
+    cyanTextOp:   _c('rgba(107,207,255,0.3)','rgba(14,116,144,0.5)'),
+    cyanGivenDim: _c('rgba(0,217,255,0.35)', 'rgba(14,116,144,0.55)'),
+    // PURPLE/MAGENTA family
+    purple25:  _c('rgba(157,78,221,0.25)',   'rgba(109,40,217,0.30)'),
+    purple10:  _c('rgba(168,85,247,0.10)',   'rgba(124,58,237,0.18)'),
+    purple35:  _c('rgba(168,85,247,0.35)',   'rgba(124,58,237,0.45)'),
+    purple50:  _c('rgba(168,85,247,0.5)',    'rgba(124,58,237,0.45)'),
+    purple85:  _c('rgba(168,85,247,0.85)',   'rgba(124,58,237,0.9)'),
+    purpleText: _c('#a855f7',                '#7c3aed'),
+    purpleTextSoft: _c('#c084fc',            '#7c3aed'),
+    // GREEN family (placed / solved). Light-mode deepens to hunter
+    // green so the "your answer was right" feedback reads as
+    // confident-darker rather than the neon green that on cream
+    // bg reads as light/washed out.
+    green06:  _c('rgba(74,222,128,0.06)',    'rgba(22,101,52,0.12)'),
+    green20:  _c('rgba(74,222,128,0.20)',    'rgba(22,101,52,0.30)'),
+    green25:  _c('rgba(74,222,128,0.25)',    'rgba(22,101,52,0.35)'),
+    greenText: _c('#4ade80',                 '#166534'),
+    greenTextDim: _c('rgba(74,222,128,0.35)','rgba(22,101,52,0.55)'),
+    // RED family (mistakes / bad)
+    red20:    _c('rgba(248,113,113,0.20)',   'rgba(185,28,28,0.28)'),
+    redText:  _c('#ff6b6b',                  '#b91c1c'),
+    // NEUTRAL / TEXT
+    givenBg:     _c('rgba(255,255,255,0.10)','rgba(42,36,24,0.10)'),
+    givenBgHi:   _c('rgba(255,255,255,0.18)','rgba(42,36,24,0.16)'),
+    givenColor:  _c('#d8d8d8',               '#2a2418'),
+    givenColorHi:_c('#ffffff',               '#2a2418'),
+    blankText:   _c('#e8e8e8',               '#2a2418')
+  };
+
   // Find all currently-complete equations
   var nowComplete={};
   for(var i=0;i<tmpl.length;i++){
@@ -19574,28 +20741,34 @@ function render(){
         // 0.7 (rgba(21,21,21,0.7)) so rings/fuse show through subtly.
         // Per Sam: "make the cells like .7 opacity maybe." Same change
         // applies to eq, given, and blank cell backgrounds below.
-        if(opSolved||isDim) d.style.cssText='position:absolute;inset:'+opInset+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:'+Math.round(FS*0.88)+'px;font-family:IBM Plex Mono,monospace;border-radius:2px;background:linear-gradient(rgba(0,217,255,0.05),rgba(0,217,255,0.05)),var(--bk);color:rgba(107,207,255,0.3);';
-        else d.style.cssText='position:absolute;inset:'+opInset+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:'+Math.round(FS*0.88)+'px;font-family:IBM Plex Mono,monospace;border-radius:2px;background:linear-gradient(rgba(0,217,255,0.22),rgba(0,217,255,0.22)),var(--bk);color:#6bcfff;';
+        if(opSolved||isDim) d.style.cssText='position:absolute;inset:'+opInset+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:'+Math.round(FS*0.88)+'px;font-family:IBM Plex Mono,monospace;border-radius:2px;background:linear-gradient('+_P.cyan05+','+_P.cyan05+'),var(--bk);color:'+_P.cyanTextOp+';';
+        else d.style.cssText='position:absolute;inset:'+opInset+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:'+Math.round(FS*0.88)+'px;font-family:IBM Plex Mono,monospace;border-radius:2px;background:linear-gradient('+_P.cyan22+','+_P.cyan22+'),var(--bk);color:'+_P.cyanTextSoft+';';
         d.textContent=cell.display||'+';
       } else if(cell.role==='eq'){
         var eqInset=Math.max(1,Math.round(CS*0.08))+'px';
         var eqSolved=doAnim&&!isNewly;
         // [v4.37] Same layering pattern as op — see note above.
-        if(eqSolved||isDim) d.style.cssText='position:absolute;inset:'+eqInset+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:'+Math.round(FS*0.88)+'px;font-family:IBM Plex Mono,monospace;border-radius:2px;background:linear-gradient(rgba(0,217,255,0.05),rgba(0,217,255,0.05)),var(--bk);color:rgba(0,217,255,0.3);';
-        else d.style.cssText='position:absolute;inset:'+eqInset+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:'+Math.round(FS*0.88)+'px;font-family:IBM Plex Mono,monospace;border-radius:2px;background:linear-gradient(rgba(157,78,221,0.25),rgba(157,78,221,0.25)),var(--bk);color:#c084fc;';
+        if(eqSolved||isDim) d.style.cssText='position:absolute;inset:'+eqInset+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:'+Math.round(FS*0.88)+'px;font-family:IBM Plex Mono,monospace;border-radius:2px;background:linear-gradient('+_P.cyan05+','+_P.cyan05+'),var(--bk);color:'+_P.cyanTextDim+';';
+        else d.style.cssText='position:absolute;inset:'+eqInset+';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:'+Math.round(FS*0.88)+'px;font-family:IBM Plex Mono,monospace;border-radius:2px;background:linear-gradient('+_P.purple25+','+_P.purple25+'),var(--bk);color:'+_P.purpleTextSoft+';';
         d.textContent='=';
       } else if(cell.isGiven){
         var isSolved=doAnim&&!isNewly;
         var givenDim=isDim&&!hi&&SEL!==k;
-        var givenBg=givenDim?'rgba(0,217,255,0.06)':isSolved?'rgba(0,217,255,0.18)':(hi?'rgba(0,217,255,0.2)':'rgba(255,255,255,0.10)');
-        var givenCol=givenDim?'rgba(0,217,255,0.35)':isSolved?'#00d9ff':(hi?'#00d9ff':'#d8d8d8');
+        // [v4.46] High-contrast mode: brighter default bg and pure
+        // white text so given numbers pop against the dark wrapper.
+        // [v4.48] Theme-aware via _P map.
+        var _hc = (window._highContrastOn === true);
+        var _givenDefBg = _hc ? _P.givenBgHi : _P.givenBg;
+        var _givenDefCol = _hc ? _P.givenColorHi : _P.givenColor;
+        var givenBg=givenDim?_P.cyan06:isSolved?_P.cyan18:(hi?_P.cyan20:_givenDefBg);
+        var givenCol=givenDim?_P.cyanGivenDim:isSolved?_P.cyanText:(hi?_P.cyanText:_givenDefCol);
         // [v4.37] Layered over var(--bk) so rings don't show through.
         d.style.cssText+='background:linear-gradient('+givenBg+','+givenBg+'),var(--bk);color:'+givenCol+';border-radius:'+RR+';';
         d.textContent=cell.answer;
       } else if(cell.isBlank){
         var st=cstat(k,PZ);
-        var bg=hi?'rgba(0,217,255,0.12)':'transparent',col=hi?'#e8e8e8':'#e8e8e8';
-        if(SEL===k){bg='rgba(168,85,247,0.35)';col='#a855f7';d.style.zIndex='3';d.style.boxShadow='0 0 6px rgba(168,85,247,0.5)';}
+        var bg=hi?_P.cyan12:'transparent',col=hi?_P.blankText:_P.blankText;
+        if(SEL===k){bg=_P.purple35;col=_P.purpleText;d.style.zIndex='3';d.style.boxShadow='0 0 6px '+_P.purple50+';';}
         var isSolvedBlank=doAnim&&!isNewly;
         var blankDim=isDim&&SEL!==k;
         // [v3.52] Pulse class for dimmed-green placed tiles — gentle
@@ -19615,7 +20788,7 @@ function render(){
         d.classList.remove('ok-breath');
         d.style.animationDelay='';
         if(blankDim&&(isSolvedBlank||st==='ok')){
-          bg='rgba(74,222,128,0.06)';col='rgba(74,222,128,0.35)';
+          bg=_P.green06;col=_P.greenTextDim;
           if(window._pulseEnabled!==false){
             d.classList.add('ok-breath');
             if(window._pulseSync){
@@ -19634,14 +20807,19 @@ function render(){
             }
           }
         }
-        else if(isSolvedBlank){bg='rgba(74,222,128,0.25)';col='#4ade80';}
-        else if(st==='ok'){bg='rgba(74,222,128,0.20)';col='#4ade80';}
-        else if(st==='bad'){bg='rgba(248,113,113,0.20)';col='#ff6b6b';d.style.animation='shk .25s ease';}
-        else if(cell.value!=null&&SEL!==k){bg='rgba(168,85,247,0.10)';col='#a855f7';}
+        else if(isSolvedBlank){bg=_P.green25;col=_P.greenText;}
+        else if(st==='ok'){bg=_P.green20;col=_P.greenText;}
+        else if(st==='bad'){bg=_P.red20;col=_P.redText;d.style.animation='shk .25s ease';}
+        else if(cell.value!=null&&SEL!==k){bg=_P.purple10;col=_P.purpleText;}
         var _bord;
         if(isSolvedBlank||st==='ok'||blankDim) _bord='';
-        else if(SEL===k) _bord='border:1px solid rgba(168,85,247,0.85);';
-        else _bord='border:1px solid rgba(0,217,255,0.25);';
+        else if(SEL===k) _bord='border:1px solid '+_P.purple85+';';
+        else {
+          // [v4.46] High-contrast mode bumps blank-cell border alpha
+          // so the cell rectangle reads clearly above the lattice.
+          // [v4.48] Theme-aware via _P map.
+          _bord='border:1px solid '+(window._highContrastOn === true ? _P.cyanBordHi : _P.cyanBordLow)+';';
+        }
         // [v4.37] Restored cyan border on default blank cells per Sam.
         // The "black borders" he wanted removed are on non-blank tiles
         // (numbers/operators) — see the non-blank branch below.
@@ -19730,26 +20908,44 @@ function render(){
           // Play a tone for this cell
           playScaleNote(noteFreq);
 
+          // [v4.50] Theme-aware colors for the stagger reveal. Previously
+          // hardcoded neon green (74,222,128) — on cream that reads as
+          // "really bright flash that calms down" once render() takes
+          // over with the deeper palette. Match the steady-state colors
+          // here so there's no jarring transition.
+          var _light = (window._lightModeOn === true);
+          var _gRGB = _light ? '22,101,52' : '74,222,128';
+          var _gHex = _light ? '#166534' : '#4ade80';
+          var _cRGB = _light ? '14,116,144' : '0,217,255';
+          var _cDim = _light ? 'rgba(14,116,144,0.6)' : 'rgba(0,217,255,0.4)';
+
           if(isGreen){
             if(c&&(c.role==='op'||c.role==='eq')){
               // Operators stay cyan; equals signs go cyan when solved
-              if(c.role==='eq'){ el.style.background='rgba(0,217,255,0.06)'; el.style.color='rgba(0,217,255,0.4)'; el.style.borderColor='transparent'; }
+              if(c.role==='eq'){ el.style.background='rgba('+_cRGB+',0.06)'; el.style.color=_cDim; el.style.borderColor='transparent'; }
               el.style.animation='none';
               void el.offsetWidth;
               el.style.animation='eqpop 0.35s cubic-bezier(.36,2,.6,1)';
             } else if(c&&c.isBlank){
-              // Filled-in blank cells turn green
-              el.style.background='rgba(74,222,128,0.28)';el.style.color='#4ade80';
+              // Filled-in blank cells turn green. Theme-aware so light
+              // mode doesn't flash neon before settling to hunter.
+              el.style.background='rgba('+_gRGB+',0.28)';el.style.color=_gHex;
               el.style.fontStyle='normal';
-              el.style.boxShadow='0 0 8px rgba(74,222,128,0.6)';
+              el.style.boxShadow='0 0 8px rgba('+_gRGB+',0.6)';
               el.style.animation='none';
               void el.offsetWidth;
               el.style.animation='eqpop 0.35s cubic-bezier(.36,2,.6,1)';
             } else {
-              // Given numbers just pop — no color change
+              // Given numbers just pop — no color change.
+              // [v4.51] Theme-aware: light mode uses givenpop-light
+              // so the `forwards` fill ends on deep teal, not neon
+              // cyan. Without this, given cells in just-solved
+              // equations stayed bright cyan on cream until the
+              // next render call.
               el.style.animation='none';
               void el.offsetWidth;
-              el.style.animation='givenpop 0.4s cubic-bezier(.36,2,.6,1) forwards';
+              var _gpName = _light ? 'givenpop-light' : 'givenpop';
+              el.style.animation=_gpName+' 0.4s cubic-bezier(.36,2,.6,1) forwards';
             }
           } else {
             // Not green — vibrate to acknowledge the tone
@@ -19765,6 +20961,9 @@ function render(){
 
   renderBank();
 }
+// [v4.46] Exposed so _applyTuning (in the options IIFE) can trigger
+// a re-render when legibility toggles change without crossing scope.
+window.render = render;
 
 
 // ═══════════════════════════════════════════════════════════
@@ -20092,6 +21291,7 @@ function showGame(opts){
   // To revive: uncomment this line and hide #paceRings.
   // if(window._initPaceBoxes) window._initPaceBoxes();
   if(window._initPaceRings) window._initPaceRings();
+  if(window._initPaceStats) window._initPaceStats();
   // [v4.03] READY overlay/GO button removed from the flow — start
   // the timer immediately on new puzzle. Still skip on resume since
   // the resume path was already a no-op. Overlay machinery
@@ -20209,6 +21409,139 @@ function showGame(opts){
     if(shouldIntense !== state.intense){
       state.intense = shouldIntense;
       fill.classList.toggle('intense', shouldIntense);
+    }
+  };
+})();
+
+// [v4.47] Pace stats — three time targets shown near the timer that
+// gray out as elapsed time passes them. Replaces the pace rings (now
+// off by default per Sam) and complements the ghost bar (hidden but
+// machinery intact) as the primary pace-pressure feedback. Numeric
+// labels are more accessible than the rings — testers with vision
+// concerns can read them directly rather than tracking peripheral
+// motion around the grid.
+//
+// Color coding matches the pace rings for continuity if someone
+// revives both:
+//   best  → magenta  (#c400ff)
+//   avg   → bright cyan (#00ffff)
+//   worst → dark cyan (#4a8fa0)
+//
+// State lives on window so _renderTimer can call _updatePaceStats
+// without a scope crossing.
+(function(){
+  var state = {
+    active: false,
+    bestMs: 0, avgMs: 0, worstMs: 0,
+    showBest: false, showAvg: false, showWorst: false,
+    grayedBest: false, grayedAvg: false, grayedWorst: false
+  };
+
+  function _fmtTime(ms){
+    if(window._mc113 && window._mc113.fmtTime) return window._mc113.fmtTime(ms);
+    var s = Math.floor(ms/1000);
+    var m = Math.floor(s/60);
+    s -= m*60;
+    return m + ':' + (s<10?'0':'') + s;
+  }
+
+  // Match the count-based gating from _showBoxesForCount in the pace
+  // rings IIFE — best needs 1 solve, worst needs 2, avg needs 3.
+  function _allowedForCount(count){
+    if(count <= 1) return {best: true,  avg: false, worst: false};
+    if(count === 2) return {best: true, avg: false, worst: true};
+    return {best: true, avg: true, worst: true};
+  }
+
+  // Apply "grayed" styling to a stat span — when the user has passed
+  // that target. Drops opacity sharply so passed targets recede into
+  // the row without disappearing entirely (so the user still has a
+  // reference point on what they beat).
+  function _setGrayed(el, grayed){
+    if(!el) return;
+    el.style.opacity = grayed ? '0.25' : '1';
+  }
+
+  window._initPaceStats = function(){
+    var row = document.getElementById('paceStats');
+    if(!row) return;
+
+    state.active = false;
+    state.grayedBest = state.grayedAvg = state.grayedWorst = false;
+    row.style.display = 'none';
+
+    // Honor the master toggle (added in DEF as paceStats). Default
+    // ON. When off, this section behaves like there's nothing to show.
+    if(window._paceStatsOn === false) return;
+
+    // [v4.49] Removed the `if(window._equilMode === 'nonchalant') return;`
+    // gate that was here from v4.47. It caused pace stats to not show
+    // up at all because _equilMode defaults to 'nonchalant' for new
+    // installs / first-time loads. Pace rings don't have this gate
+    // and Sam's pace rings worked fine. Pace stats now matches: it
+    // shows whenever the master toggle is on and there's data to show
+    // for the current template. Nonchalant players who want zero pace
+    // pressure can toggle "Show pace stats" off in the settings panel.
+
+    if(!(window._mc113 && window._mc113.getGhostStats)) return;
+    var size = (typeof SIZE !== 'undefined') ? SIZE : null;
+    var diff = (typeof DIFF !== 'undefined') ? DIFF : null;
+    var tpl  = window._currentTplName || null;
+    if(!size || !diff || !tpl) return;
+
+    var stats = window._mc113.getGhostStats(size, diff, tpl);
+    if(!stats) return;
+
+    var allowed = _allowedForCount(stats.count);
+    state.showBest  = !!(allowed.best  && stats.best  > 0);
+    state.showAvg   = !!(allowed.avg   && stats.avg   > 0);
+    state.showWorst = !!(allowed.worst && stats.worst > 0);
+    state.bestMs  = stats.best  || 0;
+    state.avgMs   = stats.avg   || 0;
+    state.worstMs = stats.worst || 0;
+
+    if(!state.showBest && !state.showAvg && !state.showWorst) return;
+
+    // Populate the spans. Hidden stats render as empty so the
+    // separators collapse — see separator handling below.
+    var bEl = document.getElementById('paceStatBest');
+    var aEl = document.getElementById('paceStatAvg');
+    var wEl = document.getElementById('paceStatWorst');
+    if(bEl) bEl.textContent = state.showBest  ? ('BEST '  + _fmtTime(state.bestMs))  : '';
+    if(aEl) aEl.textContent = state.showAvg   ? ('AVG '   + _fmtTime(state.avgMs))   : '';
+    if(wEl) wEl.textContent = state.showWorst ? ('WORST ' + _fmtTime(state.worstMs)) : '';
+    // Reset opacities.
+    _setGrayed(bEl, false);
+    _setGrayed(aEl, false);
+    _setGrayed(wEl, false);
+
+    // Hide separators that flank empty stats so we don't get stray
+    // "·" dots leading or trailing the row.
+    var sepAB = document.getElementById('paceStatSepAB');
+    var sepBC = document.getElementById('paceStatSepBC');
+    if(sepAB) sepAB.style.display = (state.showBest && state.showAvg) ? '' : 'none';
+    if(sepBC) sepBC.style.display = ((state.showBest || state.showAvg) && state.showWorst) ? '' : 'none';
+
+    state.active = true;
+    row.style.display = 'block';
+  };
+
+  window._updatePaceStats = function(elapsedMs){
+    if(!state.active) return;
+    // Gray out each label when elapsed passes its target. The labels
+    // are sorted by speed: best is fastest, then avg, then worst.
+    // Once you pass best, that's the first to gray; etc.
+    if(state.showBest && !state.grayedBest && elapsedMs >= state.bestMs){
+      state.grayedBest = true;
+      _setGrayed(document.getElementById('paceStatBest'), true);
+    }
+    if(state.showAvg && !state.grayedAvg && elapsedMs >= state.avgMs){
+      state.grayedAvg = true;
+      _setGrayed(document.getElementById('paceStatAvg'), true);
+    }
+    if(state.showWorst && !state.grayedWorst && elapsedMs >= state.worstMs){
+      state.grayedWorst = true;
+      _setGrayed(document.getElementById('paceStatWorst'), true);
     }
   };
 })();
@@ -20732,6 +22065,12 @@ document.querySelectorAll('.sel-btn[data-size]').forEach(function(b){
 });
 // Click sound on all sel-screen interactions (diff buttons, sound buttons)
 document.querySelectorAll('[data-diff]').forEach(function(b){
+  b.addEventListener('click',function(){playUIClick();},true);
+});
+// [v4.57] Same click sound for chalant/nonchalant mode buttons. Was
+// missed when the [data-mode] handler was wired up separately for
+// mode state; click sound is parallel to size/diff/sound buttons.
+document.querySelectorAll('[data-mode]').forEach(function(b){
   b.addEventListener('click',function(){playUIClick();},true);
 });
 document.querySelectorAll('.bsnd').forEach(function(b){
@@ -22263,7 +23602,7 @@ if(document.readyState==='loading'){
     // close a thing" gesture from the user's perspective.
     function _modalOpenChirp(){
       try{
-        if(!AC) return; resumeAC();
+        if(window._sfxOn===false||!AC) return; resumeAC();
         var t0=AC.currentTime;
         var g=AC.createGain();g.connect(AC.destination);
         g.gain.setValueAtTime(0.0001,t0);
@@ -22282,7 +23621,7 @@ if(document.readyState==='loading'){
     }
     function _modalCloseChirp(){
       try{
-        if(!AC) return; resumeAC();
+        if(window._sfxOn===false||!AC) return; resumeAC();
         var t0=AC.currentTime;
         var g=AC.createGain();g.connect(AC.destination);
         g.gain.setValueAtTime(0.0001,t0);
@@ -24629,6 +25968,7 @@ window._savePaceBoxPrefs = function(){
   // To revive: uncomment this line and hide #paceRings.
   // if(window._initPaceBoxes) window._initPaceBoxes();
   if(window._initPaceRings) window._initPaceRings();
+  if(window._initPaceStats) window._initPaceStats();
 };
 // Called from the mode click handler. Swaps window._paceBox to point
 // at the new mode's bucket. The settings panel's getter/setter
@@ -24646,6 +25986,7 @@ window._swapPaceBoxModePrefs = function(){
   // To revive: uncomment this line and hide #paceRings.
   // if(window._initPaceBoxes) window._initPaceBoxes();
   if(window._initPaceRings) window._initPaceRings();
+  if(window._initPaceStats) window._initPaceStats();
 };
 
 // [v3.50] Play button — checks if a saved game exists for the
@@ -25259,17 +26600,35 @@ function _winWaveSequence(onComplete){
   // Animation duration must match the .bursting CSS keyframe duration.
   var BURST_ANIM_MS=350;
 
+  // [v4.45] Audio latency compensation. For Bluetooth/wireless output,
+  // each pop's audio fires `comp` ms BEFORE its visual burst so the
+  // sound reaches the speaker at the moment the visual plays. On
+  // wired/built-in output, comp is ~0 and behavior is unchanged.
+  var comp = (typeof window._audioCompensateMs === 'function')
+    ? window._audioCompensateMs() : 0;
+
   for(var i=0;i<tiles.length;i++){
     (function(tileEl, idx){
       var t = (tiles.length===1) ? 0.5 : idx/(tiles.length-1);
       var freq = FREQ_LO + (FREQ_HI-FREQ_LO)*t;
+      var visualAt = idx*perTileMs;
+      // [v4.45] Audio fires `comp` ms earlier than visual. Math.max(0,…)
+      // guards the first tile where visualAt - comp could go negative.
       setTimeout(function(){
-        _winBurstTile(tileEl, freq);
-      }, idx*perTileMs);
+        _winPop(freq);
+      }, Math.max(0, visualAt - comp));
+      setTimeout(function(){
+        // Particles + bursting class. Audio is already on its way.
+        try{ _winSpawnParticlesFromTile(tileEl); }catch(e){}
+        tileEl.classList.add('bursting');
+      }, visualAt);
     })(tiles[i], i);
   }
 
   // Wait for the LAST tile's animation to finish before continuing.
+  // [v4.45] Add `comp` ms to the total so the fanfare audio (which
+  // also gets compensated below) still lines up with the post-wave
+  // pause. Net wave duration is effectively unchanged on wired output.
   var totalMs = (tiles.length-1)*perTileMs + BURST_ANIM_MS;
   if(onComplete) setTimeout(onComplete, totalMs);
 }
@@ -25911,9 +27270,49 @@ if(winMenuBtn){
     //   paceFuses: bright 2×2 square that rides each ring's erasing
     //     front. Only matters when paceRings is true.
     //   paceRingOpacity: stroke-opacity of all three rings, slider 0.1 → 1.0.
-    paceRings:        true,
+    // [v4.47] paceRings default flipped from true to false — pace
+    // stats below replace the rings as the primary feedback.
+    paceRings:        false,
     paceFuses:        true,
-    paceRingOpacity:  0.4
+    paceRingOpacity:  0.4,
+    // [v4.47] Pace stats — three time targets (best/avg/worst) shown
+    // near the timer, each grays out as elapsed passes its target.
+    // Replaces pace rings as the default pace-pressure feedback.
+    paceStats:        true,
+    // [v4.45] Bluetooth/wireless audio latency compensation.
+    // When true, scheduled sounds tied to a visual event (the win
+    // wave per-tile pops, the post-wave fanfare→win-card timing)
+    // get shifted to land in sync with the visual. Has no effect
+    // on input-triggered sounds (taps, drags). On wired/built-in
+    // output the compensation is below the threshold and behaves
+    // identically to OFF — but we keep the toggle so a user with
+    // a noisy outputLatency reading can opt out.
+    audioCompensate:  true,
+    // [v4.46] Legibility options (Path B — quick contrast fixes
+    // before the full light mode in a later version).
+    //   highContrast: when true, blank-cell cyan borders go from
+    //     0.25 alpha to 0.6, and lattice goes from 0.32 to 0.12.
+    //     Net effect: cells read clearly above the gridlines so
+    //     users can tell empty cells apart from grid pattern.
+    //   showLattice: master toggle for the lattice gridlines.
+    // [v4.47] Defaults flipped per testers: highContrast true,
+    // showLattice false — really is just easier to play that way.
+    highContrast:     true,
+    showLattice:      false,
+    // [v4.58] Force PB bursts on every solve. Default OFF — bursts
+    // only fire on legit personal bests for the current template.
+    // Useful for troubleshooting / screenshots / verifying the
+    // visual treatment without organically beating your best.
+    // Was hardcoded `_forceMovesBurst = true` from v4.11 (a dev
+    // shortcut that never got reverted) which is what Sam was
+    // seeing as "best moves always shows up on the win card."
+    forceWinBursts:   false,
+    // [v4.60] Master sound effects toggle. When OFF, all UI / game
+    // sound is silenced (taps, places, returns, errors, win fanfare,
+    // modal chirps, etc.). Latency compensation toggle stays separate
+    // since it's only relevant when sound is ON. Sound is on by
+    // default — Equil ships with sound as part of the experience.
+    sfxOn:            true
   };
 
   // ── Load saved options (apply to globals) ──
@@ -25970,8 +27369,44 @@ if(winMenuBtn){
     window._paceRingsOn     = (typeof window._optPaceRings      ==='boolean') ? window._optPaceRings       : DEF.paceRings;
     window._paceFusesOn     = (typeof window._optPaceFuses      ==='boolean') ? window._optPaceFuses       : DEF.paceFuses;
     window._paceRingOpacity = (typeof window._optPaceRingOpacity==='number')  ? window._optPaceRingOpacity : DEF.paceRingOpacity;
+    // [v4.47] Pace stats gate.
+    window._paceStatsOn     = (typeof window._optPaceStats      ==='boolean') ? window._optPaceStats       : DEF.paceStats;
+    // [v4.45] Audio compensation gate. _audioCompensateMs() reads this
+    // at call time and returns 0 if false.
+    window._audioCompensateOn = (typeof window._optAudioCompensate==='boolean') ? window._optAudioCompensate : DEF.audioCompensate;
+    // [v4.46] Legibility globals.
+    //   _highContrastOn: read by the cell render code at draw time
+    //     to pick brighter border alpha.
+    //   _showLatticeOn: applied to the lattice element's display.
+    //     Also reduces lattice alpha when high contrast is on.
+    window._highContrastOn = (typeof window._optHighContrast==='boolean') ? window._optHighContrast : DEF.highContrast;
+    window._showLatticeOn  = (typeof window._optShowLattice ==='boolean') ? window._optShowLattice  : DEF.showLattice;
+    // [v4.58] Force win-card PB bursts every solve (debug/troubleshooting).
+    // When ON, both _forceTimeBurst and _forceMovesBurst are true and
+    // _showWinCard OR's them into the burst-visibility decision. When
+    // OFF (default), the bursts only show on legit personal bests.
+    var _forceWB = (typeof window._optForceWinBursts==='boolean') ? window._optForceWinBursts : DEF.forceWinBursts;
+    window._forceTimeBurst  = _forceWB;
+    window._forceMovesBurst = _forceWB;
+    // [v4.60] Master sfx on/off. Sound functions check window._sfxOn
+    // at entry and return early when false.
+    window._sfxOn = (typeof window._optSfxOn==='boolean') ? window._optSfxOn : DEF.sfxOn;
+    // Apply lattice show/hide immediately. The render code in
+    // _renderGrid also sets opacity based on high contrast.
+    var _latEl = document.getElementById('gridLattice');
+    if(_latEl){
+      _latEl.style.display = window._showLatticeOn ? '' : 'none';
+      // Lattice opacity: 1.0 normally, 0.4 when high contrast is on
+      // (still visible as a faint guide but no longer competing with
+      // cell borders).
+      _latEl.style.opacity = window._highContrastOn ? '0.4' : '1';
+    }
+    // Trigger a re-render so high-contrast cell borders take effect.
+    try{ if(typeof window.render==='function') window.render(); }catch(_){}
     // If a puzzle is in flight, re-init rings so changes take effect.
     try{ if(window._initPaceRings) window._initPaceRings(); }catch(_){}
+    // [v4.47] Re-init pace stats too so toggles propagate immediately.
+    try{ if(window._initPaceStats) window._initPaceStats(); }catch(_){}
     // Update the dynamic keyframes + .ok-breath rule whenever peak
     // or speed changes.
     _writePulseKeyframes(window._pulsePeak, window._pulseSpeed);
@@ -26025,6 +27460,17 @@ if(winMenuBtn){
       if(typeof o.paceRings       ==='boolean') window._optPaceRings       = o.paceRings;
       if(typeof o.paceFuses       ==='boolean') window._optPaceFuses       = o.paceFuses;
       if(typeof o.paceRingOpacity ==='number')  window._optPaceRingOpacity = o.paceRingOpacity;
+      // [v4.47] Pace stats.
+      if(typeof o.paceStats       ==='boolean') window._optPaceStats       = o.paceStats;
+      // [v4.45] Audio latency compensation.
+      if(typeof o.audioCompensate ==='boolean') window._optAudioCompensate = o.audioCompensate;
+      // [v4.46] Legibility options.
+      if(typeof o.highContrast    ==='boolean') window._optHighContrast    = o.highContrast;
+      if(typeof o.showLattice     ==='boolean') window._optShowLattice     = o.showLattice;
+      // [v4.58] Force win-card PB bursts (debug).
+      if(typeof o.forceWinBursts  ==='boolean') window._optForceWinBursts  = o.forceWinBursts;
+      // [v4.60] Master sfx.
+      if(typeof o.sfxOn           ==='boolean') window._optSfxOn           = o.sfxOn;
     }catch(e){}
     _applyTuning();
   }
@@ -26066,7 +27512,18 @@ if(winMenuBtn){
         // [v4.43] Pace ring system options.
         paceRings:        (typeof window._optPaceRings      ==='boolean') ? window._optPaceRings       : DEF.paceRings,
         paceFuses:        (typeof window._optPaceFuses      ==='boolean') ? window._optPaceFuses       : DEF.paceFuses,
-        paceRingOpacity:  (typeof window._optPaceRingOpacity==='number')  ? window._optPaceRingOpacity : DEF.paceRingOpacity
+        paceRingOpacity:  (typeof window._optPaceRingOpacity==='number')  ? window._optPaceRingOpacity : DEF.paceRingOpacity,
+        // [v4.47] Pace stats.
+        paceStats:        (typeof window._optPaceStats     ==='boolean') ? window._optPaceStats      : DEF.paceStats,
+        // [v4.45] Audio latency compensation.
+        audioCompensate:  (typeof window._optAudioCompensate==='boolean') ? window._optAudioCompensate : DEF.audioCompensate,
+        // [v4.46] Legibility options.
+        highContrast:     (typeof window._optHighContrast   ==='boolean') ? window._optHighContrast    : DEF.highContrast,
+        showLattice:      (typeof window._optShowLattice    ==='boolean') ? window._optShowLattice     : DEF.showLattice,
+        // [v4.58] Force win-card PB bursts (debug).
+        forceWinBursts:   (typeof window._optForceWinBursts ==='boolean') ? window._optForceWinBursts  : DEF.forceWinBursts,
+        // [v4.60] Master sfx.
+        sfxOn:            (typeof window._optSfxOn          ==='boolean') ? window._optSfxOn           : DEF.sfxOn
       }));
     }catch(e){}
     _applyTuning();
@@ -26280,9 +27737,20 @@ if(winMenuBtn){
   }
   function _mkSection(title, builders, opts){
     opts = opts || {};
-    // Saved state wins over opts.defaultOpen if present.
+    // [v4.62] Saved state wins over opts.defaultOpen, EXCEPT when
+    // opts.forceClosed is set — in which case the section starts
+    // closed every time the panel opens regardless of saved state.
+    // Used by the user-facing OPTIONS panel where Sam wants no
+    // memory ("always default to both being minimized"). The dev
+    // panel omits forceClosed so its saved state persists across
+    // opens ("in and out of there a lot").
     var saved = _readSectionState();
-    var open = (typeof saved[title] === 'boolean') ? saved[title] : !!opts.defaultOpen;
+    var open;
+    if(opts.forceClosed){
+      open = false;
+    } else {
+      open = (typeof saved[title] === 'boolean') ? saved[title] : !!opts.defaultOpen;
+    }
     var wrap = document.createElement('div');
     wrap.style.cssText = 'margin-bottom:10px;border:1px solid rgba(0,217,255,0.18);border-radius:6px;overflow:hidden;';
 
@@ -26336,7 +27804,9 @@ if(winMenuBtn){
       paint();
       // [v3.55] Persist new state so panel reopens with this section
       // in the same configuration.
-      _writeSectionState(title, open);
+      // [v4.62] Don't persist when forceClosed — the user panel
+      // wants no memory of expanded state.
+      if(!opts.forceClosed) _writeSectionState(title, open);
     });
 
     wrap.appendChild(hdr);
@@ -26381,43 +27851,163 @@ if(winMenuBtn){
     // pulse speed slider can dial it from a slow ~6s breath down
     // to a quicker ~1.2s pulse. Default 3.6s matches v3.52.
     var dur = (typeof durationSec === 'number' && durationSec > 0) ? durationSec : 3.6;
+    // [v4.49] Theme-aware green for the breath animation. In light
+    // mode the bright neon green (74,222,128) reads as light cyan
+    // against cream; deep forest green (21,128,61) holds up better.
+    // Both base and peak colors get themed. Animation is rewritten
+    // whenever theme toggles (_equilApplyTheme calls render() which
+    // doesn't actually rewrite keyframes — so we also need to call
+    // _writePulseKeyframes from the theme toggle. See _applyTheme).
+    var _light = (window._lightModeOn === true);
+    var _greenRGB = _light ? '22,101,52' : '74,222,128';
     _pulseStyleEl.textContent =
       '@keyframes okBreath{'+
-        '0%,100%{color:rgba(74,222,128,0.35);text-shadow:none;}'+
-        '50%{color:rgba(74,222,128,'+p.toFixed(3)+');'+
-            'text-shadow:0 0 6px rgba(74,222,128,'+glowAlpha.toFixed(3)+');}'+
+        '0%,100%{color:rgba('+_greenRGB+',0.35);text-shadow:none;}'+
+        '50%{color:rgba('+_greenRGB+','+p.toFixed(3)+');'+
+            'text-shadow:0 0 6px rgba('+_greenRGB+','+glowAlpha.toFixed(3)+');}'+
       '}'+
       '.ok-breath{animation:okBreath '+dur.toFixed(2)+'s ease-in-out infinite;}';
   }
 
   // ── Build the modal ──
-  function _buildPanel(){
+  // [v4.60] _buildPanel now takes a `mode` argument: 'user' (default,
+  // the simple settings panel that's been here all along, slimmed
+  // down to just Tile interaction + Audio) or 'dev' (the new dev
+  // tools panel reached from the in-toolbar DEV button — gets Visual
+  // effects, Placed-tile pulse, Legibility, Debug sections, Pace
+  // family, and shortcut rows for the TIMES/COUNTS debug panels).
+  function _buildPanel(mode){
+    if(!mode) mode = 'user';
     var ov = document.createElement('div');
     ov.id = '_optOv';
+    // [v4.61] Anchor at top instead of center. Centered alignment
+    // grows the panel from the middle when a section expands, which
+    // makes the whole window jump. Top-anchored means expansions
+    // only push the bottom down — the title and top sections stay
+    // put. Pushed down 8vh from the top so the panel isn't glued
+    // to the screen edge.
     ov.style.cssText =
-      'position:fixed;inset:0;z-index:800;display:flex;align-items:center;'+
-      'justify-content:center;background:rgba(0,0,0,0.7);'+
+      'position:fixed;inset:0;z-index:800;display:flex;align-items:flex-start;'+
+      'justify-content:center;padding-top:8vh;background:rgba(0,0,0,0.7);'+
       'font-family:"IBM Plex Mono",monospace;';
 
     var box = document.createElement('div');
+    // [v4.62] Box is now a flex column with a non-scrolling header
+    // and a scrollable body. Header holds the title, action buttons
+    // (Done + Reset), and any dev-mode launcher rows. Body holds the
+    // collapsible sections and is the only thing that scrolls.
+    // Previously the entire panel was one scrollable region, so the
+    // Done / Reset buttons sat at the bottom and required scrolling
+    // past every section to reach them. Per Sam: pin them to the top.
     box.style.cssText =
       'background:#0f0f0f;border:2px solid var(--cyan,#00d9ff);border-radius:6px;'+
-      'padding:18px 20px;width:min(340px,90vw);max-height:88vh;overflow-y:auto;'+
-      'box-shadow:0 0 24px rgba(0,217,255,0.25);';
+      'width:min(340px,90vw);max-height:88vh;'+
+      'box-shadow:0 0 24px rgba(0,217,255,0.25);'+
+      'display:flex;flex-direction:column;overflow:hidden;';
+
+    // Non-scrolling header — sticky relative to the panel.
+    var hdr = document.createElement('div');
+    hdr.style.cssText =
+      'padding:14px 20px 10px 20px;border-bottom:1px solid rgba(0,217,255,0.18);'+
+      'flex:0 0 auto;background:#0f0f0f;';
+
+    // Scrolling body — sections live here.
+    var body = document.createElement('div');
+    body.style.cssText =
+      'padding:14px 20px 18px 20px;overflow-y:auto;flex:1 1 auto;'+
+      '-webkit-overflow-scrolling:touch;';
 
     var ttl = document.createElement('div');
-    ttl.textContent = 'OPTIONS';
+    ttl.textContent = (mode === 'dev') ? 'DEV TOOLS' : 'OPTIONS';
     ttl.style.cssText =
       'font-size:14px;font-weight:700;color:var(--cyan,#00d9ff);'+
-      'letter-spacing:3px;text-align:center;margin-bottom:14px;';
-    box.appendChild(ttl);
+      'letter-spacing:3px;text-align:center;margin-bottom:10px;';
+    hdr.appendChild(ttl);
+
+    // [v4.62] Action row pinned in the header — Reset (small/quiet)
+    // on the left, Done (cyan-bordered) on the right. Reset rebuilds
+    // the whole panel with defaults; Done closes the modal. Both
+    // always visible without scrolling. The bottom Reset/Close pair
+    // that used to live below all sections is gone.
+    var actionRow = document.createElement('div');
+    actionRow.style.cssText = 'display:flex;gap:8px;';
+
+    var reset = document.createElement('button');
+    reset.textContent = 'Restore defaults';
+    reset.style.cssText =
+      'flex:1;padding:8px 0;font-family:inherit;'+
+      'font-size:9.5px;font-weight:700;letter-spacing:2px;'+
+      'background:transparent;color:rgba(255,255,255,0.55);'+
+      'border:1px solid rgba(255,255,255,0.2);border-radius:4px;cursor:pointer;';
+
+    var done = document.createElement('button');
+    done.textContent = 'Done';
+    done.style.cssText =
+      'flex:1;padding:8px 0;font-family:inherit;'+
+      'font-size:11px;font-weight:700;letter-spacing:2px;'+
+      'background:transparent;color:var(--cyan,#00d9ff);'+
+      'border:1.5px solid var(--cyan,#00d9ff);border-radius:4px;cursor:pointer;';
+    done.addEventListener('click', function(){
+      if(window._modalCloseChirp) window._modalCloseChirp();
+      if(ov.parentNode) ov.parentNode.removeChild(ov);
+    });
+
+    actionRow.appendChild(reset);
+    actionRow.appendChild(done);
+    hdr.appendChild(actionRow);
+
+    // [v4.60] DEV-MODE TOP ROW: Times / Counts panel launchers.
+    // Replaces the standalone TIMES and COUNTS buttons that used to
+    // live in the toolbar next to the theme toggle. Tapping either
+    // closes this dev panel and toggles the corresponding debug
+    // panel (window._dbgToggleTimesPanel / window._dbgTogglePanel).
+    // Both panels are independent floating overlays managed by the
+    // debug-panel IIFE up around line 12390.
+    // [v4.62] Lives in the pinned header so it's always reachable.
+    if(mode === 'dev'){
+      var launchRow = document.createElement('div');
+      launchRow.style.cssText =
+        'display:flex;gap:8px;margin-top:8px;';
+      var _mkLaunch = function(label, hint, onClick){
+        var btn = document.createElement('button');
+        btn.textContent = label;
+        btn.title = hint;
+        btn.style.cssText =
+          'flex:1;padding:8px 0;font:10px/1 "IBM Plex Mono",monospace;'+
+          'letter-spacing:2px;font-weight:700;'+
+          'background:rgba(0,217,255,0.10);color:var(--cyan,#00d9ff);'+
+          'border:1.5px solid var(--cyan,#00d9ff);border-radius:6px;'+
+          'cursor:pointer;';
+        btn.addEventListener('click', function(){
+          // Close the dev panel first so the user can see the
+          // launched debug overlay clearly.
+          if(window._modalCloseChirp) window._modalCloseChirp();
+          if(ov.parentNode) ov.parentNode.removeChild(ov);
+          // Defer the toggle by one frame so the close animation /
+          // sound has a beat to start before the new panel opens.
+          setTimeout(onClick, 30);
+        });
+        return btn;
+      };
+      launchRow.appendChild(_mkLaunch('TIMES',
+        'Per-template solve-time stats overlay.',
+        function(){ if(window._dbgToggleTimesPanel) window._dbgToggleTimesPanel(); }
+      ));
+      launchRow.appendChild(_mkLaunch('COUNTS',
+        'Template pick-count distribution overlay.',
+        function(){ if(window._dbgTogglePanel) window._dbgTogglePanel(); }
+      ));
+      hdr.appendChild(launchRow);
+    }
 
     // [v3.53] Visual effects — collapsible section (default OPEN
     // since it's the most-used). Was a flat list of toggles with a
     // gray subheader; the section wrapper gives a chevron header
     // that can be tapped to collapse the whole group when the
     // player just wants to scroll past it to other settings.
-    box.appendChild(_mkSection('Visual effects', [
+    // [v4.60] Dev-only now — most users don't need to fiddle with
+    // particle counts and spin durations.
+    if(mode === 'dev') body.appendChild(_mkSection('Visual effects', [
       // Tap glow (with brightness slider)
       function(){ return _mkToggleRow(
         'Tap glow',
@@ -26518,7 +28108,8 @@ if(winMenuBtn){
     //   - Synchronize: when on, every dim-green tile pulses in
     //     unison. When off, each tile has its own phase derived from
     //     its (col,row) coordinates so the board breathes randomly.
-    box.appendChild(_mkSection('Placed-tile pulse', [
+    // [v4.60] Dev-only.
+    if(mode === 'dev') body.appendChild(_mkSection('Placed-tile pulse', [
       function(){ return _mkToggleRow(
         'Enabled',
         'Pulse dimmed-green placed tiles to hint they can be tapped to return home. When off, those tiles render statically.',
@@ -26555,7 +28146,9 @@ if(winMenuBtn){
     // padding controls. [v3.53] Wrapped in a collapsible section
     // (default closed since most players will leave the default
     // tap-to-place behavior alone).
-    box.appendChild(_mkSection('Tile interaction', [
+    // [v4.60] User-panel only — this is a playstyle preference, not
+    // a dev concern.
+    if(mode === 'user') body.appendChild(_mkSection('Tile interaction', [
       function(){ return _mkToggleRow(
         'Drag tiles',
         'When ON, tiles can be dragged onto cells with a magnet snap. When OFF (default), tiles can only be tap-placed (after selecting a cell), and touching tiles otherwise scrolls the page.',
@@ -26586,12 +28179,106 @@ if(winMenuBtn){
           ); }
         ]
       ); }
-    ]));
+    ], {forceClosed: true}));
 
     // [v2.52] xN tile spacing sliders moved to the TILE ADJUST modal
     // — they belong with the size/gap sliders since they're all about
     // tile appearance tuning, and the user is more likely to find
     // them there when they're already adjusting how tiles look.
+
+    // [v4.46] Legibility section — quick contrast fixes ahead of the
+    // full light mode in a later version. Two independent toggles:
+    // high contrast (brighter cell borders + brighter text + dimmer
+    // lattice), and a show-lattice master toggle. Defaults preserve
+    // the current look; testers turn these on for legibility.
+    // [v4.60] Dev-only.
+    if(mode === 'dev') body.appendChild(_mkSection('Legibility', [
+      function(){ return _mkToggleRow(
+        'High contrast',
+        'Brightens cell borders and given numbers so they stand out clearly against the grid pattern. Also dims the lattice slightly. Helpful in bright rooms or for high-contrast vision needs.',
+        function(){
+          return (typeof window._optHighContrast==='boolean') ? window._optHighContrast : DEF.highContrast;
+        },
+        function(v){
+          window._optHighContrast = v;
+          _applyTuning();
+          _saveOpts();
+        }
+      ); },
+      function(){ return _mkToggleRow(
+        'Show grid lattice',
+        'The faint cyan gridlines behind the cells. Turn off if they make it hard to see which squares are empty cells.',
+        function(){
+          return (typeof window._optShowLattice==='boolean') ? window._optShowLattice : DEF.showLattice;
+        },
+        function(v){
+          window._optShowLattice = v;
+          _applyTuning();
+          _saveOpts();
+        }
+      ); }
+    ], {defaultOpen: true}));
+
+    // [v4.45] Audio section — currently just the Bluetooth latency
+    // compensation toggle. Sits next to Tile interaction since both
+    // are about input/output feedback tuning. Default collapsed since
+    // most players won't need to touch it (it auto-detects high
+    // latency and only applies in that case).
+    // [v4.60] User-panel only. Added Sound effects master toggle
+    // at the top — when OFF, all UI/game audio is silenced (taps,
+    // places, returns, errors, win fanfare, modal chirps). Latency
+    // compensation stays as a separate sub-concern below.
+    if(mode === 'user') body.appendChild(_mkSection('Audio', [
+      function(){ return _mkToggleRow(
+        'Sound effects',
+        'Master switch for all in-game and UI sounds. When off, the game plays silently.',
+        function(){
+          return (typeof window._optSfxOn==='boolean') ? window._optSfxOn : DEF.sfxOn;
+        },
+        function(v){
+          window._optSfxOn = v;
+          _applyTuning();
+          _saveOpts();
+        }
+      ); },
+      function(){ return _mkToggleRow(
+        'Latency compensation',
+        'For Bluetooth or wireless headphones. Plays scheduled sounds (the win sequence) early so they reach the speaker in sync with the visuals. No effect on tap or drag sounds. Has no effect on wired/built-in output.',
+        function(){
+          return (typeof window._optAudioCompensate==='boolean') ? window._optAudioCompensate : DEF.audioCompensate;
+        },
+        function(v){
+          window._optAudioCompensate = v;
+          _applyTuning();
+          _saveOpts();
+        }
+      ); }
+    ], {forceClosed: true}));
+
+    // [v4.58] Win-card debug toggle. The PB bursts (NEW BEST TIME /
+    // NEW BEST MOVES) only fire on legit personal bests by default.
+    // When the toggle below is ON, both bursts force-show on EVERY
+    // solve — useful for screenshots or verifying that the visual
+    // treatment looks right without organically beating your best.
+    // Was a hardcoded dev flag from v4.11 (`_forceMovesBurst = true`
+    // that never got reverted); v4.58 wires it to the settings panel
+    // and defaults OFF so normal play doesn't show the burst every
+    // win. Section default closed since most players won't touch it.
+    // [v4.60] Dev-only.
+    if(mode === 'dev') body.appendChild(_mkSection('Debug — win card', [
+      function(){ return _mkToggleRow(
+        'Always show PB bursts',
+        'For troubleshooting. When on, the NEW BEST TIME and NEW BEST MOVES bursts appear on every solve regardless of whether you beat your personal best. Default off.',
+        function(){
+          return (typeof window._optForceWinBursts==='boolean') ? window._optForceWinBursts : DEF.forceWinBursts;
+        },
+        function(v){
+          window._optForceWinBursts = v;
+          _applyTuning();
+          _saveOpts();
+        }
+      ); }
+    ]));
 
     // [v2.26] Debug section — snap velocity tuning sliders. The
     // velocity-gated magnet (v2.25) needs in-the-field tuning,
@@ -26603,7 +28290,8 @@ if(winMenuBtn){
     // [v3.53] Wrapped in a collapsible section (default closed
     // since these are advanced tuning controls most players will
     // never touch).
-    box.appendChild(_mkSection('Debug — snap tuning', [
+    // [v4.60] Dev-only.
+    if(mode === 'dev') body.appendChild(_mkSection('Debug — snap tuning', [
       // Toggle: floating readout overlay during drags
       function(){ return _mkToggleRow(
         'Drag velocity overlay',
@@ -26657,7 +28345,29 @@ if(winMenuBtn){
     // slider, plus a fuse toggle. The three per-ring toggles (best/
     // avg/worst) below still control which rings draw; this new
     // section gates the whole system on/off and tunes opacity.
-    box.appendChild(_mkSection('Pace rings', [
+    // [v4.47] Pace stats section — three time targets (best/avg/worst)
+    // displayed near the timer, each grays out as elapsed passes its
+    // target. Sits above pace rings since stats are the new default
+    // pace-pressure feedback and rings are secondary.
+    // [v4.60] Dev-only.
+    if(mode === 'dev') body.appendChild(_mkSection('Pace stats', [
+      function(){ return _mkToggleRow(
+        'Show pace stats',
+        'BEST \u00b7 AVG \u00b7 WORST times shown near the timer. Each grays out when you pass it. Replaces the pace rings as the default way to track pace.',
+        function(){
+          var v = window._paceStatsOn;
+          return (typeof v === 'boolean') ? v : DEF.paceStats;
+        },
+        function(v){
+          window._optPaceStats = v;
+          _applyTuning();
+          _saveOpts();
+        }
+      ); }
+    ], {defaultOpen: true}));
+
+    // [v4.60] Dev-only.
+    if(mode === 'dev') body.appendChild(_mkSection('Pace rings', [
       function(){ return _mkToggleRow(
         'Show pace rings',
         'Concentric rings around the grid that erase clockwise from the top-left over your best, average, and worst times for this template.',
@@ -26710,7 +28420,8 @@ if(winMenuBtn){
     // and all OFF for nonchalant players, but once the user
     // explicitly toggles one of them their saved choice persists
     // regardless of mode.
-    box.appendChild(_mkSection('Pace boxes', [
+    // [v4.60] Dev-only.
+    if(mode === 'dev') body.appendChild(_mkSection('Pace boxes', [
       function(){ return _mkToggleRow(
         'Best time box',
         'Shrinks toward grid center at your fastest solve time on this template.',
@@ -26743,14 +28454,12 @@ if(winMenuBtn){
       ); }
     ], {defaultOpen: true}));
 
-    // Reset button
-    var reset = document.createElement('button');
-    reset.textContent = 'Reset to defaults';
-    reset.style.cssText =
-      'margin-top:14px;width:100%;padding:8px 0;font-family:inherit;'+
-      'font-size:9.5px;font-weight:700;letter-spacing:2px;'+
-      'background:transparent;color:rgba(255,255,255,0.55);'+
-      'border:1px solid rgba(255,255,255,0.2);border-radius:4px;cursor:pointer;';
+    // [v4.62] Reset/Close buttons used to live here below all the
+    // sections, requiring scroll-to-bottom to reach. They've been
+    // moved up to the pinned header (created earlier with names
+    // `reset` and `done`). The block below just attaches the reset
+    // click handler to the existing header button. No appendChild —
+    // that already happened in the header section.
     reset.addEventListener('click', function(){
       GLOW_ON      = DEF.glow;
       PARTICLES_ON = DEF.particles;
@@ -26789,31 +28498,34 @@ if(winMenuBtn){
       window._optPaceRings       = DEF.paceRings;
       window._optPaceFuses       = DEF.paceFuses;
       window._optPaceRingOpacity = DEF.paceRingOpacity;
+      // [v4.47] Pace stats reset.
+      window._optPaceStats       = DEF.paceStats;
+      // [v4.45] Audio compensation reset.
+      window._optAudioCompensate = DEF.audioCompensate;
+      // [v4.46] Legibility reset.
+      window._optHighContrast    = DEF.highContrast;
+      window._optShowLattice     = DEF.showLattice;
+      // [v4.58] Force win-card PB bursts (debug) reset.
+      window._optForceWinBursts  = DEF.forceWinBursts;
+      // [v4.60] Master sfx reset.
+      window._optSfxOn           = DEF.sfxOn;
       _applyTuning();
       _saveOpts();
       // [v3.55] Also wipe section-state so all sections collapse
       // back to their default closed state after a reset.
       try{ localStorage.removeItem(SECTIONS_KEY); }catch(_){}
       // Rebuild panel to reflect reset state
+      // [v4.60] Pass the current mode so a reset from the dev panel
+      // re-opens dev, not user.
       if(ov.parentNode) ov.parentNode.removeChild(ov);
-      _openPanel();
+      _openPanel(mode);
     });
-    box.appendChild(reset);
 
-    var close = document.createElement('button');
-    close.textContent = 'Close';
-    close.style.cssText =
-      'margin-top:8px;width:100%;padding:9px 0;font-family:inherit;'+
-      'font-size:11px;font-weight:700;letter-spacing:2px;'+
-      'background:transparent;color:var(--cyan,#00d9ff);'+
-      'border:1.5px solid var(--cyan,#00d9ff);border-radius:4px;cursor:pointer;';
-    close.addEventListener('click', function(){
-      // [v2.91] Close chirp on the Close button — same family
-      // as the TILE ADJUST modal and display-mode buttons.
-      if(window._modalCloseChirp) window._modalCloseChirp();
-      if(ov.parentNode) ov.parentNode.removeChild(ov);
-    });
-    box.appendChild(close);
+    // [v4.62] Final assembly. Header (already populated with title +
+    // action row + dev launchers) and body (populated with sections)
+    // get appended to box in order.
+    box.appendChild(hdr);
+    box.appendChild(body);
 
     ov.addEventListener('click', function(e){
       if(e.target === ov){
@@ -26828,18 +28540,27 @@ if(winMenuBtn){
     return ov;
   }
 
-  function _openPanel(){
+  function _openPanel(mode){
     if(document.getElementById('_optOv')) return;
     // [v2.91] Open chirp — same family as the TILE ADJUST modal
     // and display-mode buttons. Replaces the older playUIClick
     // (a generic UI click that didn't have the open/close
     // directionality of the chirp pair).
     if(window._modalOpenChirp) window._modalOpenChirp();
-    document.body.appendChild(_buildPanel());
+    document.body.appendChild(_buildPanel(mode || 'user'));
   }
+  // [v4.60] Dev panel opener exposed for the in-toolbar DEV button
+  // (replaces the old TIMES + COUNTS pair). Same modal scaffolding
+  // as the user panel; just builds with mode='dev'.
+  function _openDevPanel(){ _openPanel('dev'); }
 
   var optBtn = document.getElementById('optBtn');
-  if(optBtn) optBtn.addEventListener('click', _openPanel);
+  if(optBtn) optBtn.addEventListener('click', function(){ _openPanel('user'); });
+
+  // [v4.60] Expose openers so the DEV button (wired up in the same
+  // IIFE that handles TIMES/COUNTS) can launch the dev panel.
+  window._openOptionsPanel = function(){ _openPanel('user'); };
+  window._openDevPanel     = _openDevPanel;
 
   // [v2.52] Expose tuning + save helpers so other parts of the app
   // (e.g. the TILE ADJUST modal's xN spacing sliders) can update
@@ -26905,6 +28626,97 @@ if(winMenuBtn){
 // [Equil 1.05] Removed: HANDOFF comment block + Accelerometer reading + on-screen HUD IIFE — sequencer tap-velocity capture.
 
 // [Equil 1.05] Removed: DEBUG READOUT IIFE — sequencer-only diagnostic for sample/kit state.
+
+// ═══════════════════════════════════════════════════════════
+// THEME TOGGLE (light/dark)  [v4.48]
+// ═══════════════════════════════════════════════════════════
+// Testers in their 60s/70s reported the dark theme is too dark and
+// hard to see. Sam's mom showed a much lighter puzzle she preferred.
+// This adds a light theme (warm parchment/cream feel — yellowish
+// off-white per Sam's description of his mom's preference) toggleable
+// via a sun/moon button in the toolbar above the bank.
+//
+// Design choices:
+//   - Stored in its own localStorage key ('equil_theme') separate from
+//     equil_opts_v2. The theme is more global than other options and
+//     this keeps theme switching from triggering full opts re-save.
+//   - Default is dark (force testers to try the polished dark version
+//     first per Sam: "I want them to be forced to try this new dark
+//     version first").
+//   - Icon convention: button shows the OPPOSITE of current state —
+//     sun in dark mode means "tap for light", moon in light mode
+//     means "tap for dark". This matches what most apps do.
+//   - Click plays UI click sound for tactile feedback per Sam.
+//
+// Light-mode COLOR overrides live in the :root + body.light-mode CSS
+// rules at the top of the stylesheet — most surfaces theme via
+// CSS variables. Inline-styled colors (rgba(0,217,255,...) in cell
+// render code etc.) need per-site adjustments which will be added
+// incrementally.
+(function(){
+  var THEME_KEY = 'equil_theme';
+  var SUN_ICON  = '\u2600';   // ☀
+  var MOON_ICON = '\u263D';   // ☽
+
+  function _getStoredTheme(){
+    try{
+      var v = localStorage.getItem(THEME_KEY);
+      return (v === 'light') ? 'light' : 'dark';
+    }catch(e){ return 'dark'; }
+  }
+  function _setStoredTheme(theme){
+    try{ localStorage.setItem(THEME_KEY, theme); }catch(e){}
+  }
+
+  function _applyTheme(theme){
+    var isLight = (theme === 'light');
+    document.body.classList.toggle('light-mode', isLight);
+    window._lightModeOn = isLight;
+    // Update icon: show what tapping it WILL DO next.
+    var iconEl = document.getElementById('themeToggleIcon');
+    if(iconEl) iconEl.textContent = isLight ? MOON_ICON : SUN_ICON;
+    // [v4.48] Re-render the grid so any inline-styled colors that
+    // need to respect light mode get updated. Cheap on Equil's grid
+    // sizes; safer than trying to enumerate every inline-style site.
+    try{ if(typeof window.render==='function') window.render(); }catch(_){}
+    // [v4.49] Pulse keyframes are theme-aware — rewrite them so the
+    // .ok-breath green animation uses the right palette on this theme.
+    // _equilApplyTuning is exposed by the options IIFE and triggers
+    // a _writePulseKeyframes call internally.
+    try{ if(typeof window._equilApplyTuning==='function') window._equilApplyTuning(); }catch(_){}
+    // [v4.52] Re-color the debug template label since its color is
+    // set via inline style (theme-conditional) on every update.
+    try{ if(typeof _updateDbgTplLabel==='function') _updateDbgTplLabel(); }catch(_){}
+  }
+
+  function _toggleTheme(){
+    var next = (window._lightModeOn === true) ? 'dark' : 'light';
+    _setStoredTheme(next);
+    _applyTheme(next);
+    // Tactile feedback per Sam.
+    try{ if(typeof playUIClick==='function') playUIClick(); }catch(_){}
+  }
+
+  function _initTheme(){
+    var btn = document.getElementById('themeToggle');
+    if(btn && !btn._wired){
+      btn.addEventListener('click', _toggleTheme);
+      btn._wired = true;
+    }
+    _applyTheme(_getStoredTheme());
+  }
+
+  // Expose so other code can query/programmatically toggle.
+  window._equilToggleTheme = _toggleTheme;
+  window._equilApplyTheme  = _applyTheme;
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', _initTheme);
+  } else {
+    _initTheme();
+  }
+})();
+
 </script>
 
 </html>
