@@ -1,3 +1,512 @@
+<!-- Equil v4.77 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.77: Light-mode win-wave tiles keep their cream background
+     instead of flashing white.
+
+     PER SAM:
+     "On light mode, the win sequence of the number bank tiles
+      bursting — they turn into having a white background. They should
+      just keep the background color they had before the win, like how
+      dark mode keeps the same look when they pop."
+
+     CAUSE.
+     The btBurst keyframe (the per-tile pop in _winWaveSequence) ramps
+     filter:brightness from 1 → 2.2 over the burst. On the DARK tile
+     background that reads as a tasteful glow. But the light-mode tile
+     background is cream (var(--bg-secondary)); brightness(2.2) pushes
+     that to near-white, so the bursting tiles flashed white.
+
+     FIX.
+     New btBurstLight keyframe — identical transform + opacity (the pop
+     scale/rotate/fade) but WITHOUT the brightness ramp, so the tile
+     holds its normal cream background through the burst. A
+     body.light-mode .bt.bursting rule swaps to it in light mode.
+     Dark mode keeps the original glow.
+-->
+
+<!-- Equil v4.76 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.76: Bank display-mode toggles (xN / mini / cyan) no longer
+     snap the page to the top.
+
+     PER SAM:
+     "The buttons down below — the ones that display the number of
+      tiles — that is still snapping it back up to the top. Maybe it
+      has to do with how it resizes the amount of tiles down below."
+
+     CAUSE (distinct from v4.75).
+     v4.75 guarded render() and renderBank() against the innerHTML-
+     rebuild scroll clamp. But the display-mode toggles do MORE than a
+     plain renderBank: _toggleCondense / _toggleMini / _toggleCyan each
+     change TILE_SCALE and TILE_GAP via applyPctH/applyGapPct, which
+     RESIZE the bank. That resize changes the bank's height (and thus
+     the page's total scrollable height) in steps that happen between
+     and around the renderBank calls — outside any single renderBank's
+     guarded window — so the page max-scroll shrinks and the browser
+     snaps to the top. The resize can also reflow asynchronously on a
+     later frame, after the synchronous restore would have run.
+
+     FIX.
+     Wrap each toggle's ENTIRE body in a scroll capture/restore, and
+     restore not just synchronously but again on the next two animation
+     frames (double-rAF) to catch the async bank reflow from the resize.
+     Applied to all three: _toggleCondense, _toggleMini, _toggleCyan.
+
+     (Sam earlier noted in code comments that these display buttons had
+      a history of scroll-to-top trouble — v1.78 routed them through
+      _equilToggle* helpers to avoid synthetic-click focus-into-view.
+      This is the same family of issue, now addressed at the resize level.)
+-->
+
+<!-- Equil v4.75 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.75: No action jerks the page to the top on tall puzzles.
+
+     PER SAM:
+     "The undo button, when you scroll down, pops it back up — horrible.
+      All the buttons that change the display of the number bank tiles,
+      when you hit one it scrolls way back up. Even tapping a number in
+      the bank to send it up to a highlighted cell scrolls the screen
+      back up. All of it really annoying."
+
+     CAUSE.
+     On tall puzzles (Jumbo/Large) the PAGE scrolls. render() does
+     grid.innerHTML='' and renderBank() does bank.innerHTML='', then
+     both rebuild. While a container is momentarily empty it has zero
+     height, so the page's max scroll drops and the browser clamps the
+     scroll to the top; the position isn't restored when height returns.
+     EVERY re-rendering action hits this: tapping a cell, placing a bank
+     tile, undo, and the bank-display toggle buttons (which call
+     renderBank directly).
+
+     FIX.
+     Instead of patching each call site (selCell, place, undo, each
+     toggle), the scroll-preservation guard now lives INSIDE the two
+     functions that actually rebuild DOM:
+       - render(): capture window.scrollY at the top, restore at the end
+         (after grid + renderBank have rebuilt at full height).
+       - renderBank(): same, for the display-toggle buttons that call it
+         directly without going through render().
+     This covers all current and future re-render paths in one place.
+     Both restores are no-ops when nothing moved the scroll. The earlier
+     selCell-only attempt was reverted in favor of this.
+-->
+
+<!-- Equil v4.74 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.74: NEW COMPACT JUMBO (preview — Template A only).
+
+     PER SAM:
+     "It's time to retire that size of a Jumbo. Keep the name Jumbo,
+      just reduce the size — take it down a notch. Bigger than Large
+      but nowhere near as big as it is now. I like the 7-side (7-cell
+      equations), it spices things up, we just don't need so much of
+      it. Let me look at what you're working with while you add to the
+      puzzles."
+
+     WHAT CHANGED.
+     The old Jumbo (TX2_sq_A..D) was ~29×27 with 54 seven-cell
+     equations — a tedious marathon. New Template A (TXN_A) keeps the
+     distinctive 7-cell "A op1 B op2 C = D" format but at 20 equations,
+     25 crossings, 13×19 footprint. Bigger/meatier than Large (24
+     five-cell equations) thanks to the two-operator format, but a
+     fraction of the old Jumbo's bulk.
+
+     POOL: TMPL_XL2 = [TXN_A] for this preview build so the size can be
+     eyeballed on-device and its in-game generation confirmed before
+     the B/C/D variety templates are added. The old templates remain
+     DEFINED (TMPL_XL2_OLD) but unpooled — nothing deleted.
+
+     DESIGN METHOD (this session): read the engine's real construction
+     rules (genNumsXL H-first value gen, canSolveXL, the arc-consistency
+     solver isSolvableViaPropagation, buildCellMap) and wrote them up in
+     /home/claude/equil_template_rules.md, plus a faithful offline
+     validator (validate_tpl.js) that matches the engine (crossings at
+     number cells only, perpendicular, parallel-shared-endpoints allowed,
+     connectivity BFS). TXN_A validates ok=true. Crossing density 1.25
+     is close to the original's 1.07 and well below the level that
+     historically caused values-gen fallback.
+
+     STILL TODO (next build): confirm TXN_A generates in-game without a
+     "from xl2/..." fallback warning, then add B/C/D for pool variety.
+
+     The 'xl2' size key and all Jumbo stats are unchanged — existing
+     records still resolve.
+-->
+
+<!-- Equil v4.73 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.73: Light-mode drag glow darkened; puzzle-board dividers kept
+     dark in light mode.
+
+     PER SAM:
+     "Make the glow for dragging in light mode a darker cyan — the
+      brighter cyan works good in dark mode but in light mode turn it
+      into a darker cyan. Also the two dividing lines in light mode,
+      keep them dark — there's one on top of the puzzle board and one
+      below it, horizontal, and they turn light cyan in light mode.
+      Keep them the same darkness from dark mode."
+
+     1) DRAG GHOST GLOW — theme-aware.
+        _createGhost now picks the glow color by window._lightModeOn:
+          dark  : 0 0 10px rgba(0,217,255,0.45) + soft black drop
+          light : 0 0 10px rgba(14,116,144,0.50) + soft brown drop
+        The bright cyan washed out on cream; the deeper teal-cyan
+        (same family as the rest of the light palette) stays visible.
+
+     2) PUZZLE-BOARD DIVIDERS.
+        The two horizontal lines above/below the board are .gscroll's
+        border-top / border-bottom. Base rule sets them to
+        rgba(0,217,255,0.5) cyan. The light-mode .gscroll override
+        only changed box-shadow, not the borders, so they rendered as
+        a pale cyan on cream. Added border-top-color /
+        border-bottom-color: rgba(14,116,144,0.7) to the light-mode
+        override so they read as crisp deep-teal dividers, matching
+        the defined look they have on the dark board.
+        (The .mast bottom border already used var(--cyan) so it
+        themed to deep teal on its own — only the gscroll borders were
+        hardcoded.)
+-->
+
+<!-- Equil v4.72 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.72: Drag ghost glow → light cyan (both themes).
+
+     PER SAM:
+     "For both dark and light, when you're dragging a tile, instead
+      of a purple glow behind it, can you have it be kind of a light
+      cyan glow? Not too much."
+
+     CHANGE.
+     The drag ghost's box-shadow in _createGhost was
+       0 0 12px rgba(168,85,247,0.6)   (purple)
+       0 4px 12px rgba(0,0,0,0.5)      (drop shadow)
+     Changed to
+       0 0 10px rgba(0,217,255,0.45)   (light cyan, dialed back)
+       0 4px 10px rgba(0,0,0,0.35)     (softer drop)
+     Same for both themes — cyan reads fine on dark and on cream.
+     No other code mutates the ghost's box-shadow, so the cyan holds
+     through the whole drag and the snap-in animation.
+-->
+
+<!-- Equil v4.71 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.71: Restore the bank-tile selection glow in light mode.
+
+     PER SAM:
+     "Something got rid of a feature in dark mode — when you go to
+      light mode and select a blank cell, it turns purplish, and all
+      the number bank tiles should get a glow around them in the same
+      color. In dark mode you tap a blank cell, it turns magenta, and
+      all the bank cells get a magenta glow. Keep that going in light
+      mode — a purplish glow around them."
+
+     CAUSE.
+     The `.bt.lit` class is the selection glow on candidate bank
+     tiles (applied when a board cell is selected). It uses #a855f7
+     purple and worked in dark mode. But the v4.49/v4.54 light-mode
+     overrides added:
+       body.light-mode .bt { border-color:...; box-shadow:... !important; }
+     CSS specificity: body.light-mode .bt = (0,2,1), .bt.lit = (0,2,0).
+     With !important on both, the higher-specificity selector wins,
+     so in light mode the light-mode `.bt` override clobbered the
+     `.bt.lit` glow — selecting a cell did nothing visible to the
+     bank tiles.
+
+     FIX.
+     New higher-specificity rule:
+       body.light-mode .bt.lit { border + box-shadow !important; }
+     Restores the glow in light mode using the light-mode selected-
+     cell purple (#7c3aed) so the bank tiles glow the same color the
+     selected cell turns — matching the dark-mode magenta behavior.
+-->
+
+<!-- Equil v4.70 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.70: Drop detection measures from the tile, not the finger;
+     ghost lifted higher.
+
+     PER SAM:
+     "You really were going off where my finger released. Since
+      there's a little deflection — once you pick up the tile it
+      moves above your finger in y space so you can see it — when
+      you release we should go off the tile position, not the finger
+      position, because you're looking at the tile when you place it.
+      Also bump it up another half a tile width because sometimes it
+      still gets a little under my finger."
+
+     BUG.
+     The v4.68 release-time grace check and the elementFromPoint
+     fallback both measured from the raw fingertip position. But the
+     ghost floats FINGER_OFFSET_Y px ABOVE the fingertip (so the user
+     can see it past their finger). The user aims with the tile they
+     can see, so a release that looked dead-on over a cell was being
+     measured ~48px too low — often missing the intended cell. The
+     live magnet was already correct (my = fy - FINGER_OFFSET_Y); only
+     the two touchend paths had the bug.
+
+     FIX 1 — measure from tile center.
+       - Grace check: fy = t2.clientY - FINGER_OFFSET_Y
+       - elementFromPoint fallback: hit-test at
+         (clientX, clientY - FINGER_OFFSET_Y)
+     Now all three drop paths (live magnet, grace, elementFromPoint)
+     measure from the same tile-center reference.
+
+     FIX 2 — ghost lifted higher.
+       FINGER_OFFSET_Y 48 → 72 (+24px ≈ half a tile width). The ghost
+       was still sometimes partly under the fingertip; the extra lift
+       keeps it clearly visible. The constant is referenced by all
+       position-aware paths so bumping it shifts them together.
+-->
+
+<!-- Equil v4.69 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.69: Magnet skips filled cells; ghost text solid not hollow.
+
+     PER SAM:
+     1) "Magnet snapping should only happen over blank cells. I don't
+         want it to snap onto cells that have numbers that you placed
+         in. They're glowing a little bit, pulsing, and color green —
+         but still, just don't have them snap onto those. If anyone
+         really wants to kick them out they can just tap on them."
+     2) "When you're dragging the tile, I want to keep it the same
+         black text. Right now it kinda goes into a hollow text — we
+         were playing with outlines a long time ago — just keep it
+         the same black text the whole time."
+
+     1) MAGNET FILLED-CELL SKIP.
+        _buildCellCache already filtered to cells with isBlank=true.
+        Added `cell.value != null` skip so already-placed cells are
+        excluded entirely from the cache. The live magnet, the
+        release-time grace check (v4.68), and the elementFromPoint
+        fallback all defer to the cache for valid drop targets.
+        Mirror filter added to the elementFromPoint path so that
+        direct-finger-on-cell hits also reject filled cells. To swap
+        a value: tap the filled cell to return it to the bank, then
+        drag the new tile in (cache is rebuilt at each drag start so
+        the slot reappears).
+
+     2) GHOST TEXT SOLID.
+        The ghost number span had been styled as outline-only:
+          color: transparent
+          -webkit-text-stroke: 0.5px <color>
+          text-stroke: 0.5px <color>
+        This was a leftover from an earlier visual iteration. Switched
+        to solid color using the same var(--text-primary) value the
+        bank tile resolves to, so the ghost reads as a continuation
+        of the bank tile through the drag — same digit, same color,
+        same weight. No new variable; just inverts the styling.
+-->
+
+<!-- Equil v4.68 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.68: Release-time grace snap for fast drags.
+
+     PER SAM:
+     "When you drag a tile over a cell, if you release the tile
+      somewhere near the cell, it should automatically find its way
+      into that cell even if it hadn't snapped yet. Sometimes I
+      release it a little bit earlier — if I move it up there really
+      quick I don't have the time to wait for it to snap in. Have it
+      animate so that it just kinda snaps into place after you leave
+      your finger off — keeps going the distance, doesn't just
+      teleport."
+
+     CONTEXT.
+     The live magnet has both a proximity gate (0.7 cell-widths) AND
+     a velocity gate (smoothed finger velocity must drop below
+     snapOn=48 to engage). The velocity gate prevents jitter during
+     fast drags — the ghost would otherwise dance between cells.
+     Side effect: when the user moves fast and releases before the
+     velocity smoother settles, the live magnet has never locked, so
+     the tile drops at the finger position. With v4.67's "drag tiles"
+     workflow this routes through the existing elementFromPoint
+     fallback, which only catches releases LITERALLY on a blank cell
+     — releases slightly short or over a wrapper gap fall through to
+     "return to bank."
+
+     CHANGE.
+     New release-time grace check inserted between the existing
+     elementFromPoint fallback and "return to bank":
+
+       if no locked cell AND no cell directly under finger:
+         scan cellCache, find nearest blank cell within grace radius
+         (1.1 cell-widths by default), place there if found.
+
+     The live magnet's strictness is unchanged — the grace check
+     ONLY runs at touchend, never affects the dragging-feel. The
+     existing 110ms ghost-slide animation (transition: left/top
+     110ms ease-out) already plays from the release position to the
+     cell center, so the grace placement looks like the ghost being
+     "sucked" into the slot rather than teleporting. No new animation
+     code needed.
+
+     New live-tunable global: window._equilDropGrace = {cells: 1.1}.
+     Distance is straight-line from finger to cell center, compared
+     squared (avoids sqrt). Nearest-within-radius wins ties.
+
+     UNCHANGED:
+     - Release over empty space (outside grace radius) → return to bank.
+     - Release over a non-blank cell (op, eq, given) → return to bank.
+     - Release when live magnet IS locked → drop there (existing path).
+     - Live magnet velocity gate (separate config, separate purpose).
+-->
+
+<!-- Equil v4.67 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.67: Returning a placed tile to bank no longer leaves the cell
+     selected when drag-tiles is ON.
+
+     PER SAM:
+     "When you reject a number that's in the cell and send it back to
+      the tile bank, it should not stay selected. Because then you go
+      to tap and drag it, and it auto places it, and you're in the
+      behavior of actually dragging them. As soon as you click on a
+      number that you had placed to send it back, then it doesn't
+      stay selected."
+
+     CONTEXT.
+     Tapping a placed tile returns it to the bank (selCell at line
+     ~17902). What happens to SEL after the return has flipped twice
+     before:
+       v2.31: cleared SEL (return = undo intent)
+       v2.74: kept SEL = k (saves a tap when user is about to place a
+              different number in the same cell)
+
+     Both rationales are right for their workflow. The conflict:
+       - drag-tiles OFF (tap-to-place): user expects SEL kept so a
+         bank tap re-fills the cell quickly.
+       - drag-tiles ON (drag-to-place): user expects to start dragging
+         from the bank, and the leftover SEL causes the bank tap to
+         auto-place into the just-vacated cell instead of beginning a
+         drag.
+
+     FIX.
+     Split by workflow. selCell now reads window._dragTilesEnabled:
+       - true  → SEL = null after return (drag-friendly)
+       - false → SEL = k after return (v2.74 behavior preserved)
+
+     Setting persisted unchanged. Users who toggle drag-tiles can
+     observe both behaviors immediately without reloading.
+-->
+
+<!-- Equil v4.66 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.66: When drag-tiles is ON, touching a tile no longer scrolls
+     the page.
+
+     PER SAM:
+     "When you grab a tile, it starts scrolling on you too while
+      you're grabbing it, and that's frustrating, especially on a
+      puzzle that you don't really even need to scroll."
+
+     CAUSE.
+     The `.bt` CSS rule had `touch-action: pan-y` so the browser
+     would pan the page in response to vertical finger movement on
+     tiles. The browser's pan threshold (~2-3px) is much smaller
+     than our drag pickup threshold (DRAG_THRESHOLD = 8px), so the
+     page would start scrolling before our drag handler decided
+     "yes, this is a drag." We were calling preventDefault() on
+     touchmove inside the drag handler, but by the time we got
+     there, the page was already in motion.
+
+     FIX.
+     New body class `drag-tiles-on` reflects window._dragTilesEnabled.
+     _applyTuning toggles the class whenever the setting changes.
+     CSS rule:
+       body.drag-tiles-on .bt { touch-action: none; }
+     With touch-action:none, the browser doesn't initiate panning on
+     touches that land on a tile. Drag handler has full ownership of
+     the gesture from touchdown forward.
+
+     When drag-tiles is OFF (default), `.bt` keeps `pan-y` so swiping
+     across the tile row scrolls like any other content — preserves
+     the original behavior for users who haven't enabled dragging.
+
+     AUTO-SCROLL DURING DRAG (Sam's request #2) DEFERRED.
+     Will land in a future version: while dragging a tile, if the
+     finger nears the top or bottom edge of the viewport, scroll the
+     page in that direction. Useful on long puzzles where the target
+     cell is off-screen. Not in this version per Sam.
+-->
+
+<!-- Equil v4.65 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.65: Layout cleanup — subtitle no-wrap, template label
+     relocated, theme toggle moved out of bank toolbar.
+
+     PER SAM:
+     "Top: wrapping issue with the small and less easy. Want less
+      easy to be on the same line straight so it doesn't wrap.
+      Template name TA next to undo — rather have that right next
+      to the dev button. And for the darkness/lightness setting put
+      it somewhere else — perhaps to the right of the timer."
+
+     1) SUBTITLE NO-WRAP.
+        .mast-info gets white-space:nowrap so "SMALL · LESS EASY"
+        stays on one line. Was wrapping because the masthead's
+        center slot doesn't have enough width when the label is
+        longer than ~14 characters.
+
+     2) TEMPLATE LABEL RELOCATED.
+        #_dbgTplLabel was in the left group beside UNDO. Moved to
+        the right group, just to the left of #_dbgDevBtn so the
+        dev-side controls (template name + DEV opener) cluster
+        together. UNDO stays alone on the left.
+
+     3) THEME TOGGLE RELOCATED.
+        #themeToggle was centered in the bank toolbar between the
+        UNDO group and the DEV group. Moved to the right end of the
+        timer row inside the masthead, adjacent to the mistakes
+        wrap. Smaller pill (3px vs 5px vertical padding, 28px
+        min-width vs 34px) to fit cleanly there.
+
+     All click handlers unchanged — IDs preserved, only the DOM
+     parent changes for theme toggle and template label.
+-->
+
+<!-- Equil v4.64 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.64: Difficulty labels: Easy / Less Easy / Hard.
+
+     PER SAM:
+     "Intermediate starts to get really condensed in there, takes up
+      too much space. Easy and Hard on the outside are about equal
+      length, so they can be equal sizes on the ends. In the middle
+      you can make it spaced out pretty good with 'Less Easy' with a
+      little bit of padding on the sides."
+
+     CHANGE:
+     v4.63's BEGINNER / INTERMEDIATE / ADVANCED → EASY / LESS EASY /
+     HARD. Keeps the visual symmetry of v4.62-and-earlier (Easy and
+     Hard are similar length on the ends; "Less Easy" sits in the
+     middle with room). Avoids the original two-MEDIUMs problem since
+     the masthead subtitle now reads e.g. "SMALL · LESS EASY".
+
+     Internal values still 'easy' / 'medium' / 'hard'. Only display
+     labels changed via diffLabel().
+-->
+
+<!-- Equil v4.63 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.63: Difficulty display labels renamed to Beginner /
+     Intermediate / Advanced.
+
+     PER SAM:
+     "I'd like to change the difficulty settings to beginner,
+      intermediate, and advanced. That way we don't have two mediums,
+      both size and difficulty."
+
+     APPROACH: display-only rename. Internal values stay 'easy' /
+     'medium' / 'hard' so every persisted stat key, template pool
+     reference, and localStorage record continues to resolve to the
+     same buckets — no data migration needed, no stats lost. Only
+     the user-facing labels change.
+
+     NEW HELPER: diffLabel(d) next to the existing sizeLabel(s).
+       easy   → BEGINNER
+       medium → INTERMEDIATE
+       hard   → ADVANCED
+
+     UPDATED DISPLAY SITES:
+     - Menu screen difficulty buttons (Beginner / Intermediate /
+       Advanced)
+     - Masthead subtitle (e.g. "SMALL · INTERMEDIATE")
+     - Win card subtitle (same format as masthead)
+     - Share-to-clipboard text ("Equil SMALL INTERMEDIATE — 0:42")
+
+     UNCHANGED (intentional — internal):
+     - data-diff attribute values on the menu buttons
+     - DIFF global, localStorage records, template pool keys
+     - TIMES/COUNTS debug panels (still show internal labels —
+       those panels are dev-facing)
+-->
+
 <!-- Equil v4.62 | Built: 2026-05-19 CT | github.com/Spamboni
      v4.62: Pinned header for settings panels; default-closed
      sections per panel type.
@@ -8163,6 +8672,14 @@ body.light-mode .mast{
 }
 body.light-mode .gscroll{
   box-shadow:0 0 4px rgba(42,36,24,0.08), inset 0 0 3px rgba(42,36,24,0.04) !important;
+  /* [v4.73] The two horizontal dividers above/below the puzzle board
+     are .gscroll's border-top / border-bottom. The base rule sets
+     them to rgba(0,217,255,0.5) cyan, which on cream reads as a pale
+     washed-out line. Per Sam, keep them dark/defined like they look
+     on the dark board. Deep teal at higher alpha gives a crisp
+     divider on cream instead of a faint cyan one. */
+  border-top-color:rgba(14,116,144,0.7) !important;
+  border-bottom-color:rgba(14,116,144,0.7) !important;
 }
 body.light-mode .bt{
   box-shadow:0 0 4px rgba(42,36,24,0.06) inset, 0 1px 2px rgba(42,36,24,0.08) !important;
@@ -8554,7 +9071,10 @@ body.has-ghost-bar .gscroll{ border-top:none; }
 /* [v2.75] mast-info was a sibling of the title; now lives directly
    under it inside .mast-center. Same muted color, same letter-
    spacing, just smaller margin + tighter typography. */
-.mast-info{font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);line-height:1;}
+/* [v4.65] white-space:nowrap so longer labels like
+   "SMALL · LESS EASY" don't wrap to two lines and visually push the
+   masthead taller. */
+.mast-info{font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);line-height:1;white-space:nowrap;}
 /* [v2.75] All three masthead buttons (Menu, New, ⚙) share a
    pill-rounded style with a 999px radius so the ends fully round
    off regardless of computed height. Sizes match across the three:
@@ -8847,6 +9367,17 @@ body.xl2-mode .gscroll::before{ display:block; }
 .sizebar-arrows{position:absolute;left:50%;transform:translate(-50%,50%);width:5px;height:16px;border:1.5px solid var(--cyan);border-radius:3px;background:var(--bg-secondary);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:6px;line-height:1;color:var(--cyan);pointer-events:none;transition:bottom .05s;z-index:4;}
 .sizebar-lbl{position:absolute;top:50%;left:0;right:0;transform:translateY(-50%);z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:7px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--cyan);text-align:center;line-height:1.6;pointer-events:none;user-select:none;}
 .bt{min-width:44px;height:44px;padding:0 8px;border:1.5px solid rgba(0,217,255,0.5);background:var(--bg-secondary);color:#c8c8d0;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;font-family:'IBM Plex Mono',monospace;line-height:1;cursor:pointer;box-shadow:0 0 4px rgba(0,217,255,0.18) inset;transition:transform 0.04s,box-shadow 0.15s,background 0.1s,border-color 0.15s;touch-action:pan-y;aspect-ratio:1;isolation:isolate;}
+/* [v4.66] When drag-tiles mode is ON, touches on bank tiles are
+   owned by the drag handler — disable the browser's built-in pan
+   behavior so the page doesn't scroll while the user is trying to
+   pick up a tile. With pan-y left in place, the browser would start
+   panning as soon as the finger moved a couple pixels (its internal
+   threshold), before our DRAG_THRESHOLD of 8px tripped — the user
+   would feel "the page is sliding under me as I try to grab a tile."
+   When drag-tiles is OFF, `.bt` keeps pan-y so swiping across the
+   tile row still scrolls the page (the original behavior). The
+   `.drag-tiles-on` body class is toggled by _applyTuning. */
+body.drag-tiles-on .bt{touch-action:none;}
 /* [v2.07] Cancel the outline-style on cyan-mode and mini-mode child
    number elements so they render as solid colored fills, not as
    white outlines (which would happen because they inherit
@@ -9058,6 +9589,22 @@ body.xl2-mode .gscroll::before{ display:block; }
   box-shadow:0 0 4px rgba(168,85,247,0.30) inset,
              0 0 4px 1px rgba(168,85,247,0.65),
              0 0 8px 0 rgba(168,85,247,0.35) !important;
+}
+/* [v4.71] Light-mode .bt.lit glow. The v4.49/v4.54 light-mode `.bt`
+   override (border-color + box-shadow with !important) has higher
+   specificity than `.bt.lit` — body.light-mode .bt = (0,2,1) beats
+   .bt.lit = (0,2,0) — so when a cell is selected in light mode the
+   candidate bank tiles lost their selection glow entirely (the
+   override clobbered it). This rule restores the glow with a
+   higher-specificity selector. Uses the light-mode selected-cell
+   purple (#7c3aed) to match the cell highlight color, so tapping a
+   blank cell glows the bank tiles in the same purple the cell
+   turned — same behavior as dark mode's magenta. */
+body.light-mode .bt.lit{
+  border:1.5px solid #7c3aed !important;
+  box-shadow:0 0 4px rgba(124,58,237,0.22) inset,
+             0 0 4px 1px rgba(124,58,237,0.55),
+             0 0 9px 0 rgba(124,58,237,0.40) !important;
 }
 .bot{width:100%;max-width:520px;padding:7px 12px 16px;display:flex;gap:8px;border-top:1px solid rgba(0,217,255,0.3);flex-shrink:0;background:var(--bg);}
 
@@ -9430,9 +9977,25 @@ body.menu-active .tile-controls-row{ display:none!important; }
   35%  { transform: scale(1.25) rotate(20deg);  opacity: 1; filter: brightness(1.6); }
   100% { transform: scale(0.4)  rotate(180deg); opacity: 0; filter: brightness(2.2); }
 }
+/* [v4.77] Light-mode burst keyframe. The dark-mode keyframe ramps
+   filter:brightness up to 2.2, which on the DARK tile background reads
+   as a nice glow. But in light mode the tile background is cream
+   (var(--bg-secondary)), and brightness(2.2) blows that out to near-
+   white — Sam saw the bursting tiles turn white. This variant drops
+   the brightness ramp (stays at 1) so the tile keeps its normal cream
+   background through the burst, matching how dark mode keeps its look.
+   Transform/opacity (the actual pop motion + fade) are identical. */
+@keyframes btBurstLight {
+  0%   { transform: scale(1)    rotate(0deg);   opacity: 1; }
+  35%  { transform: scale(1.25) rotate(20deg);  opacity: 1; }
+  100% { transform: scale(0.4)  rotate(180deg); opacity: 0; }
+}
 .bt.bursting {
   animation: btBurst 0.35s cubic-bezier(0.45, 0, 0.55, 1) forwards;
   pointer-events: none;
+}
+body.light-mode .bt.bursting {
+  animation: btBurstLight 0.35s cubic-bezier(0.45, 0, 0.55, 1) forwards;
 }
 /* [v2.85] Updated to compose with the centering translate from the
    .wcard rule (translate(-50%,-50%) is what positions the card on
@@ -9949,7 +10512,7 @@ window.onerror=function(msg,src,line,col,err){
     <div class="sel-label">Difficulty</div>
     <div class="sel-row">
       <button class="sel-btn" data-diff="easy">Easy<small>+ and −</small></button>
-      <button class="sel-btn on" data-diff="medium">Medium<small>+ − × /</small></button>
+      <button class="sel-btn on" data-diff="medium">Less Easy<small>+ − × /</small></button>
       <button class="sel-btn" data-diff="hard">Hard<small>More blanks</small></button>
     </div>
   </div>
@@ -9979,7 +10542,7 @@ window.onerror=function(msg,src,line,col,err){
        go nearly fully semi-circular like Play does. -->
   <div class="sel-cta-row"><button class="sel-play" id="playBtn"><span class="play-row"><span class="play-tri">▶</span><span class="play-stack"><span class="play-main">PLAY</span><span class="play-divider"></span><span class="play-resume" id="playResumeLbl">RESUME</span></span></span></button></div>
   <div class="sel-cta-row"><button id="statsBtn" style="margin-top:10px;width:auto;padding:10px 28px;background:transparent;border:1.5px solid rgba(0,217,255,0.4);border-radius:18px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;font-weight:700;">📊 Stats</button></div>
-  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v4.62</div>
+  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v4.77</div>
 </div>
 
 <!-- GAME SCREEN -->
@@ -10045,10 +10608,19 @@ window.onerror=function(msg,src,line,col,err){
         <span id="mastTimer">0:00</span>
       </span>
     </div>
-    <div style="flex:1;display:flex;justify-content:flex-end;align-items:center;">
+    <div style="flex:1;display:flex;justify-content:flex-end;align-items:center;gap:8px;">
       <span id="mastMistakesWrap" style="display:none;align-items:center;gap:6px;color:#ff6b6b;">
         <span><span id="mastMistakes">0</span> ✕</span>
       </span>
+      <!-- [v4.65] Theme toggle relocated here from the toolbar row
+           below the bank. Now lives at the right end of the timer
+           row, opposite the moves count. Same pill styling.
+           Original location got crowded with UNDO/template/DEV; this
+           spot is naturally adjacent to other status info (timer,
+           mistakes). -->
+      <button id="themeToggle" title="Toggle light/dark theme" style="background:rgba(0,217,255,0.12);border:1.5px solid rgba(0,217,255,0.55);color:rgba(0,217,255,0.95);font:13px/1 'IBM Plex Mono',monospace;padding:3px 8px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:opacity 0.15s ease,background 0.15s ease,border-color 0.15s ease,color 0.15s ease;min-width:28px;line-height:1;">
+        <span id="themeToggleIcon" style="line-height:1;font-size:13px;">☀</span>
+      </button>
     </div>
   </div>
   <!-- [v3.84] Ghost-runner bar. Only visible in chalant mode when a
@@ -10177,20 +10749,16 @@ window.onerror=function(msg,src,line,col,err){
       <button id="undo" title="Undo last placement" style="background:rgba(0,217,255,0.12);border:1.5px solid rgba(0,217,255,0.55);color:rgba(0,217,255,0.95);font:11px/1 'IBM Plex Mono',monospace;font-weight:700;letter-spacing:1px;padding:6px 12px;border-radius:999px;cursor:pointer;display:flex;align-items:center;gap:5px;transition:opacity 0.15s ease,background 0.15s ease;">
         <span style="font-size:13px;line-height:1;">↶</span><span>UNDO</span>
       </button>
-      <span id="_dbgTplLabel"></span>
     </div>
-    <!-- [v4.48] Theme toggle button. Centered in this toolbar row,
-         sits between the left UNDO group and the right TIMES/COUNTS
-         group. Shows the icon for what tapping it WILL DO:
-           - In dark mode: sun icon (tap → light)
-           - In light mode: moon icon (tap → dark)
-         The pill styling matches UNDO so the row reads as a coherent
-         control strip. Click fires playUIClick(). Persistence: see
-         _toggleTheme handler. -->
-    <button id="themeToggle" title="Toggle light/dark theme" style="background:rgba(0,217,255,0.12);border:1.5px solid rgba(0,217,255,0.55);color:rgba(0,217,255,0.95);font:13px/1 'IBM Plex Mono',monospace;padding:5px 10px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:opacity 0.15s ease,background 0.15s ease,border-color 0.15s ease,color 0.15s ease;min-width:34px;">
-      <span id="themeToggleIcon" style="line-height:1;font-size:14px;">☀</span>
-    </button>
-    <div style="display:flex;gap:6px;">
+    <!-- [v4.65] Theme toggle moved out of this toolbar row to the
+         right of the timer (inside the masthead). See themeToggle
+         markup inside the mast-center block above. -->
+    <!-- [v4.65] Template label moved here from beside UNDO. Sits to
+         the left of the DEV button so the dev-side controls
+         (template name, DEV opener) cluster together while the
+         left-side controls (UNDO) stay alone. -->
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span id="_dbgTplLabel"></span>
       <!-- [v4.60] Single DEV button replacing the v3.35-era TIMES +
            COUNTS pair. Opens the new dev tools panel which contains
            the Times/Counts launchers along with the dev-side
@@ -13592,13 +14160,61 @@ var TX2_sq_D=[
   {id:'v2_4',dir:'v',c:2,r:4,xl:true}
 ];
 
+// [v4.74] NEW COMPACT JUMBO TEMPLATES.
+// The old TX2_sq_A..D (above) are a ~29×27 footprint with 54 seven-cell
+// equations — far too big and tedious; nobody enjoyed a puzzle that
+// massive. They stay DEFINED here (per "never remove underlying code")
+// but are no longer pooled. The new templates keep the distinctive
+// 7-cell "A op1 B op2 C = D" format that makes Jumbo feel different
+// from Large, just at a far more reasonable size.
+//
+// TXN_A: 20 equations, 25 crossings (density 1.25 — in line with the
+// original's 1.07 and well below the danger zone that caused values-gen
+// failures), 13×19 footprint. Structure: 5 horizontal rows (0,4,8,12,16),
+// each with a left equation (cols 0-6) and a right equation (cols 6-12)
+// sharing col 6 — that shared endpoint is what ties the left and right
+// halves into one connected component. Vertical equations thread down
+// through the rows (each crosses 2 H rows) and the col-4/col-8 verticals
+// bridge the top, middle, and bottom row-bands so the whole mesh is
+// connected. Validated offline (validate_tpl.js): ok=true, no cell-type
+// collisions, connectivity PASS. Still needs in-game generation
+// confirmation (watch the template label for a "from xl2/..." fallback
+// warning, which would mean genNumsXL couldn't satisfy the crossings).
+var TXN_A=[
+  {id:'L0',dir:'h',c:0,r:0,xl:true},
+  {id:'R0',dir:'h',c:6,r:0,xl:true},
+  {id:'L4',dir:'h',c:0,r:4,xl:true},
+  {id:'R4',dir:'h',c:6,r:4,xl:true},
+  {id:'L8',dir:'h',c:0,r:8,xl:true},
+  {id:'R8',dir:'h',c:6,r:8,xl:true},
+  {id:'L12',dir:'h',c:0,r:12,xl:true},
+  {id:'R12',dir:'h',c:6,r:12,xl:true},
+  {id:'L16',dir:'h',c:0,r:16,xl:true},
+  {id:'R16',dir:'h',c:6,r:16,xl:true},
+  {id:'v0_a',dir:'v',c:0,r:0,xl:true},
+  {id:'v12_a',dir:'v',c:12,r:0,xl:true},
+  {id:'v10_a',dir:'v',c:10,r:0,xl:true},
+  {id:'v4_b',dir:'v',c:4,r:4,xl:true},
+  {id:'v8_b',dir:'v',c:8,r:4,xl:true},
+  {id:'v0_c',dir:'v',c:0,r:8,xl:true},
+  {id:'v12_c',dir:'v',c:12,r:8,xl:true},
+  {id:'v2_c',dir:'v',c:2,r:8,xl:true},
+  {id:'v4_d',dir:'v',c:4,r:12,xl:true},
+  {id:'v8_d',dir:'v',c:8,r:12,xl:true}
+];
+
 // [v3.00] TX2_sq pool unchanged. TH_final and TI_stair are 28-eq
 // compounds that fit Jumbo by workload but their 17×11 / 17×17
 // footprints render with awkwardly small cells under xl2-mode's
 // max cell size of 26px — they'd float in a half-empty container.
 // They stay defined in the code (above) but unpooled, awaiting
 // either a UI mode that suits them or removal in a later version.
-var TMPL_XL2=[TX2_sq_A,TX2_sq_B,TX2_sq_C,TX2_sq_D];
+// [v4.74] Pool now points at the new compact template(s). Only TXN_A
+// for this build so the new size can be eyeballed on-device before
+// the B/C/D variety templates are added. The old TX2_sq_A..D remain
+// defined above but unpooled.
+var TMPL_XL2=[TXN_A];
+var TMPL_XL2_OLD=[TX2_sq_A,TX2_sq_B,TX2_sq_C,TX2_sq_D];
 
 // ═══════════════════════════════════════════════════════════
 // NUMBER GENERATION
@@ -15084,6 +15700,28 @@ function sizeLabel(s){
   }
 }
 window.sizeLabel = sizeLabel;
+
+// [v4.63] Difficulty label helper. The internal DIFF values stay
+// 'easy' / 'medium' / 'hard' so every persisted stat key, template
+// pool reference, and localStorage record continues to resolve to
+// the same buckets. Only the display labels change to avoid the
+// "MEDIUM" collision between size and difficulty in the masthead
+// subtitle.
+// [v4.64] Per Sam: BEGINNER/INTERMEDIATE/ADVANCED was too long —
+// "Intermediate" felt crammed in the menu button. Switched to
+// EASY / LESS EASY / HARD which keeps the visual symmetry (Easy
+// and Hard are similar length on the ends, Less Easy fits in the
+// middle with room to breathe). Avoids the original two-MEDIUMs
+// problem since the masthead now reads e.g. "SMALL · LESS EASY".
+function diffLabel(d){
+  switch(d){
+    case 'easy':   return 'EASY';
+    case 'medium': return 'LESS EASY';
+    case 'hard':   return 'HARD';
+    default:       return (d||'').toUpperCase();
+  }
+}
+window.diffLabel = diffLabel;
 
 // ═══════════════════════════════════════════════════════════
 // BUILD PUZZLE
@@ -17420,8 +18058,10 @@ window._mc113 = (function(){
     } else {
       // [v2.69] sizeLabel() so 'xl2' shows as 'JUMBO' in shared
       // results. Falls back to upper-cased raw key for unknown sizes.
+      // [v4.63] diffLabel() so 'medium' shows as 'INTERMEDIATE' etc.
       var sLbl=(window.sizeLabel?window.sizeLabel(size):size.toUpperCase());
-      head='Equil '+sLbl+' '+(diff.toUpperCase())+' — '+fmtTime(ms);
+      var dLbl=(window.diffLabel?window.diffLabel(diff):diff.toUpperCase());
+      head='Equil '+sLbl+' '+dLbl+' — '+fmtTime(ms);
     }
     var tail=movesCount+' moves';
     // [v2.68] Append mistake count to share line. A clean run gets a
@@ -17702,8 +18342,9 @@ function newPuzzle(){
   // a daily puzzle via the "Next Puzzle" button.
   // [v2.69] Use sizeLabel() so 'xl2' renders as 'JUMBO'.
   // [v3.86/v3.89] Size · Difficulty order matches menu selection.
+  // [v4.63] diffLabel() so 'medium' renders as 'INTERMEDIATE'.
   var mi=document.getElementById('mastInfo');
-  if(mi) mi.textContent=sizeLabel(SIZE)+' · '+DIFF.toUpperCase();
+  if(mi) mi.textContent=sizeLabel(SIZE)+' · '+diffLabel(DIFF);
   document.getElementById('win').classList.remove('show');
   if(window._resetGridZoom)_resetGridZoom();render();
   // [v3.89] Re-init the ghost-runner bar for the new puzzle. Without
@@ -17753,7 +18394,19 @@ function selCell(k){
         // a tap. Bank tiles still close any prior selection via the
         // normal place() flow, so this only changes the post-return
         // state, not subsequent interactions.
-        SEL=k;
+        // [v4.67] Split by workflow. When drag-tiles is ON, clear SEL
+        // after a return — the next gesture is almost always a tap-
+        // and-drag from the bank, and if the cell stays selected, the
+        // bank tap auto-places into that cell instead of beginning a
+        // drag, which feels like a stuck cursor. When drag-tiles is
+        // OFF, the v2.74 rationale still holds: pre-selecting saves a
+        // tap for the tap-to-place workflow that doesn't have a drag
+        // mode at all.
+        if(window._dragTilesEnabled === true){
+          SEL = null;
+        } else {
+          SEL = k;
+        }
         render();
         return;
       }
@@ -18129,6 +18782,14 @@ window._computeMiniGrid = function(miniCount, tileSize, tileFontSize, whiteZone,
 };
 
 function renderBank(){
+  // [v4.75] Preserve page scroll across the bank rebuild. The bank
+  // display-toggle buttons (condense, xN, cyan, mini, etc.) call
+  // renderBank() directly — not through render() — and clearing
+  // #bank with innerHTML='' then rebuilding can shift the page scroll
+  // on tall puzzles where the page is scrolled. Capture here and
+  // restore at the end. When called from within render(), this is
+  // redundant with render's own guard but harmless (same value).
+  var _bankScrollY = window.scrollY;
   // Bank tiles — already sorted ascending from buildPuzzle
   var be=document.getElementById('bank');be.innerHTML='';
   // v8.84 — keep the condense-tiles toggle visible only in puzzle mode.
@@ -20137,6 +20798,10 @@ function renderBank(){
   // Re-apply the multi-hit quads grid overlay if quads is on, since
   // tile rebuild wipes child elements.
   if(window._refreshQuadOverlays) window._refreshQuadOverlays();
+  // [v4.75] Restore page scroll captured at the top of renderBank.
+  if(window.scrollY !== _bankScrollY){
+    window.scrollTo(0, _bankScrollY);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -20463,6 +21128,18 @@ function _updateBorderAnimProgress(){ /* no-op */ }
 function _removeBorderAnim(){ /* no-op */ }
 function render(){
   if(!PZ)return;
+  // [v4.75] Preserve page scroll across the whole render. render() does
+  // grid.innerHTML='' then rebuilds the cells; on tall puzzles (Jumbo/
+  // Large) where the PAGE scrolls, the grid momentarily collapses to
+  // zero height, the browser clamps the page scroll to the smaller max
+  // (snapping to the top), and the position isn't restored when the
+  // height returns. EVERY action that re-renders hits this: tapping a
+  // cell, placing a bank tile, undo, the bank-display toggle buttons.
+  // Capturing scrollY here and restoring it at the end of render covers
+  // all of them in one place. The rebuild is synchronous, so by the end
+  // of render the grid height is back and the restore lands correctly.
+  // _renderScrollY is read again at the bottom of this function.
+  var _renderScrollY = window.scrollY;
   var cols=PZ.cols,rows=PZ.rows,CM=PZ.CM,tmpl=PZ.tmpl;
   var CS=getCellSize(cols);
   var FS=Math.max(10,Math.min(16,Math.round(CS*0.46)));
@@ -20960,9 +21637,14 @@ function render(){
   }
 
   renderBank();
+  // [v4.75] Restore page scroll captured at the top of render. Both
+  // grid and bank have been rebuilt at full height by now, so the
+  // restore lands at the user's original position. No-op if nothing
+  // moved the scroll.
+  if(window.scrollY !== _renderScrollY){
+    window.scrollTo(0, _renderScrollY);
+  }
 }
-// [v4.46] Exposed so _applyTuning (in the options IIFE) can trigger
-// a re-render when legibility toggles change without crossing scope.
 window.render = render;
 
 
@@ -21268,7 +21950,8 @@ function showGame(opts){
   // [v3.86] sizeLabel() routing — 'xl2' shows as 'JUMBO' here.
   // Size · Difficulty order matches the menu selection layout
   // (puzzle size row above difficulty row).
-  var infoText=sizeLabel(SIZE)+' · '+DIFF.toUpperCase();
+  // [v4.63] diffLabel() so 'medium' renders as 'INTERMEDIATE'.
+  var infoText=sizeLabel(SIZE)+' · '+diffLabel(DIFF);
   if(opts.daily) infoText='★ DAILY · '+infoText;
   document.getElementById('mastInfo').textContent=infoText;
   document.getElementById('win').classList.remove('show');
@@ -22747,6 +23430,18 @@ if(document.readyState==='loading'){
     }
     _paintCondBtn();
     function _toggleCondense(){
+      // [v4.76] Preserve page scroll across the WHOLE toggle operation.
+      // This toggle changes TILE_SCALE/TILE_GAP via applyPctH/applyGapPct
+      // (which resize the bank and call renderBank internally) and then
+      // calls renderBank again. Each individual renderBank restores its
+      // own scroll, but the slider/resize steps in between change the
+      // bank's height, shifting the page's max scroll and snapping to
+      // top OUTSIDE any single renderBank's guarded window. Capturing
+      // once here and restoring after everything settles fixes it. A
+      // double-rAF restore catches any async layout/resize that lands
+      // after the synchronous work (the bank resize can reflow on the
+      // next frame).
+      var _condScrollY = window.scrollY;
       var turningOn = !window._condensePuzzleTiles;
       // v8.85: when entering condensed mode, save the user's current
       // slider values then snap to max size + zero gap (best layout for
@@ -22814,6 +23509,11 @@ if(document.readyState==='loading'){
       // Re-render the bank to apply collapse/uncollapse — applyPctH
       // already does this but call again to be sure ordering is right.
       renderBank();
+      // [v4.76] Restore scroll now and again on the next two frames to
+      // catch any async bank reflow from the resize.
+      var _restore = function(){ if(window.scrollY !== _condScrollY) window.scrollTo(0, _condScrollY); };
+      _restore();
+      requestAnimationFrame(function(){ _restore(); requestAnimationFrame(_restore); });
     }
     condBtn.addEventListener('click', function(e){ e.stopPropagation(); _toggleCondense(); });
     condBtn.addEventListener('touchend', function(e){ e.stopPropagation(); }, {passive:true});
@@ -22876,6 +23576,8 @@ if(document.readyState==='loading'){
     // mini off, and vice versa.
     window._paintMiniBtn = _paintMiniBtn;
     function _toggleMini(){
+      // [v4.76] Same whole-operation scroll guard as _toggleCondense.
+      var _miniScrollY = window.scrollY;
       var turningOn = !window._miniPuzzleTiles;
       if(turningOn){
         // Snap sliders to max size + zero gap, same as xN mode.
@@ -22925,6 +23627,10 @@ if(document.readyState==='loading'){
         _drawVertPair(cvGap, hcvGap, gapPct2/100);
       }
       renderBank();
+      // [v4.76] Restore scroll across the resize (now + next two frames).
+      var _restoreM = function(){ if(window.scrollY !== _miniScrollY) window.scrollTo(0, _miniScrollY); };
+      _restoreM();
+      requestAnimationFrame(function(){ _restoreM(); requestAnimationFrame(_restoreM); });
     }
     miniBtn.addEventListener('click', function(e){ e.stopPropagation(); _toggleMini(); });
     miniBtn.addEventListener('touchend', function(e){ e.stopPropagation(); }, {passive:true});
@@ -22989,6 +23695,8 @@ if(document.readyState==='loading'){
     _paintCyanBtn();
     window._paintCyanBtn = _paintCyanBtn;
     function _toggleCyan(){
+      // [v4.76] Same whole-operation scroll guard as _toggleCondense.
+      var _cyanScrollY = window.scrollY;
       var turningOn = !window._allCyanPuzzleTiles;
       if(turningOn){
         // Snap sliders to max size + zero gap, same as the other modes.
@@ -23041,6 +23749,10 @@ if(document.readyState==='loading'){
         _drawVertPair(cvGap, hcvGap, gapPct2/100);
       }
       renderBank();
+      // [v4.76] Restore scroll across the resize (now + next two frames).
+      var _restoreC = function(){ if(window.scrollY !== _cyanScrollY) window.scrollTo(0, _cyanScrollY); };
+      _restoreC();
+      requestAnimationFrame(function(){ _restoreC(); requestAnimationFrame(_restoreC); });
     }
     cyanBtn.addEventListener('click', function(e){ e.stopPropagation(); _toggleCyan(); });
     cyanBtn.addEventListener('touchend', function(e){ e.stopPropagation(); }, {passive:true});
@@ -24006,7 +24718,16 @@ if(document.readyState==='loading'){
   // ── Drag-to-place tunables ──
   var DRAG_THRESHOLD = 8;     // px — finger must move this far to start drag
   var GHOST_OPACITY = 0.85;
-  var FINGER_OFFSET_Y = 48;   // ghost sits this many px above fingertip
+  var FINGER_OFFSET_Y = 72;   // ghost sits this many px above fingertip
+  // [v4.70] Bumped 48 → 72 (+24px ≈ half a tile width) per Sam: the
+  // ghost still sometimes ended up partly under the fingertip. The
+  // larger lift keeps the tile clearly visible above the finger.
+  // NOTE: this offset is used in three places that must stay in
+  // sync — ghost initial position (_createGhost), the live magnet
+  // origin (my = fy - FINGER_OFFSET_Y), and the release-time grace +
+  // elementFromPoint checks (_onTouchEnd). All reference this single
+  // constant so bumping it here shifts every position-aware path
+  // together.
   // [v2.32] Simplified magnet: pure proximity, no push-off, no
   // directional bias, no ignored set. Ghost locks to a cell only
   // when the magnet origin is within LOCK_RANGE_CELLS of that
@@ -24017,6 +24738,23 @@ if(document.readyState==='loading'){
   // be on the cell." Live-tunable via window._equilLockRange.
   window._equilLockRange = window._equilLockRange || {
     cells: 0.7   // lock radius in multiples of cell width
+  };
+  // [v4.68] Drop-grace range. Separate from the live lock range above.
+  // The live magnet has to be strict — if it engaged too easily during
+  // fast drags, the ghost would dance between cells. So the live lock
+  // is gated by both proximity AND velocity (see _equilDragMagnet
+  // below). The release-time grace check has no velocity gate: when
+  // the user lifts their finger, we look at where it landed and find
+  // the nearest blank cell within this radius (in cell-widths). If
+  // it's close enough, place the tile there even if the live magnet
+  // never engaged. Generous default (1.1) so a release that's
+  // slightly short of the target still snaps — common when the user
+  // moves quickly and lifts before the velocity smoother settles.
+  // The existing 110ms ghost-slide animation in _onTouchEnd plays
+  // from the release position to the cell center, so the snap looks
+  // like the ghost being "sucked in" rather than teleported.
+  window._equilDropGrace = window._equilDropGrace || {
+    cells: 1.1   // grace radius in multiples of cell width
   };
   var SNAPPED_FILL = 1.5;     // snapped ghost = 1.5 × cell width
   var MAGNET_BASE_SCALE = 1.05; // ghost's natural size at finger
@@ -24067,6 +24805,16 @@ if(document.readyState==='loading'){
       var k = n.dataset.cellKey;
       var cell = pz.CM[k];
       if(!cell || !cell.isBlank) continue;
+      // [v4.69] Skip blank cells that already have a placed value.
+      // Per Sam: magnet shouldn't snap onto cells that are filled
+      // (even though the cell type is "blank" in the data model —
+      // means "user-fillable slot"). Sliding the ghost slowly past
+      // a placed-and-pulsing cell shouldn't pull it in. Users who
+      // want to swap a value tap the cell to return it to the bank
+      // first, then drag the new tile in. The cache is rebuilt on
+      // each drag start so a returned-then-dragged sequence sees
+      // the cell as empty again on the next drag.
+      if(cell.value != null) continue;
       var r = n.getBoundingClientRect();
       if(r.width === 0 || r.height === 0) continue; // hidden
       cells.push({
@@ -24129,6 +24877,15 @@ if(document.readyState==='loading'){
     // so the ghost reads as "a tile" without inheriting all the
     // tile's child structure.
     var borderRadius = Math.max(2, Math.min(8, Math.round(initW * 0.15)));
+    // [v4.73] Theme-aware drag glow. Bright cyan (0,217,255) reads
+    // well on the dark board but is too light/washed on cream. Light
+    // mode uses a deeper teal-cyan (14,116,144) — the same family as
+    // the rest of the light-mode cyan palette — so the glow is
+    // visible against the parchment background.
+    var _ghostLight = (window._lightModeOn === true);
+    var _ghostGlow = _ghostLight
+      ? 'box-shadow:0 0 10px rgba(14,116,144,0.50),0 4px 10px rgba(42,36,24,0.25);'
+      : 'box-shadow:0 0 10px rgba(0,217,255,0.45),0 4px 10px rgba(0,0,0,0.35);';
     ghost.style.cssText =
       'position:fixed;'+
       'left:'+initLeft+'px;'+
@@ -24146,16 +24903,22 @@ if(document.readyState==='loading'){
       'z-index:9999;'+
       'opacity:0;'+
       'transition:none;'+
-      'box-shadow:0 0 12px rgba(168,85,247,0.6),0 4px 12px rgba(0,0,0,0.5);';
+      // [v4.72/v4.73] Drag ghost glow — theme-aware (see _ghostGlow
+      // above). Light cyan on dark; deeper teal-cyan on cream.
+      _ghostGlow;
 
     var span = document.createElement('span');
     span.textContent = val;
+    // [v4.69] Solid text instead of hollow outline. Per Sam: "keep
+    // it the same black text the whole time." The previous look
+    // (color:transparent with -webkit-text-stroke for an outline-
+    // only number) was a leftover from an earlier visual experiment.
+    // Match the bank tile's solid number color via the same
+    // var(--text-primary) the bank tile resolves to in each theme.
     span.style.cssText =
       'font-family:"IBM Plex Mono",monospace;'+
       'font-weight:700;'+
-      'color:transparent;'+
-      '-webkit-text-stroke:0.5px '+numberColor+';'+
-      'text-stroke:0.5px '+numberColor+';'+
+      'color:'+numberColor+';'+
       'line-height:1;'+
       'pointer-events:none;'+
       // Initial font size — overwritten by _setGhostTransform on
@@ -24519,23 +25282,78 @@ if(document.readyState==='loading'){
     var dropped = false;
     var dropCell = _state.lockedCell; // the magnet-locked cell, if any
 
-    // Fall back to elementFromPoint at finger position if magnet
-    // wasn't locked (covers edge cases where user releases right
-    // outside the magnet range but still on a cell, or the cache
-    // is stale/empty).
+    // Fall back to elementFromPoint at the GHOST/TILE position if
+    // the magnet wasn't locked (covers releases right outside the
+    // magnet range but still on a cell, or a stale/empty cache).
+    // [v4.70] Hit-test at the tile position (finger Y minus
+    // FINGER_OFFSET_Y), not the raw finger position — same reason
+    // as the grace check: the user aims with the visible tile, which
+    // floats above the finger.
     if(!dropCell){
       var t = (e.changedTouches && e.changedTouches[0]) || null;
       if(t){
-        var hitEl = _findCellAt(t.clientX, t.clientY);
+        var hitEl = _findCellAt(t.clientX, t.clientY - FINGER_OFFSET_Y);
         if(hitEl){
           var k = hitEl.dataset.cellKey;
           var pz = (typeof PZ !== 'undefined') ? PZ : window.PZ;
           var c = (pz && pz.CM) ? pz.CM[k] : null;
-          if(c && c.isBlank){
+          // [v4.69] Also skip filled cells here — mirrors the cache
+          // filter so the elementFromPoint path can't accidentally
+          // place onto a filled cell when the cache path wouldn't.
+          if(c && c.isBlank && c.value == null){
             dropCell = {el: hitEl, key: k,
               cx: hitEl.getBoundingClientRect().left + hitEl.getBoundingClientRect().width/2,
               cy: hitEl.getBoundingClientRect().top + hitEl.getBoundingClientRect().height/2};
           }
+        }
+      }
+    }
+
+    // [v4.68] Release-time grace check. If the magnet never locked AND
+    // the finger wasn't literally on a blank cell at release, search
+    // the cell cache for the NEAREST blank cell within the grace
+    // radius (window._equilDropGrace.cells × cellWidth). The live
+    // magnet has a velocity gate so a fast drag never locks until
+    // the finger slows; users releasing before that gate clears get
+    // their tile sent back to the bank, which feels wrong when they
+    // visibly aimed at a cell. This grace path catches "you released
+    // close enough — I know where you meant" without weakening the
+    // live magnet's strictness.
+    // [v4.70] Measure from the GHOST/TILE position, not the raw
+    // finger position. The ghost floats FINGER_OFFSET_Y pixels above
+    // the fingertip (so the user can see it past their finger), and
+    // the user aims with the tile they can see — not the finger
+    // they can't. The live magnet already does this (my = fy -
+    // FINGER_OFFSET_Y); the grace check was incorrectly using the
+    // raw finger Y, so it measured ~one offset too low and would
+    // miss the cell the user was clearly aiming at.
+    // Distance: straight-line from ghost center to cell center. Cell
+    // width comes from the cache (widest blank cell at drag start).
+    if(!dropCell && _state.cellCache && _state.cellCache.cells.length){
+      var t2 = (e.changedTouches && e.changedTouches[0]) || null;
+      if(t2){
+        var fx = t2.clientX;
+        var fy = t2.clientY - FINGER_OFFSET_Y; // ghost center, not finger
+        var cw = _state.cellCache.cellWidth || 50;
+        var graceMult = (window._equilDropGrace && typeof window._equilDropGrace.cells === 'number')
+          ? window._equilDropGrace.cells : 1.1;
+        var graceR = cw * graceMult;
+        var graceR2 = graceR * graceR; // squared distance comparison avoids sqrt
+        var bestD2 = Infinity;
+        var bestCell = null;
+        var cells = _state.cellCache.cells;
+        for(var ci=0; ci<cells.length; ci++){
+          var cc = cells[ci];
+          var ddx = fx - cc.cx;
+          var ddy = fy - cc.cy;
+          var d2 = ddx*ddx + ddy*ddy;
+          if(d2 < bestD2 && d2 <= graceR2){
+            bestD2 = d2;
+            bestCell = cc;
+          }
+        }
+        if(bestCell){
+          dropCell = bestCell;
         }
       }
     }
@@ -27333,6 +28151,16 @@ if(winMenuBtn){
     // it after this so the UI reflects the new padding immediately
     // when the user toggles or adjusts these settings.
     window._dragTilesEnabled = (typeof window._optDragTiles==='boolean') ? window._optDragTiles : DEF.dragTiles;
+    // [v4.66] Reflect drag-tiles state on the body element so CSS
+    // can flip `.bt` touch-action between `pan-y` (drag off — touches
+    // on tiles can scroll the page like the rest of the bank) and
+    // `none` (drag on — touches on tiles are owned by the drag
+    // handler and never trigger page panning). Without this, the
+    // browser would start scrolling the moment the user moved their
+    // finger past its built-in scroll threshold (~2-3px), which
+    // happens before our DRAG_THRESHOLD (8px) trips. Result was
+    // "the page scrolls under me while I'm trying to pick up a tile."
+    try{ document.body.classList.toggle('drag-tiles-on', window._dragTilesEnabled === true); }catch(_){}
     window._bankPadWidth     = (typeof window._optBankPadWidth==='number') ? window._optBankPadWidth : DEF.bankPadWidth;
     window._bankPadSide      = (typeof window._optBankPadSide==='string') ? window._optBankPadSide : DEF.bankPadSide;
     // [v2.51] xN spacing tunables — used inside renderBank's xN block
