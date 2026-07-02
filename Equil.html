@@ -1,3 +1,46 @@
+<!-- Equil v4.78 | Built: 2026-05-19 CT | github.com/Spamboni
+     v4.78: Draggable bank divider — slide the bank up over the puzzle
+     on tall layouts.
+
+     PER SAM:
+     "Some kind of indicator on the middle line that divides the puzzle
+      and the tile bank, so you can drag it up or down to pull the
+      number bank up over the puzzle. On big puzzles the bank takes up
+      so much height that the top half of the puzzle is cut off when
+      you're looking at the numbers. Be nice to just drag that divider
+      to slide the bank up to cover the lower portion of the puzzle,
+      and drag it back down."
+
+     APPROACH (per Sam's choices):
+     - Overlay only — bank slides over the grid via CSS transform, grid
+       layout stays put. No reflow, no scroll position changes.
+     - Pill handle with grip lines for the affordance.
+
+     IMPLEMENTATION.
+     New element #bankDragHandle pinned to the top edge of .bank-outer,
+     centered, 64×18 with two short grip lines (::before / ::after).
+     touchstart captures startY + current shift; touchmove updates a
+     --bank-shift-y CSS variable on .bank-outer; .bank-outer has
+     transform:translateY(var(--bank-shift-y,0px)) so the bank visibly
+     slides up while its layout box stays anchored. The grid above
+     keeps its size and scroll position — the bank just floats over it.
+
+     Clamp: 0px (docked) to -60vh (top), so at least 40% of the
+     viewport always shows grid above the bank.
+
+     Visibility (_syncBankHandleVisibility): handle appears only when
+     the page is actually scrollable (scrollHeight > clientHeight + 80).
+     Small/Medium puzzles that fit on one screen don't show it — would
+     be visual noise. Re-checked after each render() so changing puzzle
+     size or display mode updates the affordance.
+
+     New-puzzle reset (_resetBankShift): called from newPuzzle() so
+     the bank docks back to position 0 on every new puzzle.
+
+     Light-mode variant of the handle uses the deep-teal palette;
+     dark-mode uses the cyan glow.
+-->
+
 <!-- Equil v4.77 | Built: 2026-05-19 CT | github.com/Spamboni
      v4.77: Light-mode win-wave tiles keep their cream background
      instead of flashing white.
@@ -9311,7 +9354,42 @@ body.xl2-mode .gscroll::before{ display:block; }
 .bright-bar{display:none;}
 .bright-btn{display:none;}
 
-.bank-outer{width:100%;max-width:520px;border-top:none;background:var(--bg-secondary);flex-shrink:0;display:flex;flex-direction:column;align-items:stretch;touch-action:pan-y;position:relative;}
+.bank-outer{width:100%;max-width:520px;border-top:none;background:var(--bg-secondary);flex-shrink:0;display:flex;flex-direction:column;align-items:stretch;touch-action:pan-y;position:relative;transform:translateY(var(--bank-shift-y,0px));will-change:transform;}
+/* [v4.78] Drag handle to slide the bank up over the puzzle on tall
+   layouts (Large/Jumbo). The handle sits centered on bank-outer's top
+   edge, half above the bank's border so users can grab it without
+   accidentally tapping a tile. The "grip" lines are two short dashes
+   inside the pill — quick visual cue that it's a drag affordance.
+   z-index:5 puts it above the gscroll dividers but below modals.
+   touch-action:none so the browser doesn't pan the page when the
+   user starts dragging the handle. .bank-outer's transform slides
+   the whole bank up while keeping the grid's layout untouched (the
+   grid stays in place, the bank's pixels just overlap it). The shift
+   amount is held in --bank-shift-y on the .bank-outer element. */
+.bank-drag-handle{
+  position:absolute; left:50%; top:-8px; transform:translateX(-50%);
+  width:64px; height:18px; border-radius:999px;
+  background:var(--bg-tertiary,#222);
+  border:1.5px solid rgba(0,217,255,0.55);
+  box-shadow:0 0 6px rgba(0,217,255,0.25);
+  cursor:grab; touch-action:none; z-index:5;
+  display:none; /* shown only when grid is tall enough — see _syncBankHandleVisibility */
+  align-items:center; justify-content:center; gap:4px;
+  user-select:none; -webkit-user-select:none;
+}
+.bank-drag-handle:active{ cursor:grabbing; }
+.bank-drag-handle::before, .bank-drag-handle::after{
+  content:''; width:14px; height:2px; border-radius:1px;
+  background:rgba(0,217,255,0.7);
+}
+body.light-mode .bank-drag-handle{
+  border-color:rgba(14,116,144,0.65);
+  box-shadow:0 0 6px rgba(42,36,24,0.10);
+}
+body.light-mode .bank-drag-handle::before,
+body.light-mode .bank-drag-handle::after{
+  background:rgba(14,116,144,0.75);
+}
 .seq-toolbar{width:100%;display:none;flex-direction:column;align-items:stretch;background:var(--bg-tertiary);border-bottom:1px solid rgba(0,217,255,0.12);border-top:1px solid rgba(0,217,255,0.12);padding:4px 6px;gap:3px;box-sizing:border-box;flex-shrink:0;}
 .seq-toolbar-row{display:flex;flex-direction:row;align-items:center;gap:3px;flex-wrap:wrap;overflow:hidden;}
 .seq-toolbar.active{display:flex;}
@@ -10542,7 +10620,7 @@ window.onerror=function(msg,src,line,col,err){
        go nearly fully semi-circular like Play does. -->
   <div class="sel-cta-row"><button class="sel-play" id="playBtn"><span class="play-row"><span class="play-tri">▶</span><span class="play-stack"><span class="play-main">PLAY</span><span class="play-divider"></span><span class="play-resume" id="playResumeLbl">RESUME</span></span></span></button></div>
   <div class="sel-cta-row"><button id="statsBtn" style="margin-top:10px;width:auto;padding:10px 28px;background:transparent;border:1.5px solid rgba(0,217,255,0.4);border-radius:18px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;font-weight:700;">📊 Stats</button></div>
-  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v4.77</div>
+  <div id="_seqVersionTag" style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:rgba(0,217,255,0.55);letter-spacing:3px;text-align:center;font-weight:700;">v4.78</div>
 </div>
 
 <!-- GAME SCREEN -->
@@ -10892,6 +10970,11 @@ window.onerror=function(msg,src,line,col,err){
   </div>
 
   <div class="bank-outer">
+    <!-- [v4.78] Drag handle for sliding the bank up over the puzzle.
+         Visible only on tall puzzles (Large/Jumbo, controlled by the
+         _syncBankHandleVisibility helper). The two grip lines are
+         pseudo-elements on the handle (::before / ::after). -->
+    <div class="bank-drag-handle" id="bankDragHandle" title="Drag to slide bank up over puzzle"></div>
     <!-- PAD TOOLS slim panel (SEQ mode only) -->
     <div class="slim-panel collapsed" id="padToolsSlimPanel" style="display:none;">
       <div class="slim-panel-bar" id="padToolsBar"><button class="slim-panel-bar-arrow" id="padToolsArrow">▲</button><span>TOOLBAR</span></div>
@@ -18325,6 +18408,9 @@ window._padGlowScale=function(){
 function newPuzzle(){
   resumeAC();playNewGame();
   PZ=buildPuzzle(SIZE,DIFF);SEL=null;HIST=[];
+  // [v4.78] Reset any bank slide-up shift carried over from the prior
+  // puzzle. New puzzle = fresh dock position.
+  if(window._resetBankShift) window._resetBankShift();
   // [v3.18] DEBUG: update the template label after build.
   _updateDbgTplLabel();
   // [v3.32] Record this puzzle's metrics for running averages.
@@ -21643,6 +21729,13 @@ function render(){
   // moved the scroll.
   if(window.scrollY !== _renderScrollY){
     window.scrollTo(0, _renderScrollY);
+  }
+  // [v4.78] After the grid is rebuilt, the page's scrollable height
+  // may have changed (different puzzle size). Re-evaluate whether the
+  // bank drag handle should appear, on the next frame so layout has
+  // settled.
+  if(window._syncBankHandleVisibility){
+    requestAnimationFrame(window._syncBankHandleVisibility);
   }
 }
 window.render = render;
@@ -29542,6 +29635,104 @@ if(winMenuBtn){
     document.addEventListener('DOMContentLoaded', _initTheme);
   } else {
     _initTheme();
+  }
+})();
+
+// ═══════════════════════════════════════════════════════════
+// [v4.78] BANK DRAG HANDLE
+// ═══════════════════════════════════════════════════════════
+// Lets the user slide the bank up over the puzzle on tall layouts
+// (Large/Jumbo). The bank's transform is driven by a CSS variable
+// --bank-shift-y set on .bank-outer:
+//   shift = 0   → bank docked at its natural position
+//   shift < 0   → bank pulled up, overlapping the grid above it
+// The grid itself never moves; transform doesn't affect layout, so the
+// grid's scroll position and click targets stay put. The bank just
+// floats up over the grid's bottom portion.
+//
+// Visibility: handle hidden until the page is actually scrollable
+// (document.scrollingElement.scrollHeight > clientHeight + a small
+// margin). Sized puzzles that fit on one screen don't need the
+// affordance and showing it would be visual noise.
+(function bankDragHandleIIFE(){
+  function init(){
+    var handle = document.getElementById('bankDragHandle');
+    var bank   = document.querySelector('.bank-outer');
+    if(!handle || !bank) return;
+    var dragging = false;
+    var startY = 0;
+    var startShift = 0;
+    function currentShift(){
+      var v = bank.style.getPropertyValue('--bank-shift-y') || '0px';
+      return parseFloat(v) || 0;
+    }
+    function setShift(px){
+      // Clamp: 0 (docked) at the bottom, -60vh at the top — keeps at
+      // least 40% of the viewport showing grid above the bank.
+      var maxUp = -Math.round(window.innerHeight * 0.6);
+      if(px > 0) px = 0;
+      if(px < maxUp) px = maxUp;
+      bank.style.setProperty('--bank-shift-y', px+'px');
+    }
+    function onStart(clientY){
+      dragging = true;
+      startY = clientY;
+      startShift = currentShift();
+      handle.style.cursor = 'grabbing';
+    }
+    function onMove(clientY){
+      if(!dragging) return;
+      var dy = clientY - startY;
+      setShift(startShift + dy);
+    }
+    function onEnd(){
+      if(!dragging) return;
+      dragging = false;
+      handle.style.cursor = 'grab';
+    }
+    handle.addEventListener('touchstart', function(e){
+      if(!e.touches.length) return;
+      onStart(e.touches[0].clientY);
+      e.preventDefault();
+    }, {passive:false});
+    handle.addEventListener('touchmove', function(e){
+      if(!e.touches.length) return;
+      onMove(e.touches[0].clientY);
+      e.preventDefault();
+    }, {passive:false});
+    handle.addEventListener('touchend',   onEnd, {passive:true});
+    handle.addEventListener('touchcancel',onEnd, {passive:true});
+    // Mouse drag for desktop testing.
+    handle.addEventListener('mousedown', function(e){
+      onStart(e.clientY); e.preventDefault();
+      function mm(ev){ onMove(ev.clientY); }
+      function mu(){ onEnd(); window.removeEventListener('mousemove',mm); window.removeEventListener('mouseup',mu); }
+      window.addEventListener('mousemove', mm);
+      window.addEventListener('mouseup', mu);
+    });
+    // Show/hide the handle based on whether the page is actually
+    // scrollable. Polled on resize and after each render (buildPuzzle).
+    function syncVisibility(){
+      var doc = document.scrollingElement || document.documentElement;
+      var scrollable = doc.scrollHeight > (doc.clientHeight + 80);
+      handle.style.display = scrollable ? 'flex' : 'none';
+      // If hidden, reset shift to 0 so the bank is docked.
+      if(!scrollable) setShift(0);
+    }
+    window._syncBankHandleVisibility = syncVisibility;
+    // Reset bank position on each new puzzle. buildPuzzle / restart
+    // paths don't all share a single hook, so we expose a reset that
+    // the existing render flow can call. We also reset here on
+    // visibility change (e.g. after a new puzzle re-runs render).
+    window._resetBankShift = function(){ setShift(0); };
+    window.addEventListener('resize', syncVisibility);
+    // Initial sync (after layout settles).
+    requestAnimationFrame(function(){ requestAnimationFrame(syncVisibility); });
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
   }
 })();
 
